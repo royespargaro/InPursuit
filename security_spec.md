@@ -1,22 +1,27 @@
 # Security Specification: InPursuit
 
 ## 1. Data Invariants
-1. **User Data Isolation**: Only the authenticated user whose `request.auth.uid == userId` may `get`, `create`, `update`, or `delete` `/users/{userId}`. Collection listing (`allow list`) on `/users` is strictly disabled (`if false`).
+1. **User Data Isolation**: Only the authenticated user whose `request.auth.uid == userId` may read/write `/users/{userId}` and its v4 subcollections (`lifeAreas`, `goals`, `projects`, `tasks`, `habits`, `habitLogMonths`, `dailyPlans`, `dailyReviews`). Collection listing (`allow list`) on `/users` is strictly disabled (`if false`).
 2. **Verified Identity**: All writes (`create`, `update`, `delete`) require `request.auth.token.email_verified == true`.
-3. **Path Integrity**: `{userId}` MUST satisfy `isValidId(userId)` (`<= 128` chars matching `^[a-zA-Z0-9_-]+$`).
-4. **Strict Schema Enforcement**: Every write to `/users/{userId}` MUST satisfy `isValidUserWorkspace(incoming())` (exact required keys, exact allowed keys via `hasOnly`, `schemaVersion == 3`, `list` types with bounded sizes, non-empty element map checks, and `updatedAt` string <= 40 chars).
-5. **Default Deny**: All other Firestore paths are denied via `match /{document=**} { allow read, write: if false; }`.
+3. **Path Integrity**: `{userId}` and entity IDs MUST satisfy `isValidId(id)` (`1..128` chars matching `^[a-zA-Z0-9_-]+$`); date-keyed docs require `YYYY-MM-DD` / `YYYY-MM`.
+4. **Strict Schema Enforcement & CEL Boundary**:
+   - Every v4 subcollection doc and dailyPlan (`priorityTaskIds[0..2]`) is validated element-by-element in Firestore Rules.
+   - v3 `/users/{userId}` validates required keys, `allowedKeys` (including optional `syncVersion >= 0`), max list sizes, and prevents v3 clients from overwriting migrated `existing().schemaVersion == 4` documents.
+   - Because Firestore Rules CEL cannot iterate arbitrary-length lists (up to 1000 tasks), per-element sanitization inside v3 arrays is enforced client-side by `sanitizeAppData()`, while full per-document rules enforcement applies on v4 subcollections.
+5. **Privilege Isolation (Monetization)**:
+   - `/admins/{userId}` is never writable by clients (`allow write: if false`).
+   - `/entitlements/{userId}` is readable only by its owner or an admin (`allow get`) and writable **only** by `isAdmin()`. Users cannot self-assign `tier: "pro"`.
+   - `/paymentRequests/{requestId}` is **fail-closed** (`allow create: if false`) for direct client writes until a trusted server/Cloud Function backend is implemented to enforce `referenceCode` uniqueness/anti-replay and rate limits. Only `isAdmin()` may transition an existing `'pending'` request to `'approved'` or `'rejected'` with exact plan pricing (`29000` monthly, `249000` annual).
+6. **Default Deny**: All other Firestore paths are denied via `match /{document=**} { allow read, write: if false; }`.
 
 ## 2. Adversarial Payloads Blocked by Rules
-1. **Cross-User Get**: Authenticated user `userA` attempts `get(/users/userB)` -> `PERMISSION_DENIED`.
-2. **Collection Enumeration**: Authenticated user attempts `list(/users)` -> `PERMISSION_DENIED`.
-3. **Cross-User Write**: Authenticated user `userA` attempts `setDoc(/users/userB, ...)` -> `PERMISSION_DENIED`.
-4. **Unauthenticated Access**: Anonymous/signed-out client attempts read or write -> `PERMISSION_DENIED`.
-5. **Unverified Email Write**: Authenticated user with `email_verified: false` attempts write -> `PERMISSION_DENIED`.
-6. **Ghost / Shadow Field Injection**: Write payload containing `role: "admin"` or `isAdmin: true` -> rejected by `hasOnly(allowedKeys)`.
-7. **Missing Required Field**: Write payload missing `dailyReviews` or `habits` -> rejected by `hasAll(reqKeys)`.
-8. **Invalid Schema Version**: Write payload with `schemaVersion: 2` or `schemaVersion: "3"` -> rejected by `schemaVersion is int && schemaVersion == 3`.
-9. **Array Type Spoofing**: Write payload where `tasks` is a string/map or `tasks[0]` is a primitive instead of a map -> rejected by `isBoundedMapList`.
-10. **Denial-of-Wallet Oversized List**: Write payload with `tasks.size() > 1000` or `goals.size() > 200` -> rejected by bounded size checks.
-11. **Malformed Timestamp Overflow**: Write payload with `updatedAt` longer than 40 characters or non-string -> rejected.
-12. **Legacy / Arbitrary Subcollection Write**: Attempt to write `/users/{userId}/habits/h1` or `/other/doc` -> rejected by default deny catch-all.
+1. **Cross-User Get/Write**: User A accesses `/users/userB`, `/users/userB/tasks/*`, or `/entitlements/userB` -> `PERMISSION_DENIED`.
+2. **Collection Enumeration**: Client attempts `list(/users)` or `list(/admins)` or `list(/entitlements)` -> `PERMISSION_DENIED`.
+3. **Self-Granted Pro Privilege Escalation**: User A writes `/entitlements/userA` with `{ tier: "pro", status: "active" }` -> `PERMISSION_DENIED`.
+4. **Client Payment Request Creation / Replay / Price Tampering**: Any client attempt to `create` `/paymentRequests/*` -> `PERMISSION_DENIED`; admin attempts to re-open non-`pending` requests or tamper with pricing -> `PERMISSION_DENIED`.
+5. **Admin Spoofing**: User A writes `/admins/userA` -> `PERMISSION_DENIED`.
+6. **Unauthenticated / Unverified Write**: Anonymous or `email_verified: false` write -> `PERMISSION_DENIED`.
+7. **Ghost / Shadow Field Injection**: Write payload containing `role: "admin"` or `isPro: true` on `/users/{uid}` -> rejected by `hasOnly(...)`.
+8. **Immutable Field Mutation & v4 Downgrade**: Updating `createdAt` on v4 entity docs, mutating `userId`/`createdAt` on `/paymentRequests/*`, or overwriting a v4 `/users/{uid}` doc with a v3 payload -> `PERMISSION_DENIED`.
+9. **Invalid Schema Version, Bad DailyPlan IDs, or Malformed Date Keys**: Writing `dailyReviews/not-a-date`, `priorityTaskIds[1] = "bad id"`, or `schemaVersion: 99` -> `PERMISSION_DENIED`.
+10. **Denial-of-Wallet Oversized Payloads**: Writing strings exceeding max length or lists exceeding `WORKSPACE_LIMITS` -> `PERMISSION_DENIED`.

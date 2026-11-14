@@ -1,18 +1,14 @@
-import { useId, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
-import { AlertCircle, ArrowRight, LoaderCircle } from 'lucide-react';
+import { useState } from 'react';
+import { AlertCircle, ArrowRight, CheckCircle2, LoaderCircle } from 'lucide-react';
 import { useHabits } from '../context/HabitContext';
 import { getReadableAuthError } from '../utils/authErrors';
 import alpineLandscape from '../assets/images/alpine_meadow_sky_1794511898838.jpg';
+import { LegalModal } from './LegalModal';
 import './sign-in.css';
 
 type SignInPageProps = {
   onContinueLocal: () => void;
 };
-
-type AuthMode = 'signin' | 'signup';
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 function TrainPanorama() {
   return (
@@ -54,76 +50,16 @@ function GoogleMark() {
 }
 
 export function SignInPage({ onContinueLocal }: SignInPageProps) {
-  const { signIn, authNotice } = useHabits();
-  const [mode, setMode] = useState<AuthMode>('signin');
-  const [email, setEmail] = useState('');
-  const [touched, setTouched] = useState(false);
-  const [emailError, setEmailError] = useState('');
-  const [emailBusy, setEmailBusy] = useState(false);
+  const { signIn, authNotice, accountNotice, clearAccountNotice } = useHabits();
   const [googleBusy, setGoogleBusy] = useState(false);
-  const [demoNotice, setDemoNotice] = useState('');
   const [authError, setAuthError] = useState('');
+  const [legalDoc, setLegalDoc] = useState<'privacy' | 'terms' | null>(null);
 
-  const emailId = useId();
-  const errorId = useId();
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const validateEmail = (value: string) => {
-    const trimmed = value.trim();
-    if (!trimmed) return 'Enter your email address to continue.';
-    if (!EMAIL_PATTERN.test(trimmed)) return 'Enter a valid email address (for example, name@domain.com).';
-    return '';
-  };
-
-  const switchMode = (nextMode: AuthMode) => {
-    setMode(nextMode);
-    setDemoNotice('');
-    setAuthError('');
-    setEmailError('');
-    setTouched(false);
-    window.requestAnimationFrame(() => inputRef.current?.focus());
-  };
-
-  const handleEmailChange = (value: string) => {
-    setEmail(value);
-    setDemoNotice('');
-    setAuthError('');
-    if (touched) setEmailError(validateEmail(value));
-  };
-
-  const handleEmailBlur = () => {
-    setTouched(true);
-    if (email.trim()) setEmailError(validateEmail(email));
-  };
-
-  const handleSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    setTouched(true);
-    setAuthError('');
-    setDemoNotice('');
-    const validationMessage = validateEmail(email);
-    if (validationMessage) {
-      setEmailError(validationMessage);
-      inputRef.current?.focus();
-      return;
-    }
-
-    setEmailError('');
-    setEmailBusy(true);
-    window.setTimeout(() => {
-      setEmailBusy(false);
-      const trimmed = email.trim();
-      setDemoNotice(
-        mode === 'signup'
-          ? `Demonstration only: email account creation for ${trimmed} is not connected here. Use Continue with Google or enter the local workspace.`
-          : `Demonstration only: email sign-in for ${trimmed} is not connected here. Use Continue with Google or enter the local workspace.`
-      );
-    }, 320);
-  };
+  const hour = new Date().getHours();
+  const timeGreeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
   const handleGoogleSignIn = async () => {
     setAuthError('');
-    setDemoNotice('');
     setGoogleBusy(true);
     try {
       await signIn();
@@ -134,29 +70,16 @@ export function SignInPage({ onContinueLocal }: SignInPageProps) {
     }
   };
 
-  const isBusy = emailBusy || googleBusy;
-
   return (
     <div className="train-auth-shell">
       <header className="carriage-topbar">
-        <a
-          href="#top"
-          className="carriage-brand"
-          onClick={e => {
-            e.preventDefault();
-            switchMode('signin');
-          }}
-        >
+        <a href="#top" className="carriage-brand" onClick={e => e.preventDefault()}>
           <img className="carriage-brand-mark" src="/inpursuit-mark.svg" alt="" />
           <span className="carriage-brand-name">InPursuit</span>
         </a>
 
-        <button
-          type="button"
-          className="carriage-top-link"
-          onClick={() => switchMode(mode === 'signin' ? 'signup' : 'signin')}
-        >
-          {mode === 'signin' ? 'Create an account' : 'Back to sign in'}
+        <button type="button" className="carriage-top-link" onClick={onContinueLocal}>
+          Local workspace
         </button>
       </header>
 
@@ -164,7 +87,6 @@ export function SignInPage({ onContinueLocal }: SignInPageProps) {
         <div className="carriage-windows">
           <TrainPanorama />
 
-          {/* Left partial side window */}
           <div className="train-window side-window side-left" aria-hidden="true">
             <div className="window-glass-sheen" />
             <div className="window-rubber-seal" />
@@ -173,7 +95,6 @@ export function SignInPage({ onContinueLocal }: SignInPageProps) {
 
           <div className="carriage-pillar pillar-left" aria-hidden="true" />
 
-          {/* Central primary window */}
           <section className="train-window main-window" aria-labelledby="signin-heading">
             <div className="window-scrim" aria-hidden="true" />
             <div className="window-glass-sheen" aria-hidden="true" />
@@ -181,71 +102,42 @@ export function SignInPage({ onContinueLocal }: SignInPageProps) {
             <div className="window-bezel" aria-hidden="true" />
 
             <div className="signin-frame-content">
-              <div className="signin-badge">Good evening</div>
+              <div className="signin-badge">{timeGreeting}</div>
 
               <h1 id="signin-heading" className="signin-heading">
-                {mode === 'signin' ? 'Welcome back.' : 'Create your account.'}
+                Direction, then action.
               </h1>
 
               <p className="signin-subtitle">
-                {mode === 'signin'
-                  ? 'Pick up where you left off. Your three priorities are waiting.'
-                  : 'Set up your focused space for goals, habits, and daily priorities.'}
+                Sign in with Google to keep your goals, projects, habits, and daily reviews synced across devices.
               </p>
 
-              <form className="signin-form" noValidate onSubmit={handleSubmit}>
-                <div className="signin-field">
-                  <label htmlFor={emailId} className="signin-label">
-                    Email address
-                  </label>
-                  <input
-                    ref={inputRef}
-                    id={emailId}
-                    type="email"
-                    name="email"
-                    autoComplete="email"
-                    inputMode="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    disabled={isBusy}
-                    aria-invalid={Boolean(emailError)}
-                    aria-describedby={emailError ? errorId : undefined}
-                    className={`signin-input${emailError ? ' has-error' : ''}`}
-                    onChange={e => handleEmailChange(e.target.value)}
-                    onBlur={handleEmailBlur}
-                  />
-                  {emailError && (
-                    <p id={errorId} className="signin-field-error" role="alert">
-                      <AlertCircle size={14} aria-hidden="true" />
-                      <span>{emailError}</span>
-                    </p>
-                  )}
-                </div>
+              <button
+                type="button"
+                className="signin-btn-google"
+                disabled={googleBusy}
+                onClick={handleGoogleSignIn}
+              >
+                {googleBusy ? (
+                  <>
+                    <LoaderCircle size={16} className="signin-spin" aria-hidden="true" />
+                    <span>Connecting to Google…</span>
+                  </>
+                ) : (
+                  <>
+                    <GoogleMark />
+                    <span>Continue with Google</span>
+                    <ArrowRight size={15} className="signin-arrow" aria-hidden="true" />
+                  </>
+                )}
+              </button>
 
-                <button
-                  type="submit"
-                  className="signin-btn-primary"
-                  disabled={isBusy}
-                >
-                  {emailBusy ? (
-                    <>
-                      <LoaderCircle size={16} className="signin-spin" aria-hidden="true" />
-                      <span>Checking…</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Continue</span>
-                      <ArrowRight size={16} className="signin-arrow" aria-hidden="true" />
-                    </>
-                  )}
-                </button>
-              </form>
-
-              {demoNotice && (
-                <div className="signin-notice" role="status">
-                  <p>{demoNotice}</p>
-                  <button type="button" className="signin-notice-link" onClick={onContinueLocal}>
-                    Open local workspace
+              {accountNotice && !authError && !authNotice && (
+                <div className="signin-auth-success" role="status">
+                  <CheckCircle2 size={15} aria-hidden="true" />
+                  <span>{accountNotice}</span>
+                  <button type="button" className="signin-notice-link" onClick={clearAccountNotice}>
+                    Dismiss
                   </button>
                 </div>
               )}
@@ -263,64 +155,24 @@ export function SignInPage({ onContinueLocal }: SignInPageProps) {
 
               <button
                 type="button"
-                className="signin-btn-google"
-                disabled={isBusy}
-                onClick={handleGoogleSignIn}
+                className="signin-btn-primary"
+                disabled={googleBusy}
+                onClick={onContinueLocal}
               >
-                {googleBusy ? (
-                  <>
-                    <LoaderCircle size={16} className="signin-spin" aria-hidden="true" />
-                    <span>Connecting to Google…</span>
-                  </>
-                ) : (
-                  <>
-                    <GoogleMark />
-                    <span>Continue with Google</span>
-                  </>
-                )}
+                <span>Continue locally on this device</span>
               </button>
 
               <p className="signin-footer">
-                {mode === 'signin' ? (
-                  <>
-                    New here?{' '}
-                    <button
-                      type="button"
-                      className="signin-footer-link"
-                      onClick={() => switchMode('signup')}
-                    >
-                      Create an account.
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    Already have an account?{' '}
-                    <button
-                      type="button"
-                      className="signin-footer-link"
-                      onClick={() => switchMode('signin')}
-                    >
-                      Sign in.
-                    </button>
-                  </>
-                )}
+                Local workspaces stay in this browser and can be backed up or synced anytime.{' '}
+                <button type="button" className="text-link" onClick={() => setLegalDoc('privacy')}>Privacy</button>
+                {' · '}
+                <button type="button" className="text-link" onClick={() => setLegalDoc('terms')}>Terms</button>
               </p>
-
-              <div className="signin-local-wrap">
-                <button
-                  type="button"
-                  className="signin-local-btn"
-                  onClick={onContinueLocal}
-                >
-                  Continue locally on this device
-                </button>
-              </div>
             </div>
           </section>
 
           <div className="carriage-pillar pillar-right" aria-hidden="true" />
 
-          {/* Right partial side window */}
           <div className="train-window side-window side-right" aria-hidden="true">
             <div className="window-glass-sheen" />
             <div className="window-rubber-seal" />
@@ -328,12 +180,13 @@ export function SignInPage({ onContinueLocal }: SignInPageProps) {
           </div>
         </div>
 
-        {/* Lower carriage metallic sill rail and upholstered corner seats */}
         <div className="carriage-sill" aria-hidden="true" />
         <div className="carriage-lower-panel" aria-hidden="true" />
         <div className="carriage-seat carriage-seat-left" aria-hidden="true" />
         <div className="carriage-seat carriage-seat-right" aria-hidden="true" />
       </main>
+
+      {legalDoc && <LegalModal section={legalDoc} onClose={() => setLegalDoc(null)} />}
     </div>
   );
 }

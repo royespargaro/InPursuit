@@ -7,18 +7,27 @@ import type {
   HabitLog,
   LifeArea,
   Priority,
+  Project,
   Status,
   SyncMeta,
   TaskStatus,
+  WorkspaceMetaV4,
   WorkspaceSummary,
 } from '../types';
 import { localDateKey } from '../utils/habitUtils';
+import { enforceActiveProjectLimit, MAX_ACTIVE_PROJECTS } from '../utils/projectLimits';
 
-const STORAGE_KEY = 'habitloop.execution.v2';
-const LEGACY_KEY = 'habitmatrix.v1';
-const RECOVERY_KEY = `${STORAGE_KEY}.recovery`;
-const ACCOUNT_KEY_PREFIX = 'inpursuit.account.v3.';
-const SYNC_META_PREFIX = 'inpursuit.syncmeta.v3.';
+export const STORAGE_KEY = 'habitloop.execution.v2';
+export const LEGACY_KEY = 'habitmatrix.v1';
+export const RECOVERY_KEY = `${STORAGE_KEY}.recovery`;
+export const ACCOUNT_KEY_PREFIX = 'inpursuit.account.v3.';
+export const SYNC_META_PREFIX = 'inpursuit.syncmeta.v3.';
+export const SYNC_BASE_PREFIX = 'inpursuit.syncbase.v3.';
+export const GUEST_DIRTY_KEY = 'inpursuit.guest_dirty.v1';
+export const LOCAL_MODE_STORAGE_KEY = 'inpursuit.local_mode';
+export const ONBOARDING_KEY_PREFIX = 'inpursuit.onboarding.v1.';
+export const ACCOUNT_DELETION_STATE_KEY = 'inpursuit.deletion_state.v1';
+
 let recoveryNotice = '';
 
 export const WORKSPACE_LIMITS = {
@@ -34,12 +43,14 @@ export const WORKSPACE_LIMITS = {
 
 const STARTER_HABIT_NAMES = [
   'Wake up on time',
-  'Prayer / spiritual practice',
+  'Plan top priorities',
   'Move my body',
-  'Deep work',
-  'Read / learn',
-  'Sleep on time',
+  'Focused deep work',
+  'Read or learn',
+  'Evening wind-down',
 ] as const;
+
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const id = () => globalThis.crypto?.randomUUID?.() ?? `hl-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
@@ -246,7 +257,8 @@ function isValidData(value: unknown): value is StoredAppData {
     value.dailyPlans.every(isDailyPlan) &&
     Array.isArray(value.dailyReviews) &&
     value.dailyReviews.every(isDailyReview) &&
-    (value.updatedAt === undefined || isString(value.updatedAt))
+    (value.updatedAt === undefined || isString(value.updatedAt)) &&
+    (value.syncVersion === undefined || (typeof value.syncVersion === 'number' && Number.isInteger(value.syncVersion) && value.syncVersion >= 0))
   );
 }
 
@@ -263,15 +275,30 @@ function dedupeById<T extends { id: string }>(items: readonly T[]): T[] {
   return out;
 }
 
+const clampStr = (value: string, max: number) => (value.length > max ? value.slice(0, max) : value);
+
 export function sanitizeAppData(data: AppData): AppData {
-  const lifeAreas = dedupeById(data.lifeAreas).slice(0, WORKSPACE_LIMITS.lifeAreas);
+  const lifeAreas = dedupeById(data.lifeAreas)
+    .slice(0, WORKSPACE_LIMITS.lifeAreas)
+    .map(area => ({
+      ...area,
+      id: clampStr(area.id, 128),
+      name: clampStr(area.name, 160),
+      description: clampStr(area.description, 1000),
+      createdAt: clampStr(area.createdAt, 40),
+    }));
   const lifeAreaIds = new Set(lifeAreas.map(a => a.id));
 
   const goals = dedupeById(data.goals)
     .slice(0, WORKSPACE_LIMITS.goals)
     .map(goal => ({
       ...goal,
+      id: clampStr(goal.id, 128),
       lifeAreaId: goal.lifeAreaId && lifeAreaIds.has(goal.lifeAreaId) ? goal.lifeAreaId : null,
+      title: clampStr(goal.title, 240),
+      outcome: clampStr(goal.outcome, 2000),
+      targetDate: clampStr(goal.targetDate, 20),
+      createdAt: clampStr(goal.createdAt, 40),
     }));
   const goalIds = new Set(goals.map(g => g.id));
 
@@ -279,7 +306,12 @@ export function sanitizeAppData(data: AppData): AppData {
     .slice(0, WORKSPACE_LIMITS.projects)
     .map(project => ({
       ...project,
+      id: clampStr(project.id, 128),
       goalId: project.goalId && goalIds.has(project.goalId) ? project.goalId : null,
+      title: clampStr(project.title, 240),
+      description: clampStr(project.description, 2000),
+      dueDate: clampStr(project.dueDate, 20),
+      createdAt: clampStr(project.createdAt, 40),
     }));
   const projectIds = new Set(projects.map(p => p.id));
 
@@ -287,26 +319,47 @@ export function sanitizeAppData(data: AppData): AppData {
     .slice(0, WORKSPACE_LIMITS.tasks)
     .map(task => ({
       ...task,
+      id: clampStr(task.id, 128),
       projectId: task.projectId && projectIds.has(task.projectId) ? task.projectId : null,
+      title: clampStr(task.title, 240),
+      dueDate: clampStr(task.dueDate, 20),
+      createdAt: clampStr(task.createdAt, 40),
+      completedAt: task.completedAt ? clampStr(task.completedAt, 40) : null,
     }));
   const taskIds = new Set(tasks.map(t => t.id));
 
-  const habits = dedupeById(data.habits).slice(0, WORKSPACE_LIMITS.habits);
+  const habits = dedupeById(data.habits)
+    .slice(0, WORKSPACE_LIMITS.habits)
+    .map(habit => ({
+      ...habit,
+      id: clampStr(habit.id, 128),
+      name: clampStr(habit.name, 160),
+      createdAt: clampStr(habit.createdAt, 40),
+    }));
   const habitIds = new Set(habits.map(h => h.id));
 
   const seenLogs = new Set<string>();
   const habitLogs: HabitLog[] = [];
   for (const log of data.habitLogs) {
     if (!habitIds.has(log.habitId)) continue;
-    const key = `${log.habitId}:${log.date}`;
+    const dateKey = clampStr(log.date, 20);
+    if (!DATE_KEY_RE.test(dateKey)) continue;
+    const key = `${log.habitId}:${dateKey}`;
     if (seenLogs.has(key)) continue;
     seenLogs.add(key);
-    habitLogs.push(log);
+    habitLogs.push({
+      ...log,
+      id: clampStr(log.id, 128),
+      habitId: clampStr(log.habitId, 128),
+      date: dateKey,
+    });
     if (habitLogs.length >= WORKSPACE_LIMITS.habitLogs) break;
   }
 
   const planByDate = new Map<string, DailyPlan>();
   for (const plan of data.dailyPlans) {
+    const dateKey = clampStr(plan.date, 20);
+    if (!DATE_KEY_RE.test(dateKey)) continue;
     const validIds: string[] = [];
     const seenIds = new Set<string>();
     for (const taskId of plan.priorityTaskIds) {
@@ -316,17 +369,22 @@ export function sanitizeAppData(data: AppData): AppData {
       }
       if (validIds.length >= 3) break;
     }
-    planByDate.set(plan.date, { date: plan.date, priorityTaskIds: validIds });
+    planByDate.set(dateKey, { date: dateKey, priorityTaskIds: validIds });
   }
   const dailyPlans = [...planByDate.values()].slice(-WORKSPACE_LIMITS.dailyPlans);
 
   const reviewByDate = new Map<string, DailyReview>();
   for (const review of data.dailyReviews) {
-    const existing = reviewByDate.get(review.date);
+    const dateKey = clampStr(review.date, 20);
+    if (!DATE_KEY_RE.test(dateKey)) continue;
+    const existing = reviewByDate.get(dateKey);
     const hasText = Boolean(review.wins.trim() || review.blockers.trim() || review.notes.trim());
     if (!existing || hasText) {
-      reviewByDate.set(review.date, {
-        ...review,
+      reviewByDate.set(dateKey, {
+        date: dateKey,
+        wins: clampStr(review.wins, 4000),
+        blockers: clampStr(review.blockers, 4000),
+        notes: clampStr(review.notes, 4000),
         energy: Math.min(5, Math.max(1, Math.round(review.energy))),
       });
     }
@@ -344,6 +402,9 @@ export function sanitizeAppData(data: AppData): AppData {
     dailyPlans,
     dailyReviews,
   };
+  if (typeof data.syncVersion === 'number' && Number.isInteger(data.syncVersion) && data.syncVersion >= 0) {
+    normalized.syncVersion = data.syncVersion;
+  }
   if (typeof data.updatedAt === 'string' && data.updatedAt) {
     normalized.updatedAt = data.updatedAt.slice(0, 40);
   }
@@ -363,6 +424,35 @@ export function normalizeStoredData(data: StoredAppData): AppData {
 export function normalizeRemoteOrNull(value: unknown): AppData | null {
   if (!isValidData(value)) return null;
   return normalizeStoredData(value);
+}
+
+export type RemoteSnapshotClassification =
+  | { kind: 'valid-v3'; data: AppData; syncVersion: number }
+  | { kind: 'incompatible-v4'; schemaVersion: number; meta: WorkspaceMetaV4 }
+  | { kind: 'invalid' };
+
+export function classifyRemoteSnapshot(value: unknown): RemoteSnapshotClassification {
+  if (isRecord(value) && typeof value.schemaVersion === 'number' && value.schemaVersion >= 4) {
+    const meta: WorkspaceMetaV4 = {
+      schemaVersion: 4,
+      migrationStatus: value.migrationStatus === 'pending' ? 'pending' : 'completed',
+      migratedFromSchema: value.migratedFromSchema === 3 ? 3 : undefined,
+      updatedAt: isString(value.updatedAt) ? value.updatedAt.slice(0, 40) : new Date().toISOString(),
+    };
+    return { kind: 'incompatible-v4', schemaVersion: value.schemaVersion, meta };
+  }
+  const normalized = normalizeRemoteOrNull(value);
+  if (!normalized) return { kind: 'invalid' };
+  const syncVersion =
+    typeof normalized.syncVersion === 'number' && Number.isInteger(normalized.syncVersion) && normalized.syncVersion >= 0
+      ? normalized.syncVersion
+      : 0;
+  return { kind: 'valid-v3', data: normalized, syncVersion };
+}
+
+export function computeWorkspaceHash(data: AppData): string {
+  const { updatedAt: _omitUpdated, syncVersion: _omitVersion, ...content } = sanitizeAppData(data);
+  return JSON.stringify(content);
 }
 
 function preserveForRecovery(raw: string, recoveryKey = RECOVERY_KEY): void {
@@ -400,6 +490,32 @@ export function saveData(data: AppData): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitizeAppData(data)));
 }
 
+export function isGuestDirty(): boolean {
+  try {
+    return localStorage.getItem(GUEST_DIRTY_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function setGuestDirty(dirty: boolean): void {
+  try {
+    if (dirty) localStorage.setItem(GUEST_DIRTY_KEY, '1');
+    else localStorage.removeItem(GUEST_DIRTY_KEY);
+  } catch {
+    // Ignore storage quota/restriction
+  }
+}
+
+export function clearGuestWorkspace(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(GUEST_DIRTY_KEY);
+  } catch {
+    // Ignore storage restriction
+  }
+}
+
 export function loadAccountData(uid: string): AppData | null {
   try {
     const key = `${ACCOUNT_KEY_PREFIX}${uid}`;
@@ -422,18 +538,42 @@ export function saveAccountData(uid: string, data: AppData): void {
   localStorage.setItem(`${ACCOUNT_KEY_PREFIX}${uid}`, JSON.stringify(sanitizeAppData(data)));
 }
 
+export function loadSyncBase(uid: string): AppData | null {
+  try {
+    const raw = localStorage.getItem(`${SYNC_BASE_PREFIX}${uid}`);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    return isValidData(parsed) ? normalizeStoredData(parsed) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveSyncBase(uid: string, data: AppData): void {
+  try {
+    localStorage.setItem(`${SYNC_BASE_PREFIX}${uid}`, JSON.stringify(sanitizeAppData(data)));
+  } catch {
+    // Best-effort sync base snapshot
+  }
+}
+
 export function loadSyncMeta(uid: string): SyncMeta {
   try {
     const raw = localStorage.getItem(`${SYNC_META_PREFIX}${uid}`);
-    if (!raw) return { pendingSync: false, lastSyncedAt: null };
+    if (!raw) return { pendingSync: false, lastSyncedAt: null, lastUpdatedByTab: null, remoteSyncVersion: null };
     const parsed: unknown = JSON.parse(raw);
-    if (!isRecord(parsed)) return { pendingSync: false, lastSyncedAt: null };
+    if (!isRecord(parsed)) return { pendingSync: false, lastSyncedAt: null, lastUpdatedByTab: null, remoteSyncVersion: null };
     return {
       pendingSync: parsed.pendingSync === true,
       lastSyncedAt: isString(parsed.lastSyncedAt) ? parsed.lastSyncedAt : null,
+      lastUpdatedByTab: isString(parsed.lastUpdatedByTab) ? parsed.lastUpdatedByTab : null,
+      remoteSyncVersion:
+        typeof parsed.remoteSyncVersion === 'number' && Number.isInteger(parsed.remoteSyncVersion) && parsed.remoteSyncVersion >= 0
+          ? parsed.remoteSyncVersion
+          : null,
     };
   } catch {
-    return { pendingSync: false, lastSyncedAt: null };
+    return { pendingSync: false, lastSyncedAt: null, lastUpdatedByTab: null, remoteSyncVersion: null };
   }
 }
 
@@ -442,6 +582,74 @@ export function saveSyncMeta(uid: string, meta: SyncMeta): void {
     localStorage.setItem(`${SYNC_META_PREFIX}${uid}`, JSON.stringify(meta));
   } catch {
     // Best-effort sync metadata persistence.
+  }
+}
+
+export interface DeletionBroadcastRecord {
+  uid: string;
+  phase: 'deleting' | 'deleted' | 'partial-failure';
+  updatedAt: string;
+}
+
+export function readDeletionBroadcast(): DeletionBroadcastRecord | null {
+  try {
+    const raw = localStorage.getItem(ACCOUNT_DELETION_STATE_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      !isRecord(parsed) ||
+      !isString(parsed.uid) ||
+      (parsed.phase !== 'deleting' && parsed.phase !== 'deleted' && parsed.phase !== 'partial-failure')
+    ) {
+      return null;
+    }
+    return {
+      uid: parsed.uid,
+      phase: parsed.phase,
+      updatedAt: isString(parsed.updatedAt) ? parsed.updatedAt : '',
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function writeDeletionBroadcast(uid: string, phase: DeletionBroadcastRecord['phase']): void {
+  try {
+    localStorage.setItem(
+      ACCOUNT_DELETION_STATE_KEY,
+      JSON.stringify({ uid, phase, updatedAt: new Date().toISOString() }),
+    );
+  } catch {
+    // Best-effort cross-tab broadcast
+  }
+}
+
+export function clearDeletionBroadcast(uid?: string): void {
+  try {
+    if (uid) {
+      const current = readDeletionBroadcast();
+      if (!current || current.uid !== uid) return;
+    }
+    localStorage.removeItem(ACCOUNT_DELETION_STATE_KEY);
+  } catch {
+    // Ignore storage cleanup restrictions
+  }
+}
+
+export function clearAccountStorage(uid: string, options?: { preserveRecoveryCopy?: boolean }): void {
+  try {
+    if (options?.preserveRecoveryCopy) {
+      const existing = localStorage.getItem(`${ACCOUNT_KEY_PREFIX}${uid}`);
+      if (existing) localStorage.setItem(`${ACCOUNT_KEY_PREFIX}${uid}.recovery`, existing);
+    } else {
+      localStorage.removeItem(`${ACCOUNT_KEY_PREFIX}${uid}.recovery`);
+    }
+    localStorage.removeItem(`${ACCOUNT_KEY_PREFIX}${uid}`);
+    localStorage.removeItem(`${SYNC_META_PREFIX}${uid}`);
+    localStorage.removeItem(`${SYNC_BASE_PREFIX}${uid}`);
+    localStorage.removeItem(`${ONBOARDING_KEY_PREFIX}${uid}`);
+  } catch {
+    // Ignore storage cleanup restrictions
   }
 }
 
@@ -474,97 +682,379 @@ export function hasMeaningfulWorkspaceData(data: AppData): boolean {
   return data.habits.some(h => !starterSet.has(h.name));
 }
 
-export function mergeWorkspaceData(cloud: AppData, local: AppData): AppData {
+function mergeKeyedCollection<T>(
+  baseItems: readonly T[],
+  localItems: readonly T[],
+  remoteItems: readonly T[],
+  keyOf: (item: T) => string,
+  preferLocalOnConflict: boolean,
+): T[] {
+  const baseMap = new Map(baseItems.map(item => [keyOf(item), item]));
+  const localMap = new Map(localItems.map(item => [keyOf(item), item]));
+  const remoteMap = new Map(remoteItems.map(item => [keyOf(item), item]));
+
+  const allKeys: string[] = [];
+  const seen = new Set<string>();
+  for (const list of [remoteItems, localItems]) {
+    for (const item of list) {
+      const k = keyOf(item);
+      if (!seen.has(k)) {
+        seen.add(k);
+        allKeys.push(k);
+      }
+    }
+  }
+
+  const out: T[] = [];
+  for (const key of allKeys) {
+    const b = baseMap.get(key);
+    const l = localMap.get(key);
+    const r = remoteMap.get(key);
+    const bJson = b ? JSON.stringify(b) : null;
+    const lJson = l ? JSON.stringify(l) : null;
+    const rJson = r ? JSON.stringify(r) : null;
+
+    if (l && r) {
+      if (lJson === rJson) {
+        out.push(r);
+      } else if (bJson && lJson === bJson) {
+        out.push(r); // Local unchanged, remote updated
+      } else if (bJson && rJson === bJson) {
+        out.push(l); // Remote unchanged, local updated
+      } else {
+        out.push(preferLocalOnConflict ? l : r);
+      }
+    } else if (l && !r) {
+      // Present locally, absent remotely: keep if newly added or edited locally vs deleted remotely when preferLocal
+      if (!b || (lJson !== bJson && preferLocalOnConflict)) {
+        out.push(l);
+      }
+    } else if (!l && r) {
+      // Present remotely, absent locally: keep if newly added remotely or edited remotely vs deleted locally
+      if (!b || (rJson !== bJson && !preferLocalOnConflict)) {
+        out.push(r);
+      }
+    }
+  }
+  return out;
+}
+
+function mergeReviewFields(primary: DailyReview, secondary: DailyReview): DailyReview {
+  const combineText = (a: string, b: string, label: string, max = 4000): string => {
+    const cleanA = a.trim();
+    const cleanB = b.trim();
+    if (!cleanA) return clampStr(b, max);
+    if (!cleanB || cleanA === cleanB) return clampStr(a, max);
+    if (cleanA.includes(cleanB)) return clampStr(a, max);
+    if (cleanB.includes(cleanA)) return clampStr(b, max);
+    return clampStr(`${a}\n\n[${label}]\n${b}`, max);
+  };
+
+  return {
+    date: primary.date,
+    wins: combineText(primary.wins, secondary.wins, 'Merged entry'),
+    blockers: combineText(primary.blockers, secondary.blockers, 'Merged entry'),
+    notes: combineText(primary.notes, secondary.notes, 'Merged entry'),
+    energy: Math.min(5, Math.max(1, Math.round((primary.energy + secondary.energy) / 2))),
+  };
+}
+
+export function applySelectedActiveProjects(
+  projects: readonly Project[],
+  selectedActiveProjectIds?: readonly string[],
+): { projects: Project[]; archivedCount: number } {
+  if (!selectedActiveProjectIds || selectedActiveProjectIds.length === 0) {
+    return enforceActiveProjectLimit(projects);
+  }
+  const chosenSet = new Set(selectedActiveProjectIds.slice(0, MAX_ACTIVE_PROJECTS));
+  let archivedCount = 0;
+  const updated = projects.map(project => {
+    if (project.status !== 'active') return project;
+    if (chosenSet.has(project.id)) return project;
+    archivedCount += 1;
+    return { ...project, status: 'archived' as const };
+  });
+  return enforceActiveProjectLimit(updated).archivedCount > 0
+    ? { ...enforceActiveProjectLimit(updated), archivedCount: archivedCount + enforceActiveProjectLimit(updated).archivedCount }
+    : { projects: updated, archivedCount };
+}
+
+export interface DetailedMergeResult {
+  data: AppData;
+  uncappedProjects: Project[];
+  activeProjects: Project[];
+  exceedsProjectLimit: boolean;
+  archivedExcessCount: number;
+}
+
+export function threeWayMergeWorkspaceDetailed(
+  base: AppData,
+  local: AppData,
+  remote: AppData,
+  preferLocalOnConflict = true,
+  selectedActiveProjectIds?: readonly string[],
+): DetailedMergeResult {
+  const lifeAreas = mergeKeyedCollection(base.lifeAreas, local.lifeAreas, remote.lifeAreas, x => x.id, preferLocalOnConflict);
+  const goals = mergeKeyedCollection(base.goals, local.goals, remote.goals, x => x.id, preferLocalOnConflict);
+  const rawProjects = mergeKeyedCollection(base.projects, local.projects, remote.projects, x => x.id, preferLocalOnConflict);
+  const tasks = mergeKeyedCollection(base.tasks, local.tasks, remote.tasks, x => x.id, preferLocalOnConflict);
+  const habits = mergeKeyedCollection(base.habits, local.habits, remote.habits, x => x.id, preferLocalOnConflict);
+  const habitLogs = mergeKeyedCollection(
+    base.habitLogs,
+    local.habitLogs,
+    remote.habitLogs,
+    x => `${x.habitId}:${x.date}`,
+    preferLocalOnConflict,
+  );
+  const dailyPlans = mergeKeyedCollection(base.dailyPlans, local.dailyPlans, remote.dailyPlans, x => x.date, preferLocalOnConflict);
+
+  // Merge conflicting same-date DailyReview edits cleanly rather than silently dropping one side
+  const baseReviewMap = new Map(base.dailyReviews.map(r => [r.date, r]));
+  const localReviewMap = new Map(local.dailyReviews.map(r => [r.date, r]));
+  const remoteReviewMap = new Map(remote.dailyReviews.map(r => [r.date, r]));
+  const reviewDates = [...new Set([...remote.dailyReviews.map(r => r.date), ...local.dailyReviews.map(r => r.date)])];
+  const dailyReviews: DailyReview[] = [];
+  for (const date of reviewDates) {
+    const b = baseReviewMap.get(date);
+    const l = localReviewMap.get(date);
+    const r = remoteReviewMap.get(date);
+    if (l && r) {
+      const bJson = b ? JSON.stringify(b) : null;
+      const lJson = JSON.stringify(l);
+      const rJson = JSON.stringify(r);
+      if (lJson === rJson) dailyReviews.push(r);
+      else if (bJson && lJson === bJson) dailyReviews.push(r);
+      else if (bJson && rJson === bJson) dailyReviews.push(l);
+      else dailyReviews.push(mergeReviewFields(preferLocalOnConflict ? l : r, preferLocalOnConflict ? r : l));
+    } else if (l && !r) {
+      if (!b || JSON.stringify(l) !== JSON.stringify(b)) dailyReviews.push(l);
+    } else if (!l && r) {
+      if (!b || JSON.stringify(r) !== JSON.stringify(b)) dailyReviews.push(r);
+    }
+  }
+
+  const uncappedActive = rawProjects.filter(p => p.status === 'active');
+  const applied = applySelectedActiveProjects(rawProjects, selectedActiveProjectIds);
+
+  const data = sanitizeAppData({
+    schemaVersion: 3,
+    lifeAreas,
+    goals,
+    projects: applied.projects,
+    tasks,
+    habits,
+    habitLogs,
+    dailyPlans,
+    dailyReviews,
+    updatedAt: new Date().toISOString(),
+  });
+
+  return {
+    data,
+    uncappedProjects: rawProjects,
+    activeProjects: uncappedActive,
+    exceedsProjectLimit: uncappedActive.length > MAX_ACTIVE_PROJECTS,
+    archivedExcessCount: applied.archivedCount,
+  };
+}
+
+export function threeWayMergeWorkspace(
+  base: AppData,
+  local: AppData,
+  remote: AppData,
+  preferLocalOnConflict = true,
+): AppData {
+  return threeWayMergeWorkspaceDetailed(base, local, remote, preferLocalOnConflict).data;
+}
+
+function makeUniqueLabeledTitle(baseTitle: string, usedLowerTitles: Set<string>, suffix = '(Local)'): string {
+  const clean = baseTitle.trim() || 'Untitled';
+  const candidate1 = `${clean} ${suffix}`;
+  if (!usedLowerTitles.has(candidate1.toLocaleLowerCase())) return candidate1;
+  let counter = 2;
+  while (usedLowerTitles.has(`${clean} ${suffix} ${counter}`.toLocaleLowerCase())) {
+    counter += 1;
+  }
+  return `${clean} ${suffix} ${counter}`;
+}
+
+export function mergeWorkspaceDataDetailed(
+  cloud: AppData,
+  local: AppData,
+  selectedActiveProjectIds?: readonly string[],
+): DetailedMergeResult {
   const keyOf = (s: string) => s.trim().toLocaleLowerCase();
 
   const lifeAreas = [...cloud.lifeAreas];
-  const areaByName = new Map(lifeAreas.map(a => [keyOf(a.name), a.id]));
+  const areaById = new Map(lifeAreas.map(a => [a.id, a]));
+  const areaByName = new Map(lifeAreas.map(a => [keyOf(a.name), a]));
+  const areaNamesUsed = new Set(lifeAreas.map(a => keyOf(a.name)));
   const areaIdMap = new Map<string, string>();
   for (const area of local.lifeAreas) {
-    const existingId = areaByName.get(keyOf(area.name)) ?? lifeAreas.find(a => a.id === area.id)?.id;
-    if (existingId) {
-      areaIdMap.set(area.id, existingId);
+    const matched = areaByName.get(keyOf(area.name)) ?? areaById.get(area.id);
+    if (matched) {
+      areaIdMap.set(area.id, matched.id);
+      if (area.description.trim() && area.description.trim() !== matched.description.trim()) {
+        const mergedDesc = matched.description.trim()
+          ? clampStr(`${matched.description.trim()} · ${area.description.trim()}`, 1000)
+          : clampStr(area.description, 1000);
+        const idx = lifeAreas.findIndex(a => a.id === matched.id);
+        if (idx >= 0) lifeAreas[idx] = { ...lifeAreas[idx], description: mergedDesc };
+      }
     } else {
-      lifeAreas.push(area);
-      areaByName.set(keyOf(area.name), area.id);
-      areaIdMap.set(area.id, area.id);
+      const nextId = areaById.has(area.id) ? id() : area.id;
+      const nextName = areaNamesUsed.has(keyOf(area.name)) ? makeUniqueLabeledTitle(area.name, areaNamesUsed) : area.name;
+      const added = { ...area, id: nextId, name: clampStr(nextName, 160) };
+      lifeAreas.push(added);
+      areaById.set(added.id, added);
+      areaByName.set(keyOf(added.name), added);
+      areaNamesUsed.add(keyOf(added.name));
+      areaIdMap.set(area.id, added.id);
     }
   }
 
   const goals = [...cloud.goals];
-  const goalByTitle = new Map(goals.map(g => [keyOf(g.title), g.id]));
+  const goalById = new Map(goals.map(g => [g.id, g]));
+  const goalByTitle = new Map(goals.map(g => [keyOf(g.title), g]));
+  const goalTitlesUsed = new Set(goals.map(g => keyOf(g.title)));
   const goalIdMap = new Map<string, string>();
   for (const goal of local.goals) {
-    const existingId = goalByTitle.get(keyOf(goal.title)) ?? goals.find(g => g.id === goal.id)?.id;
-    if (existingId) {
-      goalIdMap.set(goal.id, existingId);
+    const mappedAreaId = goal.lifeAreaId ? (areaIdMap.get(goal.lifeAreaId) ?? goal.lifeAreaId) : null;
+    const matched = goalByTitle.get(keyOf(goal.title)) ?? goalById.get(goal.id);
+    const sameMeaning =
+      matched &&
+      keyOf(matched.title) === keyOf(goal.title) &&
+      matched.outcome.trim() === goal.outcome.trim() &&
+      matched.targetDate === goal.targetDate &&
+      matched.status === goal.status;
+
+    if (matched && sameMeaning) {
+      goalIdMap.set(goal.id, matched.id);
     } else {
-      goals.push({
+      const nextId = goalById.has(goal.id) ? id() : goal.id;
+      const nextTitle = goalTitlesUsed.has(keyOf(goal.title)) ? makeUniqueLabeledTitle(goal.title, goalTitlesUsed) : goal.title;
+      const added = {
         ...goal,
-        lifeAreaId: goal.lifeAreaId ? (areaIdMap.get(goal.lifeAreaId) ?? goal.lifeAreaId) : null,
-      });
-      goalByTitle.set(keyOf(goal.title), goal.id);
-      goalIdMap.set(goal.id, goal.id);
+        id: nextId,
+        title: clampStr(nextTitle, 240),
+        lifeAreaId: mappedAreaId,
+      };
+      goals.push(added);
+      goalById.set(added.id, added);
+      goalByTitle.set(keyOf(added.title), added);
+      goalTitlesUsed.add(keyOf(added.title));
+      goalIdMap.set(goal.id, added.id);
     }
   }
 
-  const projects = [...cloud.projects];
-  const projectByTitle = new Map(projects.map(p => [keyOf(p.title), p.id]));
+  const rawProjects = [...cloud.projects];
+  const projectById = new Map(rawProjects.map(p => [p.id, p]));
+  const projectByTitle = new Map(rawProjects.map(p => [keyOf(p.title), p]));
+  const projectTitlesUsed = new Set(rawProjects.map(p => keyOf(p.title)));
   const projectIdMap = new Map<string, string>();
   for (const project of local.projects) {
-    const existingId = projectByTitle.get(keyOf(project.title)) ?? projects.find(p => p.id === project.id)?.id;
-    if (existingId) {
-      projectIdMap.set(project.id, existingId);
+    const mappedGoalId = project.goalId ? (goalIdMap.get(project.goalId) ?? project.goalId) : null;
+    const matched = projectByTitle.get(keyOf(project.title)) ?? projectById.get(project.id);
+    const sameMeaning =
+      matched &&
+      keyOf(matched.title) === keyOf(project.title) &&
+      matched.description.trim() === project.description.trim() &&
+      matched.dueDate === project.dueDate &&
+      matched.status === project.status &&
+      (matched.goalId ?? null) === (mappedGoalId ?? null);
+
+    if (matched && sameMeaning) {
+      projectIdMap.set(project.id, matched.id);
     } else {
-      projects.push({
+      const nextId = projectById.has(project.id) ? id() : project.id;
+      const nextTitle = projectTitlesUsed.has(keyOf(project.title))
+        ? makeUniqueLabeledTitle(project.title, projectTitlesUsed)
+        : project.title;
+      const added: Project = {
         ...project,
-        goalId: project.goalId ? (goalIdMap.get(project.goalId) ?? project.goalId) : null,
-      });
-      projectByTitle.set(keyOf(project.title), project.id);
-      projectIdMap.set(project.id, project.id);
+        id: nextId,
+        title: clampStr(nextTitle, 240),
+        goalId: mappedGoalId,
+      };
+      rawProjects.push(added);
+      projectById.set(added.id, added);
+      projectByTitle.set(keyOf(added.title), added);
+      projectTitlesUsed.add(keyOf(added.title));
+      projectIdMap.set(project.id, added.id);
     }
   }
 
   const tasks = [...cloud.tasks];
+  const taskById = new Map(tasks.map(t => [t.id, t]));
   const taskIdSet = new Set(tasks.map(t => t.id));
-  const taskSigSet = new Set(tasks.map(t => `${keyOf(t.title)}:${t.projectId ?? ''}:${t.dueDate}`));
+  const taskSigMap = new Map(tasks.map(t => [`${keyOf(t.title)}:${t.projectId ?? ''}:${t.dueDate}:${t.status}:${t.priority}`, t]));
   const taskIdMap = new Map<string, string>();
   for (const task of local.tasks) {
     const mappedProjectId = task.projectId ? (projectIdMap.get(task.projectId) ?? task.projectId) : null;
-    const sig = `${keyOf(task.title)}:${mappedProjectId ?? ''}:${task.dueDate}`;
-    if (taskIdSet.has(task.id) || taskSigSet.has(sig)) {
-      const matched = tasks.find(t => t.id === task.id || `${keyOf(t.title)}:${t.projectId ?? ''}:${t.dueDate}` === sig);
-      if (matched) taskIdMap.set(task.id, matched.id);
+    const sig = `${keyOf(task.title)}:${mappedProjectId ?? ''}:${task.dueDate}:${task.status}:${task.priority}`;
+    const matchedBySig = taskSigMap.get(sig);
+    const matchedById = taskById.get(task.id);
+    if (matchedBySig) {
+      taskIdMap.set(task.id, matchedBySig.id);
+    } else if (
+      matchedById &&
+      keyOf(matchedById.title) === keyOf(task.title) &&
+      matchedById.status === task.status &&
+      matchedById.dueDate === task.dueDate
+    ) {
+      taskIdMap.set(task.id, matchedById.id);
     } else {
-      tasks.push({ ...task, projectId: mappedProjectId });
-      taskIdSet.add(task.id);
-      taskSigSet.add(sig);
-      taskIdMap.set(task.id, task.id);
+      const nextId = taskIdSet.has(task.id) ? id() : task.id;
+      const added = { ...task, id: nextId, projectId: mappedProjectId };
+      tasks.push(added);
+      taskById.set(added.id, added);
+      taskIdSet.add(added.id);
+      taskSigMap.set(sig, added);
+      taskIdMap.set(task.id, added.id);
     }
   }
 
   const habits = [...cloud.habits];
-  const habitByName = new Map(habits.map(h => [keyOf(h.name), h.id]));
+  const habitById = new Map(habits.map(h => [h.id, h]));
+  const habitByName = new Map(habits.map(h => [keyOf(h.name), h]));
+  const habitNamesUsed = new Set(habits.map(h => keyOf(h.name)));
   const habitIdMap = new Map<string, string>();
   for (const habit of local.habits) {
-    const existingId = habitByName.get(keyOf(habit.name)) ?? habits.find(h => h.id === habit.id)?.id;
-    if (existingId) {
-      habitIdMap.set(habit.id, existingId);
+    const matched = habitByName.get(keyOf(habit.name)) ?? habitById.get(habit.id);
+    const sameMeaning =
+      matched &&
+      keyOf(matched.name) === keyOf(habit.name) &&
+      matched.frequency === habit.frequency &&
+      matched.active === habit.active;
+
+    if (matched && sameMeaning) {
+      habitIdMap.set(habit.id, matched.id);
     } else {
-      habits.push(habit);
-      habitByName.set(keyOf(habit.name), habit.id);
-      habitIdMap.set(habit.id, habit.id);
+      const nextId = habitById.has(habit.id) ? id() : habit.id;
+      const nextName = habitNamesUsed.has(keyOf(habit.name))
+        ? makeUniqueLabeledTitle(habit.name, habitNamesUsed)
+        : habit.name;
+      const added = { ...habit, id: nextId, name: clampStr(nextName, 160) };
+      habits.push(added);
+      habitById.set(added.id, added);
+      habitByName.set(keyOf(added.name), added);
+      habitNamesUsed.add(keyOf(added.name));
+      habitIdMap.set(habit.id, added.id);
     }
   }
 
   const habitLogs = [...cloud.habitLogs];
-  const logKeys = new Set(habitLogs.map(l => `${l.habitId}:${l.date}`));
+  const logIndexByKey = new Map(habitLogs.map((l, idx) => [`${l.habitId}:${l.date}`, idx]));
   for (const log of local.habitLogs) {
     const mappedHabitId = habitIdMap.get(log.habitId) ?? log.habitId;
     const key = `${mappedHabitId}:${log.date}`;
-    if (!logKeys.has(key)) {
+    const existingIdx = logIndexByKey.get(key);
+    if (existingIdx === undefined) {
       habitLogs.push({ ...log, habitId: mappedHabitId });
-      logKeys.add(key);
+      logIndexByKey.set(key, habitLogs.length - 1);
+    } else if (habitLogs[existingIdx].status === 'skipped' && log.status === 'done') {
+      // Preserve actual completion ('done') over 'skipped' on same-day conflict
+      habitLogs[existingIdx] = { ...habitLogs[existingIdx], status: 'done' };
     }
   }
 
@@ -582,14 +1072,22 @@ export function mergeWorkspaceData(cloud: AppData, local: AppData): AppData {
 
   const reviewMap = new Map(cloud.dailyReviews.map(r => [r.date, r]));
   for (const review of local.dailyReviews) {
-    if (!reviewMap.has(review.date)) reviewMap.set(review.date, review);
+    const existing = reviewMap.get(review.date);
+    if (!existing) {
+      reviewMap.set(review.date, review);
+    } else if (JSON.stringify(existing) !== JSON.stringify(review)) {
+      reviewMap.set(review.date, mergeReviewFields(existing, review));
+    }
   }
 
-  return sanitizeAppData({
+  const uncappedActive = rawProjects.filter(p => p.status === 'active');
+  const applied = applySelectedActiveProjects(rawProjects, selectedActiveProjectIds);
+
+  const data = sanitizeAppData({
     schemaVersion: 3,
     lifeAreas,
     goals,
-    projects,
+    projects: applied.projects,
     tasks,
     habits,
     habitLogs,
@@ -597,14 +1095,28 @@ export function mergeWorkspaceData(cloud: AppData, local: AppData): AppData {
     dailyReviews: [...reviewMap.values()],
     updatedAt: new Date().toISOString(),
   });
+
+  return {
+    data,
+    uncappedProjects: rawProjects,
+    activeProjects: uncappedActive,
+    exceedsProjectLimit: uncappedActive.length > MAX_ACTIVE_PROJECTS,
+    archivedExcessCount: applied.archivedCount,
+  };
+}
+
+export function mergeWorkspaceData(cloud: AppData, local: AppData): AppData {
+  return mergeWorkspaceDataDetailed(cloud, local).data;
 }
 
 export function buildBackupEnvelope(data: AppData): BackupEnvelope {
+  const clean = sanitizeAppData(data);
+  const { syncVersion: _omitVersion, ...portableData } = clean;
   return {
     format: 'inpursuit-backup',
     backupVersion: 1,
     exportedAt: new Date().toISOString(),
-    data: sanitizeAppData(data),
+    data: portableData,
   };
 }
 
@@ -626,6 +1138,42 @@ export interface ParsedBackup {
   exportedAt: string | null;
   backupVersion: number | null;
   summary: WorkspaceSummary;
+  archivedExcessProjects: number;
+  rekeyedDuplicateIds: number;
+}
+
+function rekeyBackupDuplicateIds(data: StoredAppData): { data: StoredAppData; rekeyedCount: number } {
+  let rekeyedCount = 0;
+  const rekeyList = <T extends { id: string }>(items: readonly T[]): T[] => {
+    const seen = new Map<string, string>();
+    return items.map(item => {
+      const serialized = JSON.stringify(item);
+      const prev = seen.get(item.id);
+      if (!prev) {
+        seen.set(item.id, serialized);
+        return item;
+      }
+      if (prev === serialized) {
+        return item;
+      }
+      rekeyedCount += 1;
+      const freshId = id();
+      seen.set(freshId, JSON.stringify({ ...item, id: freshId }));
+      return { ...item, id: freshId };
+    });
+  };
+
+  return {
+    data: {
+      ...data,
+      lifeAreas: Array.isArray(data.lifeAreas) ? rekeyList(data.lifeAreas as LifeArea[]) : data.lifeAreas,
+      goals: rekeyList(data.goals),
+      projects: rekeyList(data.projects),
+      tasks: rekeyList(data.tasks),
+      habits: rekeyList(data.habits),
+    },
+    rekeyedCount,
+  };
 }
 
 export function inspectBackupText(rawText: string): ParsedBackup {
@@ -657,12 +1205,17 @@ export function inspectBackupText(rawText: string): ParsedBackup {
     throw new Error('This file is not a valid InPursuit backup.');
   }
 
-  const normalized = normalizeStoredData(candidate);
+  const rekeyed = rekeyBackupDuplicateIds(candidate);
+  const normalized = normalizeStoredData(rekeyed.data);
+  const enforced = enforceActiveProjectLimit(normalized.projects);
+  const finalData: AppData = enforced.archivedCount > 0 ? { ...normalized, projects: enforced.projects } : normalized;
   return {
-    data: normalized,
+    data: finalData,
     exportedAt,
     backupVersion,
-    summary: summarizeWorkspace(normalized),
+    summary: summarizeWorkspace(finalData),
+    archivedExcessProjects: enforced.archivedCount,
+    rekeyedDuplicateIds: rekeyed.rekeyedCount,
   };
 }
 

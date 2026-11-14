@@ -12,17 +12,30 @@ service cloud.firestore {
     function isSignedIn() { return request.auth != null; }
     function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
     function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
-    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function isValidId(id) { return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function isValidDateKey(val) { return val is string && val.size() == 10 && val.matches('^\\d{4}-\\d{2}-\\d{2}$'); }
+    function isValidMonthKey(val) { return val is string && val.size() == 7 && val.matches('^\\d{4}-\\d{2}$'); }
+    function isOptionalDate(val) { return val is string && (val == '' || (val.size() == 10 && val.matches('^\\d{4}-\\d{2}-\\d{2}$'))); }
+    function isNullableId(val) { return val == null || isValidId(val); }
+    function isValidTimestampStr(val) { return val is string && val.size() <= 40; }
 
-    // Array type + non-empty element map guard (Pillar 5) + size cap
+    // Server/Console-provisioned admin registry (never self-assigned from client)
+    function isAdmin() {
+      return isVerified() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Bounded list helper for v3 legacy workspace compatibility.
+    // Note: Firestore Rules CEL cannot loop over arbitrary-length lists; per-element field
+    // validation is enforced in client sanitizeAppData() for v3 monolithic arrays and per-doc
+    // in the v4 subcollection rules below.
     function isBoundedMapList(listVal, maxLen) {
       return listVal is list
         && listVal.size() <= maxLen
         && (listVal.size() == 0 || listVal[0] is map);
     }
 
-    // Validation blueprint matching firebase-blueprint.json UserWorkspace schema
-    function isValidUserWorkspace(data) {
+    // v3 workspace validation blueprint (preserved for non-destructive live sync & rollback)
+    function isValidV3Workspace(data) {
       let reqKeys = [
         'schemaVersion',
         'lifeAreas',
@@ -36,6 +49,7 @@ service cloud.firestore {
       ];
       let allowedKeys = [
         'schemaVersion',
+        'syncVersion',
         'lifeAreas',
         'goals',
         'projects',
@@ -50,6 +64,7 @@ service cloud.firestore {
         && data.keys().hasOnly(allowedKeys)
         && data.schemaVersion is int
         && data.schemaVersion == 3
+        && (!('syncVersion' in data) || (data.syncVersion is int && data.syncVersion >= 0))
         && isBoundedMapList(data.lifeAreas, 50)
         && isBoundedMapList(data.goals, 200)
         && isBoundedMapList(data.projects, 200)
@@ -58,10 +73,184 @@ service cloud.firestore {
         && isBoundedMapList(data.habitLogs, 10000)
         && isBoundedMapList(data.dailyPlans, 1000)
         && isBoundedMapList(data.dailyReviews, 1000)
-        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 40));
+        && (!('updatedAt' in data) || isValidTimestampStr(data.updatedAt));
     }
 
-    // User workspace document: single-owner isolation, no collection listing, strict schema validation
+    // v4 lightweight workspace metadata doc
+    function isValidV4Meta(data) {
+      return data.keys().hasAll(['schemaVersion', 'migrationStatus', 'updatedAt'])
+        && data.keys().hasOnly(['schemaVersion', 'migrationStatus', 'migratedFromSchema', 'updatedAt'])
+        && data.schemaVersion is int
+        && data.schemaVersion == 4
+        && data.migrationStatus in ['pending', 'completed']
+        && (!('migratedFromSchema' in data) || (data.migratedFromSchema is int && data.migratedFromSchema == 3))
+        && isValidTimestampStr(data.updatedAt);
+    }
+
+    // v4 entity validators (strict field-level schema enforcement)
+    function isValidLifeAreaDoc(data, docId) {
+      return data.keys().hasAll(['id', 'name', 'description', 'createdAt'])
+        && data.keys().hasOnly(['id', 'name', 'description', 'createdAt'])
+        && data.id == docId
+        && isValidId(data.id)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 160
+        && data.description is string && data.description.size() <= 1000
+        && isValidTimestampStr(data.createdAt);
+    }
+
+    function isValidGoalDoc(data, docId) {
+      return data.keys().hasAll(['id', 'lifeAreaId', 'title', 'outcome', 'targetDate', 'status', 'createdAt'])
+        && data.keys().hasOnly(['id', 'lifeAreaId', 'title', 'outcome', 'targetDate', 'status', 'createdAt'])
+        && data.id == docId
+        && isValidId(data.id)
+        && isNullableId(data.lifeAreaId)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 240
+        && data.outcome is string && data.outcome.size() <= 2000
+        && isOptionalDate(data.targetDate)
+        && data.status in ['active', 'completed', 'archived']
+        && isValidTimestampStr(data.createdAt);
+    }
+
+    function isValidProjectDoc(data, docId) {
+      return data.keys().hasAll(['id', 'goalId', 'title', 'description', 'dueDate', 'status', 'createdAt'])
+        && data.keys().hasOnly(['id', 'goalId', 'title', 'description', 'dueDate', 'status', 'createdAt'])
+        && data.id == docId
+        && isValidId(data.id)
+        && isNullableId(data.goalId)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 240
+        && data.description is string && data.description.size() <= 2000
+        && isOptionalDate(data.dueDate)
+        && data.status in ['active', 'completed', 'archived']
+        && isValidTimestampStr(data.createdAt);
+    }
+
+    function isValidTaskDoc(data, docId) {
+      return data.keys().hasAll(['id', 'projectId', 'title', 'dueDate', 'priority', 'status', 'createdAt', 'completedAt'])
+        && data.keys().hasOnly(['id', 'projectId', 'title', 'dueDate', 'priority', 'status', 'createdAt', 'completedAt'])
+        && data.id == docId
+        && isValidId(data.id)
+        && isNullableId(data.projectId)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 240
+        && isOptionalDate(data.dueDate)
+        && data.priority in ['high', 'medium', 'low']
+        && data.status in ['todo', 'done', 'skipped']
+        && isValidTimestampStr(data.createdAt)
+        && (data.completedAt == null || isValidTimestampStr(data.completedAt));
+    }
+
+    function isValidHabitDoc(data, docId) {
+      return data.keys().hasAll(['id', 'name', 'frequency', 'active', 'createdAt'])
+        && data.keys().hasOnly(['id', 'name', 'frequency', 'active', 'createdAt'])
+        && data.id == docId
+        && isValidId(data.id)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 160
+        && data.frequency in ['daily', 'weekdays', 'weekends']
+        && data.active is bool
+        && isValidTimestampStr(data.createdAt);
+    }
+
+    function isValidHabitLogMonthDoc(data, monthKey) {
+      return data.keys().hasAll(['month', 'logs'])
+        && data.keys().hasOnly(['month', 'logs', 'updatedAt'])
+        && data.month == monthKey
+        && isValidMonthKey(data.month)
+        && data.logs is map
+        && data.logs.size() <= 4000
+        && (!('updatedAt' in data) || isValidTimestampStr(data.updatedAt));
+    }
+
+    function isValidDailyPlanDoc(data, dateKey) {
+      return data.keys().hasAll(['date', 'priorityTaskIds'])
+        && data.keys().hasOnly(['date', 'priorityTaskIds'])
+        && data.date == dateKey
+        && isValidDateKey(data.date)
+        && data.priorityTaskIds is list
+        && data.priorityTaskIds.size() <= 3
+        && (data.priorityTaskIds.size() < 1 || isValidId(data.priorityTaskIds[0]))
+        && (data.priorityTaskIds.size() < 2 || isValidId(data.priorityTaskIds[1]))
+        && (data.priorityTaskIds.size() < 3 || isValidId(data.priorityTaskIds[2]));
+    }
+
+    function isValidDailyReviewDoc(data, dateKey) {
+      return data.keys().hasAll(['date', 'wins', 'blockers', 'notes', 'energy'])
+        && data.keys().hasOnly(['date', 'wins', 'blockers', 'notes', 'energy'])
+        && data.date == dateKey
+        && isValidDateKey(data.date)
+        && data.wins is string && data.wins.size() <= 4000
+        && data.blockers is string && data.blockers.size() <= 4000
+        && data.notes is string && data.notes.size() <= 4000
+        && data.energy is int && data.energy >= 1 && data.energy <= 5;
+    }
+
+    // Monetization validators
+    function isValidEntitlement(data) {
+      return data.keys().hasAll(['tier', 'status', 'updatedAt', 'updatedBy'])
+        && data.keys().hasOnly(['tier', 'status', 'expiresAt', 'planLabel', 'paymentRef', 'updatedAt', 'updatedBy'])
+        && data.tier in ['free', 'pro']
+        && data.status in ['active', 'expired', 'revoked']
+        && (!('expiresAt' in data) || data.expiresAt == null || data.expiresAt is timestamp)
+        && (!('planLabel' in data) || (data.planLabel is string && data.planLabel.size() <= 80))
+        && (!('paymentRef' in data) || (data.paymentRef is string && data.paymentRef.size() <= 120))
+        && (data.updatedAt is timestamp || isValidTimestampStr(data.updatedAt))
+        && data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128;
+    }
+
+    function isValidPaymentPlanAmount(plan, amountIdr) {
+      return (plan == 'monthly' && amountIdr == 29000)
+        || (plan == 'annual' && amountIdr == 249000);
+    }
+
+    function isValidPaymentRequestUpdate(data) {
+      return data.keys().hasAll(['userId', 'plan', 'amountIdr', 'referenceCode', 'status', 'createdAt', 'reviewedAt', 'reviewedBy'])
+        && data.keys().hasOnly(['userId', 'plan', 'amountIdr', 'referenceCode', 'note', 'status', 'createdAt', 'reviewedAt', 'reviewedBy', 'adminNote'])
+        && isValidPaymentPlanAmount(data.plan, data.amountIdr)
+        && data.status in ['approved', 'rejected']
+        && data.reviewedAt == request.time
+        && data.reviewedBy == request.auth.uid
+        && (!('adminNote' in data) || (data.adminNote is string && data.adminNote.size() <= 500));
+    }
+
+    // Admin registry (read-only lookup by self)
+    match /admins/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list, write: if false;
+    }
+
+    // User subscription entitlements (user read-only; admin write-only)
+    match /entitlements/{userId} {
+      allow get: if (isOwner(userId) || isAdmin()) && isValidId(userId);
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isValidId(userId) && isValidEntitlement(incoming());
+      allow update: if isAdmin()
+        && isValidId(userId)
+        && isValidEntitlement(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'tier', 'status', 'expiresAt', 'planLabel', 'paymentRef', 'updatedAt', 'updatedBy'
+        ]);
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // Manual payment verification submissions: FAIL-CLOSED for client creation.
+    // Client-side creation is disabled until a trusted server/Cloud Function backend
+    // enforces referenceCode uniqueness/anti-replay, rate limits, and server pricing.
+    match /paymentRequests/{requestId} {
+      allow get: if isSignedIn() && isValidId(requestId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (isAdmin() || existing().userId == request.auth.uid);
+      allow create: if false;
+      allow update: if isAdmin()
+        && isValidId(requestId)
+        && existing().status == 'pending'
+        && isValidPaymentRequestUpdate(incoming())
+        && incoming().userId == existing().userId
+        && incoming().plan == existing().plan
+        && incoming().amountIdr == existing().amountIdr
+        && incoming().referenceCode == existing().referenceCode
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'reviewedAt', 'reviewedBy', 'adminNote']);
+      allow delete: if isAdmin() && isValidId(requestId);
+    }
+
+    // User workspace root (supports v3 single-doc sync and v4 metadata doc)
     match /users/{userId} {
       allow get: if isOwner(userId) && isValidId(userId);
       allow list: if false;
@@ -69,28 +258,128 @@ service cloud.firestore {
       allow create: if isOwner(userId)
         && isVerified()
         && isValidId(userId)
-        && isValidUserWorkspace(incoming());
+        && (isValidV3Workspace(incoming()) || isValidV4Meta(incoming()));
 
       allow update: if isOwner(userId)
         && isVerified()
         && isValidId(userId)
-        && isValidUserWorkspace(incoming())
-        && incoming().diff(existing()).affectedKeys().hasOnly([
-          'schemaVersion',
-          'lifeAreas',
-          'goals',
-          'projects',
-          'tasks',
-          'habits',
-          'habitLogs',
-          'dailyPlans',
-          'dailyReviews',
-          'updatedAt'
-        ]);
+        && (
+          (
+            existing().schemaVersion == 3
+            && isValidV3Workspace(incoming())
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'schemaVersion',
+              'syncVersion',
+              'lifeAreas',
+              'goals',
+              'projects',
+              'tasks',
+              'habits',
+              'habitLogs',
+              'dailyPlans',
+              'dailyReviews',
+              'updatedAt'
+            ])
+          )
+          ||
+          (
+            isValidV4Meta(incoming())
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'schemaVersion',
+              'migrationStatus',
+              'migratedFromSchema',
+              'updatedAt'
+            ])
+          )
+        );
 
-      allow delete: if isOwner(userId)
-        && isVerified()
-        && isValidId(userId);
+      allow delete: if isOwner(userId) && isVerified() && isValidId(userId);
+
+      // v4 Subcollections (strict per-entity ownership & schema enforcement)
+      match /lifeAreas/{areaId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(areaId);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isVerified() && isValidId(userId) && isValidId(areaId) && isValidLifeAreaDoc(incoming(), areaId);
+        allow update: if isOwner(userId) && isVerified() && isValidId(userId) && isValidId(areaId)
+          && isValidLifeAreaDoc(incoming(), areaId)
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description']);
+        allow delete: if isOwner(userId) && isVerified() && isValidId(userId) && isValidId(areaId);
+      }
+
+      match /goals/{goalId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(goalId);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isVerified() && isValidId(userId) && isValidId(goalId) && isValidGoalDoc(incoming(), goalId);
+        allow update: if isOwner(userId) && isVerified() && isValidId(userId) && isValidId(goalId)
+          && isValidGoalDoc(incoming(), goalId)
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['lifeAreaId', 'title', 'outcome', 'targetDate', 'status']);
+        allow delete: if isOwner(userId) && isVerified() && isValidId(userId) && isValidId(goalId);
+      }
+
+      match /projects/{projectId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(projectId);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isVerified() && isValidId(userId) && isValidId(projectId) && isValidProjectDoc(incoming(), projectId);
+        allow update: if isOwner(userId) && isVerified() && isValidId(userId) && isValidId(projectId)
+          && isValidProjectDoc(incoming(), projectId)
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['goalId', 'title', 'description', 'dueDate', 'status']);
+        allow delete: if isOwner(userId) && isVerified() && isValidId(userId) && isValidId(projectId);
+      }
+
+      match /tasks/{taskId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(taskId);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isVerified() && isValidId(userId) && isValidId(taskId) && isValidTaskDoc(incoming(), taskId);
+        allow update: if isOwner(userId) && isVerified() && isValidId(userId) && isValidId(taskId)
+          && isValidTaskDoc(incoming(), taskId)
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['projectId', 'title', 'dueDate', 'priority', 'status', 'completedAt']);
+        allow delete: if isOwner(userId) && isVerified() && isValidId(userId) && isValidId(taskId);
+      }
+
+      match /habits/{habitId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(habitId);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isVerified() && isValidId(userId) && isValidId(habitId) && isValidHabitDoc(incoming(), habitId);
+        allow update: if isOwner(userId) && isVerified() && isValidId(userId) && isValidId(habitId)
+          && isValidHabitDoc(incoming(), habitId)
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'frequency', 'active']);
+        allow delete: if isOwner(userId) && isVerified() && isValidId(userId) && isValidId(habitId);
+      }
+
+      match /habitLogMonths/{monthKey} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidMonthKey(monthKey);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isVerified() && isValidId(userId) && isValidMonthKey(monthKey) && isValidHabitLogMonthDoc(incoming(), monthKey);
+        allow update: if isOwner(userId) && isVerified() && isValidId(userId) && isValidMonthKey(monthKey)
+          && isValidHabitLogMonthDoc(incoming(), monthKey)
+          && incoming().diff(existing()).affectedKeys().hasOnly(['logs', 'updatedAt']);
+        allow delete: if isOwner(userId) && isVerified() && isValidId(userId) && isValidMonthKey(monthKey);
+      }
+
+      match /dailyPlans/{dateKey} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidDateKey(dateKey);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isVerified() && isValidId(userId) && isValidDateKey(dateKey) && isValidDailyPlanDoc(incoming(), dateKey);
+        allow update: if isOwner(userId) && isVerified() && isValidId(userId) && isValidDateKey(dateKey)
+          && isValidDailyPlanDoc(incoming(), dateKey)
+          && incoming().diff(existing()).affectedKeys().hasOnly(['priorityTaskIds']);
+        allow delete: if isOwner(userId) && isVerified() && isValidId(userId) && isValidDateKey(dateKey);
+      }
+
+      match /dailyReviews/{dateKey} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidDateKey(dateKey);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isVerified() && isValidId(userId) && isValidDateKey(dateKey) && isValidDailyReviewDoc(incoming(), dateKey);
+        allow update: if isOwner(userId) && isVerified() && isValidId(userId) && isValidDateKey(dateKey)
+          && isValidDailyReviewDoc(incoming(), dateKey)
+          && incoming().diff(existing()).affectedKeys().hasOnly(['wins', 'blockers', 'notes', 'energy']);
+        allow delete: if isOwner(userId) && isVerified() && isValidId(userId) && isValidDateKey(dateKey);
+      }
     }
   }
 }

@@ -44,6 +44,9 @@ export function SyncIndicator({ syncStatus, lastSyncedAt, pendingSync, onRetry, 
     label = 'Sync conflict · action needed';
     actionLabel = 'Resolve';
     actionFn = onOpenSettings;
+  } else if (syncStatus === 'deleting') {
+    dotClass = 'status-dot syncing';
+    label = 'Deleting account…';
   }
 
   return (

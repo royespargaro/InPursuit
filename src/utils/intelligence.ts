@@ -46,7 +46,8 @@ const isoDateDay = (isoOrDate: string): string => {
 };
 
 export function getGoalProgress(goal: Goal, projects: readonly Project[], tasks: readonly Task[]): GoalProgress {
-  const linked = projects.filter(p => p.goalId === goal.id);
+  // Exclude archived projects so dropped initiatives do not distort active goal progress
+  const linked = projects.filter(p => p.goalId === goal.id && p.status !== 'archived');
   if (linked.length === 0) {
     return { percent: goal.status === 'completed' ? 100 : 0, linkedProjects: 0, completedProjects: 0, totalTasks: 0, completedTasks: 0 };
   }

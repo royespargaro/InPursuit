@@ -1,0 +1,506 @@
+import { useMemo, useState } from 'react';
+import { FilmHeader, type HeroGoalSummary } from '../components/FilmHeader';
+import { OnboardingCard, type StarterTemplateOption } from '../components/OnboardingCard';
+import {
+  Activity, ArrowDown, ArrowUp, ArrowUpRight, Check, Flag, FolderKanban, Plus, Target, X,
+} from '../components/Icon';
+import { Button, cx, Empty, prettyDate, Progress, shortDate } from '../components/ui';
+import type { AppData, Habit, Task } from '../types';
+import { getGoalProgress } from '../utils/intelligence';
+import { MAX_ACTIVE_PROJECTS } from '../utils/projectLimits';
+
+type TaskTab = 'today' | 'upcoming' | 'nodate' | 'all' | 'skipped';
+
+interface TodayViewProps {
+  data: AppData;
+  today: string;
+  todayTasks: Task[];
+  overdueTasks: Task[];
+  activeHabits: Habit[];
+  completedHabitIds: Set<string>;
+  skippedHabitIds: Set<string>;
+  doneHabits: number;
+  scheduledHabitsCount: number;
+  priorityTasks: Task[];
+  priorityIds: string[];
+  showOnboarding: boolean;
+  onDismissOnboarding: () => void;
+  onApplyTemplate: (template: StarterTemplateOption) => void;
+  onToggleHabit: (h: Habit) => void;
+  onToggleSkipHabit: (h: Habit) => void;
+  onToggleTask: (t: Task) => void;
+  onRestoreTask: (t: Task) => void;
+  onMoveToToday: (id: string) => void;
+  onPriorities: (ids: string[]) => void;
+  onAddTask: () => void;
+  onEditTask: (id: string) => void;
+  onReview: () => void;
+  onOpenGoals: () => void;
+  onEditGoal: (id: string) => void;
+  onAddGoal: () => void;
+}
+
+export function TodayView({
+  data,
+  today,
+  todayTasks,
+  overdueTasks,
+  activeHabits,
+  completedHabitIds,
+  skippedHabitIds,
+  doneHabits,
+  scheduledHabitsCount,
+  priorityTasks,
+  priorityIds,
+  showOnboarding,
+  onDismissOnboarding,
+  onApplyTemplate,
+  onToggleHabit,
+  onToggleSkipHabit,
+  onToggleTask,
+  onRestoreTask,
+  onMoveToToday,
+  onPriorities,
+  onAddTask,
+  onEditTask,
+  onReview,
+  onOpenGoals,
+  onEditGoal,
+  onAddGoal,
+}: TodayViewProps) {
+  const [showPriorityPicker, setShowPriorityPicker] = useState(false);
+  const [taskSearch, setTaskSearch] = useState('');
+  const [taskTab, setTaskTab] = useState<TaskTab>('today');
+  const [showAllOverdue, setShowAllOverdue] = useState(false);
+
+  const upcomingTasks = useMemo(
+    () =>
+      data.tasks
+        .filter(t => t.dueDate > today && t.status !== 'skipped')
+        .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
+    [data.tasks, today],
+  );
+  const undatedTasks = useMemo(
+    () => data.tasks.filter(t => t.dueDate === '' && t.status !== 'skipped'),
+    [data.tasks],
+  );
+  const allOpenTasks = useMemo(
+    () =>
+      data.tasks
+        .filter(t => t.status === 'todo')
+        .sort((a, b) => {
+          if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
+          if (a.dueDate) return -1;
+          if (b.dueDate) return 1;
+          return a.createdAt.localeCompare(b.createdAt);
+        }),
+    [data.tasks],
+  );
+  const skippedTasks = useMemo(
+    () => data.tasks.filter(t => t.status === 'skipped'),
+    [data.tasks],
+  );
+
+  // Combine todayTasks + priorityTasks cleanly without double-counting so Priority Wins & Daily Progress stay consistent
+  const dailyTaskPool = useMemo(() => {
+    const map = new Map<string, Task>();
+    for (const t of todayTasks) map.set(t.id, t);
+    for (const t of priorityTasks) map.set(t.id, t);
+    return [...map.values()];
+  }, [priorityTasks, todayTasks]);
+
+  const dailyTasksDone = useMemo(
+    () => dailyTaskPool.filter(t => t.status === 'done').length,
+    [dailyTaskPool],
+  );
+  const totalActions = scheduledHabitsCount + dailyTaskPool.length;
+  const doneActions = doneHabits + dailyTasksDone;
+  const completion = totalActions === 0 ? 0 : Math.round((doneActions / totalActions) * 100);
+
+  const visibleTabTasks =
+    taskTab === 'today'
+      ? todayTasks
+      : taskTab === 'upcoming'
+        ? upcomingTasks
+        : taskTab === 'nodate'
+          ? undatedTasks
+          : taskTab === 'all'
+            ? allOpenTasks
+            : skippedTasks;
+
+  const displayedOverdue = showAllOverdue ? overdueTasks : overdueTasks.slice(0, 6);
+
+  const available = data.tasks.filter(
+    t =>
+      t.status !== 'skipped' &&
+      t.status !== 'done' &&
+      !priorityIds.includes(t.id) &&
+      (!taskSearch || t.title.toLowerCase().includes(taskSearch.toLowerCase())),
+  );
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const projectName = (id: string | null) => data.projects.find(p => p.id === id)?.title ?? 'Personal';
+
+  const movePriority = (index: number, delta: -1 | 1) => {
+    const target = index + delta;
+    if (target < 0 || target >= priorityIds.length) return;
+    const next = [...priorityIds];
+    const [moved] = next.splice(index, 1);
+    next.splice(target, 0, moved);
+    onPriorities(next);
+  };
+
+  const heroGoals: HeroGoalSummary[] = useMemo(
+    () =>
+      [...data.goals]
+        .filter(g => g.status === 'active')
+        .sort((a, b) => {
+          if (a.targetDate && b.targetDate) return a.targetDate.localeCompare(b.targetDate);
+          if (a.targetDate) return -1;
+          if (b.targetDate) return 1;
+          return a.createdAt.localeCompare(b.createdAt);
+        })
+        .map(goal => {
+          const progress = getGoalProgress(goal, data.projects, data.tasks);
+          const areaName = data.lifeAreas.find(a => a.id === goal.lifeAreaId)?.name ?? 'Direction';
+          return {
+            id: goal.id,
+            title: goal.title,
+            areaName,
+            percent: progress.percent,
+            completedTasks: progress.completedTasks,
+            totalTasks: progress.totalTasks,
+            targetDate: goal.targetDate,
+          };
+        }),
+    [data.goals, data.lifeAreas, data.projects, data.tasks],
+  );
+
+  return (
+    <div className="view-stack">
+      <FilmHeader
+        eyebrow={prettyDate(today)}
+        title={greeting.toLowerCase()}
+        subtitle="Choose what matters. Then do the work."
+        scene={`daily overview · take ${today}`}
+        goals={heroGoals}
+        onReview={onReview}
+        onAddTask={onAddTask}
+        onOpenGoals={onOpenGoals}
+        onOpenGoal={onEditGoal}
+        onAddGoal={onAddGoal}
+      />
+
+      {showOnboarding && (
+        <OnboardingCard
+          onDismiss={onDismissOnboarding}
+          onApplyTemplate={onApplyTemplate}
+          onCreateGoal={onAddGoal}
+        />
+      )}
+
+      <div className="stat-grid">
+        <div className="stat-card">
+          <div className="stat-top"><span>Daily progress</span><Activity size={16} /></div>
+          <div className="stat-value">{completion}<small>%</small></div>
+          <Progress value={completion} />
+          <div className="stat-foot">{doneActions} of {totalActions} actions completed</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-top"><span>Priority wins</span><Flag size={16} /></div>
+          <div className="stat-value">{priorityTasks.filter(t => t.status === 'done').length}<small>/{priorityTasks.length}</small></div>
+          <div className="stat-foot">Your three most important outcomes</div>
+          <div className="stat-mini"><span style={{ width: `${priorityTasks.length ? (priorityTasks.filter(t => t.status === 'done').length / priorityTasks.length) * 100 : 0}%` }} /></div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-top"><span>Active projects</span><FolderKanban size={16} /></div>
+          <div className="stat-value">{data.projects.filter(p => p.status === 'active').length.toString().padStart(2, '0')}</div>
+          <div className="stat-foot">{data.tasks.filter(t => t.status === 'todo').length} open tasks across your projects</div>
+          <div className="stat-quiet"><span />Max {MAX_ACTIVE_PROJECTS} active for focus</div>
+        </div>
+      </div>
+
+      <div className="today-columns">
+        <section className="panel priorities-panel">
+          <div className="panel-head">
+            <div><div className="eyebrow">the essential</div><h2>Today&apos;s priorities</h2></div>
+            <span className="count-pill">{priorityTasks.length}/3</span>
+          </div>
+          {priorityTasks.length ? (
+            <div className="priority-list">
+              {priorityTasks.map((task, index) => (
+                <div className={cx('priority-row', task.status === 'done' && 'is-done')} key={task.id}>
+                  <button
+                    type="button"
+                    aria-label={task.status === 'done' ? `Reopen ${task.title}` : `Complete ${task.title}`}
+                    className={cx('check-control', task.status === 'done' && 'checked')}
+                    onClick={() => onToggleTask(task)}
+                  >
+                    {task.status === 'done' && <Check size={14} />}
+                  </button>
+                  <span className="priority-number">0{index + 1}</span>
+                  <button type="button" className="task-title-button" onClick={() => onEditTask(task.id)}>
+                    <b>{task.title}</b>
+                    <small>
+                      {projectName(task.projectId)} · {task.priority} priority
+                      {task.dueDate && task.dueDate !== today ? ` · ${shortDate(task.dueDate)}` : ''}
+                    </small>
+                  </button>
+                  {priorityTasks.length > 1 && (
+                    <div className="priority-reorder">
+                      <button
+                        type="button"
+                        className="icon-btn subtle"
+                        disabled={index === 0}
+                        aria-label={`Move ${task.title} higher`}
+                        title="Move up"
+                        onClick={() => movePriority(index, -1)}
+                      >
+                        <ArrowUp size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-btn subtle"
+                        disabled={index === priorityTasks.length - 1}
+                        aria-label={`Move ${task.title} lower`}
+                        title="Move down"
+                        onClick={() => movePriority(index, 1)}
+                      >
+                        <ArrowDown size={13} />
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    className="icon-btn subtle"
+                    title="Remove from today's priorities"
+                    aria-label={`Remove ${task.title} from priorities`}
+                    onClick={() => onPriorities(priorityIds.filter(id => id !== task.id))}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="priority-empty">
+              <Target size={21} />
+              <p>Nothing is in your top three yet.</p>
+              <span>Pick up to three tasks that would make today count.</span>
+            </div>
+          )}
+          <div className="panel-foot">
+            <Button variant="outline" onClick={() => setShowPriorityPicker(v => !v)}>
+              <Plus size={15} />{showPriorityPicker ? 'Done selecting' : 'Set priorities'}
+            </Button>
+            <span>Limit yourself to three.</span>
+          </div>
+          {showPriorityPicker && (
+            <div className="priority-picker">
+              <div className="picker-top">
+                <b>Choose your priorities</b>
+                <span>{priorityIds.length}/3 selected</span>
+              </div>
+              <input
+                className="search-input"
+                placeholder="Find an open task..."
+                value={taskSearch}
+                onChange={e => setTaskSearch(e.target.value)}
+              />
+              {available.slice(0, 8).map(task => (
+                <button
+                  type="button"
+                  className="picker-item"
+                  key={task.id}
+                  disabled={priorityIds.length >= 3}
+                  onClick={() => onPriorities([...priorityIds, task.id])}
+                >
+                  <Plus size={14} />
+                  <span>{task.title}</span>
+                  <small>{projectName(task.projectId)}</small>
+                </button>
+              ))}
+              {available.length === 0 && <div className="picker-empty">No matching open tasks available.</div>}
+              {priorityIds.length > 0 && (
+                <button type="button" className="clear-priorities" onClick={() => onPriorities([])}>
+                  Clear today&apos;s priorities
+                </button>
+              )}
+            </div>
+          )}
+        </section>
+
+        <section className="panel habits-panel">
+          <div className="panel-head">
+            <div><div className="eyebrow">show up daily</div><h2>Habits</h2></div>
+            <span className="count-pill">{doneHabits}/{scheduledHabitsCount}</span>
+          </div>
+          {activeHabits.length ? (
+            <div className="habit-check-list">
+              {activeHabits.map(habit => {
+                const done = completedHabitIds.has(habit.id);
+                const skipped = skippedHabitIds.has(habit.id);
+                return (
+                  <div key={habit.id} className={cx('habit-check-row-wrap', done && 'is-done', skipped && 'is-skipped')}>
+                    <button
+                      type="button"
+                      onClick={() => onToggleHabit(habit)}
+                      className={cx('habit-check-row', done && 'is-done')}
+                      aria-pressed={done}
+                    >
+                      <span className={cx('habit-check', done && 'checked', skipped && 'skipped')}>
+                        {done ? <Check size={13} /> : skipped ? '–' : null}
+                      </span>
+                      <span>{habit.name}</span>
+                      <small>{done ? 'done' : skipped ? 'skipped' : 'open'}</small>
+                    </button>
+                    {!done && (
+                      <button
+                        type="button"
+                        className={cx('habit-skip-btn', skipped && 'active')}
+                        title={skipped ? 'Undo skip' : 'Skip for today without breaking streak'}
+                        aria-label={skipped ? `Undo skip for ${habit.name}` : `Skip ${habit.name} today`}
+                        onClick={() => onToggleSkipHabit(habit)}
+                      >
+                        {skipped ? 'Undo' : 'Skip'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <Empty title="No scheduled habits today" body="Add repeatable actions or check your habit schedule in Habits." />
+          )}
+          <div className="habits-progress">
+            <Progress value={scheduledHabitsCount ? (doneHabits / scheduledHabitsCount) * 100 : 0} />
+            <span>{scheduledHabitsCount ? Math.round((doneHabits / scheduledHabitsCount) * 100) : 0}% complete</span>
+          </div>
+        </section>
+      </div>
+
+      <section className="panel tasks-panel">
+        <div className="panel-head">
+          <div><div className="eyebrow">make progress visible</div><h2>Tasks</h2></div>
+          <Button variant="solid" onClick={onAddTask}><Plus size={15} /> Add task</Button>
+        </div>
+
+        <div className="task-tabs" role="tablist" aria-label="Filter tasks">
+          {(
+            [
+              { id: 'today', label: 'Today', count: todayTasks.length },
+              { id: 'upcoming', label: 'Upcoming', count: upcomingTasks.length },
+              { id: 'nodate', label: 'No date', count: undatedTasks.length },
+              { id: 'all', label: 'All open', count: allOpenTasks.length },
+              { id: 'skipped', label: 'Skipped', count: skippedTasks.length },
+            ] as const
+          ).map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={taskTab === tab.id}
+              className={cx('task-tab-btn', taskTab === tab.id && 'active')}
+              onClick={() => setTaskTab(tab.id)}
+            >
+              <span>{tab.label}</span>
+              <small>{tab.count}</small>
+            </button>
+          ))}
+        </div>
+
+        {visibleTabTasks.length ? (
+          <div className="task-table">
+            {visibleTabTasks.map(task => (
+              <div className={cx('task-row', task.status === 'done' && 'is-done')} key={task.id}>
+                <button
+                  type="button"
+                  aria-label={
+                    task.status === 'skipped'
+                      ? `Restore ${task.title}`
+                      : task.status === 'done'
+                        ? `Reopen ${task.title}`
+                        : `Complete ${task.title}`
+                  }
+                  className={cx('check-control', task.status === 'done' && 'checked')}
+                  onClick={() => (task.status === 'skipped' ? onRestoreTask(task) : onToggleTask(task))}
+                >
+                  {task.status === 'done' && <Check size={14} />}
+                </button>
+                <button type="button" className="task-title-button" onClick={() => onEditTask(task.id)}>
+                  <b>{task.title}</b>
+                  <small>
+                    {projectName(task.projectId)}
+                    {task.dueDate ? ` · ${task.dueDate === today ? 'Today' : shortDate(task.dueDate)}` : ' · No date'}
+                    {task.dueDate !== '' && task.dueDate < today && task.status === 'todo' ? ' (Overdue)' : ''}
+                  </small>
+                </button>
+                <span className={cx('priority-tag', task.priority)}>{task.priority}</span>
+                {task.status === 'skipped' ? (
+                  <button type="button" className="move-today-btn" onClick={() => onRestoreTask(task)}>
+                    Restore
+                  </button>
+                ) : (
+                  <button type="button" className="icon-btn subtle" aria-label={`Edit ${task.title}`} onClick={() => onEditTask(task.id)}>
+                    <ArrowUpRight size={15} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Empty
+            title={taskTab === 'today' ? 'A clear runway today.' : `No ${taskTab === 'nodate' ? 'undated' : taskTab} tasks.`}
+            body={
+              taskTab === 'skipped'
+                ? 'Tasks marked skipped appear here so you can restore them anytime.'
+                : 'Add a task or switch tabs to view upcoming and undated work.'
+            }
+            action={taskTab !== 'skipped' ? <Button variant="outline" onClick={onAddTask}><Plus size={15} /> Create task</Button> : undefined}
+          />
+        )}
+
+        {overdueTasks.length > 0 && (
+          <div className="overdue-block">
+            <div className="overdue-head">
+              <span className="eyebrow">overdue · carry forward or complete</span>
+              <span className="overdue-count">{overdueTasks.length}</span>
+            </div>
+            {displayedOverdue.map(task => (
+              <div className="task-row overdue-row" key={task.id}>
+                <button
+                  type="button"
+                  aria-label={`Complete overdue task ${task.title}`}
+                  className="check-control"
+                  onClick={() => onToggleTask(task)}
+                />
+                <button type="button" className="task-title-button" onClick={() => onEditTask(task.id)}>
+                  <b>{task.title}</b>
+                  <small>{projectName(task.projectId)} · due {shortDate(task.dueDate)}</small>
+                </button>
+                <button type="button" className="move-today-btn" onClick={() => onMoveToToday(task.id)}>
+                  Move to today
+                </button>
+              </div>
+            ))}
+            {overdueTasks.length > 6 && (
+              <button
+                type="button"
+                className="clear-priorities"
+                onClick={() => setShowAllOverdue(v => !v)}
+              >
+                {showAllOverdue ? 'Show fewer overdue tasks' : `Show all ${overdueTasks.length} overdue tasks`}
+              </button>
+            )}
+          </div>
+        )}
+      </section>
+
+      <div className="today-bottom">
+        <span><span className="status-dot" /> {dailyTasksDone} tasks completed today</span>
+        <button type="button" onClick={onReview}>Reflect on today <ArrowUpRight size={14} /></button>
+      </div>
+    </div>
+  );
+}

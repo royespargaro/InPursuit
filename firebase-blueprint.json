@@ -2,44 +2,58 @@
   "entities": {
     "UserWorkspace": {
       "title": "UserWorkspace",
-      "description": "Synchronized InPursuit personal execution workspace for a single authenticated user",
+      "description": "Synchronized InPursuit v3 workspace document or v4 lightweight workspace metadata document for a single owner",
       "type": "object",
       "properties": {
         "schemaVersion": {
           "type": "integer",
-          "description": "Workspace schema version (must equal 3)"
+          "description": "Workspace schema version (3 for single-doc workspace, 4 for subcollection metadata)"
+        },
+        "syncVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optimistic concurrency revision counter incremented per v3 transaction write"
         },
         "lifeAreas": {
           "type": "array",
-          "description": "User life areas (max 50 items)"
+          "description": "User life areas (v3, max 50 items)"
         },
         "goals": {
           "type": "array",
-          "description": "Long-term goals linked to life areas (max 200 items)"
+          "description": "Long-term goals linked to life areas (v3, max 200 items)"
         },
         "projects": {
           "type": "array",
-          "description": "Projects linked to goals (max 200 items)"
+          "description": "Projects linked to goals (v3, max 200 items)"
         },
         "tasks": {
           "type": "array",
-          "description": "Actionable tasks linked to projects (max 1000 items)"
+          "description": "Actionable tasks linked to projects (v3, max 1000 items)"
         },
         "habits": {
           "type": "array",
-          "description": "Repeatable habits with schedule frequency (max 100 items)"
+          "description": "Repeatable habits with schedule frequency (v3, max 100 items)"
         },
         "habitLogs": {
           "type": "array",
-          "description": "Daily habit completion and skip logs (max 10000 items)"
+          "description": "Daily habit completion and skip logs (v3, max 10000 items)"
         },
         "dailyPlans": {
           "type": "array",
-          "description": "Top three daily priorities keyed by YYYY-MM-DD (max 1000 items)"
+          "description": "Top three daily priorities keyed by YYYY-MM-DD (v3, max 1000 items)"
         },
         "dailyReviews": {
           "type": "array",
-          "description": "Daily reflection entries keyed by YYYY-MM-DD (max 1000 items)"
+          "description": "Daily reflection entries keyed by YYYY-MM-DD (v3, max 1000 items)"
+        },
+        "migrationStatus": {
+          "type": "string",
+          "enum": ["pending", "completed"],
+          "description": "v4 migration completion marker"
+        },
+        "migratedFromSchema": {
+          "type": "integer",
+          "description": "Source schema version before v4 migration"
         },
         "updatedAt": {
           "type": "string",
@@ -48,23 +62,205 @@
           "description": "ISO-8601 timestamp of last modification"
         }
       },
-      "required": [
-        "schemaVersion",
-        "lifeAreas",
-        "goals",
-        "projects",
-        "tasks",
-        "habits",
-        "habitLogs",
-        "dailyPlans",
-        "dailyReviews"
-      ]
+      "required": ["schemaVersion"]
+    },
+    "LifeAreaDoc": {
+      "title": "LifeAreaDoc",
+      "description": "Normalized v4 life area document",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "maxLength": 40 }
+      },
+      "required": ["id", "name", "description", "createdAt"]
+    },
+    "GoalDoc": {
+      "title": "GoalDoc",
+      "description": "Normalized v4 goal document",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "lifeAreaId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "outcome": { "type": "string", "maxLength": 2000 },
+        "targetDate": { "type": "string", "maxLength": 20 },
+        "status": { "type": "string", "enum": ["active", "completed", "archived"] },
+        "createdAt": { "type": "string", "maxLength": 40 }
+      },
+      "required": ["id", "title", "outcome", "targetDate", "status", "createdAt"]
+    },
+    "ProjectDoc": {
+      "title": "ProjectDoc",
+      "description": "Normalized v4 project document",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "goalId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "dueDate": { "type": "string", "maxLength": 20 },
+        "status": { "type": "string", "enum": ["active", "completed", "archived"] },
+        "createdAt": { "type": "string", "maxLength": 40 }
+      },
+      "required": ["id", "title", "description", "dueDate", "status", "createdAt"]
+    },
+    "TaskDoc": {
+      "title": "TaskDoc",
+      "description": "Normalized v4 task document",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "projectId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "dueDate": { "type": "string", "maxLength": 20 },
+        "priority": { "type": "string", "enum": ["high", "medium", "low"] },
+        "status": { "type": "string", "enum": ["todo", "done", "skipped"] },
+        "createdAt": { "type": "string", "maxLength": 40 },
+        "completedAt": { "type": "string", "maxLength": 40 }
+      },
+      "required": ["id", "title", "dueDate", "priority", "status", "createdAt"]
+    },
+    "HabitDoc": {
+      "title": "HabitDoc",
+      "description": "Normalized v4 habit document",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "frequency": { "type": "string", "enum": ["daily", "weekdays", "weekends"] },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "maxLength": 40 }
+      },
+      "required": ["id", "name", "frequency", "active", "createdAt"]
+    },
+    "HabitLogMonthDoc": {
+      "title": "HabitLogMonthDoc",
+      "description": "Normalized v4 monthly habit log bucket keyed by YYYY-MM",
+      "type": "object",
+      "properties": {
+        "month": { "type": "string", "maxLength": 7, "pattern": "^\\d{4}-\\d{2}$" },
+        "logs": { "type": "object" },
+        "updatedAt": { "type": "string", "maxLength": 40 }
+      },
+      "required": ["month", "logs"]
+    },
+    "DailyPlanDoc": {
+      "title": "DailyPlanDoc",
+      "description": "Normalized v4 daily top-3 priority plan keyed by YYYY-MM-DD",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "maxLength": 10, "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "priorityTaskIds": { "type": "array" }
+      },
+      "required": ["date", "priorityTaskIds"]
+    },
+    "DailyReviewDoc": {
+      "title": "DailyReviewDoc",
+      "description": "Normalized v4 daily reflection document keyed by YYYY-MM-DD",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "maxLength": 10, "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "wins": { "type": "string", "maxLength": 4000 },
+        "blockers": { "type": "string", "maxLength": 4000 },
+        "notes": { "type": "string", "maxLength": 4000 },
+        "energy": { "type": "integer" }
+      },
+      "required": ["date", "wins", "blockers", "notes", "energy"]
+    },
+    "UserEntitlement": {
+      "title": "UserEntitlement",
+      "description": "Admin-managed subscription entitlement document (users may read only)",
+      "type": "object",
+      "properties": {
+        "tier": { "type": "string", "enum": ["free", "pro"] },
+        "status": { "type": "string", "enum": ["active", "expired", "revoked"] },
+        "expiresAt": { "type": "string", "format": "date-time", "maxLength": 40 },
+        "planLabel": { "type": "string", "maxLength": 80 },
+        "paymentRef": { "type": "string", "maxLength": 120 },
+        "updatedAt": { "type": "string", "format": "date-time", "maxLength": 40 },
+        "updatedBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["tier", "status", "updatedAt", "updatedBy"]
+    },
+    "PaymentRequest": {
+      "title": "PaymentRequest",
+      "description": "Manual payment verification submission awaiting admin approval",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "plan": { "type": "string", "enum": ["monthly", "annual"] },
+        "amountIdr": { "type": "integer" },
+        "referenceCode": { "type": "string", "minLength": 3, "maxLength": 120 },
+        "note": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time", "maxLength": 40 },
+        "reviewedAt": { "type": "string", "format": "date-time", "maxLength": 40 },
+        "reviewedBy": { "type": "string", "maxLength": 128 },
+        "adminNote": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["userId", "plan", "amountIdr", "referenceCode", "status", "createdAt"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Console/Admin-SDK provisioned administrator lookup record",
+      "type": "object",
+      "properties": {
+        "role": { "type": "string", "enum": ["admin"] },
+        "createdAt": { "type": "string", "format": "date-time", "maxLength": 40 }
+      },
+      "required": ["role"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "UserWorkspace",
-      "description": "Single-owner workspace document storing synchronized v3 execution data"
+      "description": "Single-owner v3 workspace document or v4 metadata document"
+    },
+    "/users/{userId}/lifeAreas/{areaId}": {
+      "schema": "LifeAreaDoc",
+      "description": "Normalized v4 life area records"
+    },
+    "/users/{userId}/goals/{goalId}": {
+      "schema": "GoalDoc",
+      "description": "Normalized v4 goal records"
+    },
+    "/users/{userId}/projects/{projectId}": {
+      "schema": "ProjectDoc",
+      "description": "Normalized v4 project records"
+    },
+    "/users/{userId}/tasks/{taskId}": {
+      "schema": "TaskDoc",
+      "description": "Normalized v4 task records"
+    },
+    "/users/{userId}/habits/{habitId}": {
+      "schema": "HabitDoc",
+      "description": "Normalized v4 habit records"
+    },
+    "/users/{userId}/habitLogMonths/{monthKey}": {
+      "schema": "HabitLogMonthDoc",
+      "description": "Normalized v4 monthly habit log buckets"
+    },
+    "/users/{userId}/dailyPlans/{dateKey}": {
+      "schema": "DailyPlanDoc",
+      "description": "Normalized v4 daily top-3 priority records"
+    },
+    "/users/{userId}/dailyReviews/{dateKey}": {
+      "schema": "DailyReviewDoc",
+      "description": "Normalized v4 daily reflection records"
+    },
+    "/entitlements/{userId}": {
+      "schema": "UserEntitlement",
+      "description": "Admin-controlled Free/Pro subscription entitlement"
+    },
+    "/paymentRequests/{requestId}": {
+      "schema": "PaymentRequest",
+      "description": "Manual payment verification submissions"
+    },
+    "/admins/{userId}": {
+      "schema": "AdminRecord",
+      "description": "Read-only admin role registry managed via Firebase Console or Admin SDK"
     }
   }
 }

@@ -29,6 +29,18 @@ export function getReadableAuthError(error: unknown, hostname?: string): string 
     return 'This in-app browser restricts sign-in storage. Open this URL directly in Safari or Chrome and try again.';
   }
 
+  if (code === 'auth/user-mismatch') {
+    return 'Please sign in with the same Google account that owns this workspace to continue.';
+  }
+
+  if (code === 'auth/requires-recent-login') {
+    return 'For your security, please verify your Google sign-in again before deleting your account.';
+  }
+
+  if (code === 'auth/user-not-found') {
+    return 'This Firebase Authentication account no longer exists.';
+  }
+
   if (code === 'auth/network-request-failed') {
     return 'Network error while connecting to Google sign-in. Check your connection and try again.';
   }

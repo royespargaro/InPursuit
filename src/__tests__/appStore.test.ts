@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  ACCOUNT_KEY_PREFIX,
+  applySelectedActiveProjects,
   buildBackupEnvelope,
+  classifyRemoteSnapshot,
+  clearAccountStorage,
+  computeWorkspaceHash,
   consumeLoadWarning,
   createDefaultData,
   importData,
@@ -8,9 +13,16 @@ import {
   loadAccountData,
   loadData,
   mergeWorkspaceData,
+  mergeWorkspaceDataDetailed,
   sanitizeAppData,
   saveAccountData,
   saveData,
+  saveSyncBase,
+  saveSyncMeta,
+  SYNC_BASE_PREFIX,
+  SYNC_META_PREFIX,
+  threeWayMergeWorkspace,
+  threeWayMergeWorkspaceDetailed,
 } from '../services/appStore';
 import type { AppData } from '../types';
 
@@ -258,4 +270,192 @@ describe('app store schema migration & backup integrity', () => {
     expect(merged.projects[0].goalId).toBe('lg2');
     expect(merged.habits).toHaveLength(1);
   });
+
+  it('clamps oversized text fields in sanitizeAppData to keep cloud documents compact', () => {
+    const oversized: AppData = {
+      ...validV3,
+      goals: [
+        {
+          id: 'g1',
+          lifeAreaId: null,
+          title: 'x'.repeat(500),
+          outcome: 'y'.repeat(3000),
+          targetDate: '2027-01-01',
+          status: 'active',
+          createdAt: '2026-11-12T00:00:00.000Z',
+        },
+      ],
+      dailyReviews: [
+        {
+          date: '2026-11-12',
+          wins: 'w'.repeat(5000),
+          blockers: 'b'.repeat(5000),
+          notes: 'n'.repeat(5000),
+          energy: 4,
+        },
+      ],
+    };
+
+    const clean = sanitizeAppData(oversized);
+    expect(clean.goals[0].title).toHaveLength(240);
+    expect(clean.goals[0].outcome).toHaveLength(2000);
+    expect(clean.dailyReviews[0].wins).toHaveLength(4000);
+    expect(clean.dailyReviews[0].blockers).toHaveLength(4000);
+    expect(clean.dailyReviews[0].notes).toHaveLength(4000);
+  });
+
+  it('uses culturally neutral starter habits without hardcoded religious assumptions', () => {
+    const defaults = createDefaultData();
+    expect(defaults.habits).toHaveLength(6);
+    expect(defaults.habits.some(h => /prayer/i.test(h.name))).toBe(false);
+  });
+
+  it('enforces MAX_ACTIVE_PROJECTS = 3 on backup inspect and workspace merge without discarding projects', () => {
+    const makeProject = (id: string) => ({
+      id,
+      goalId: null,
+      title: `Project ${id}`,
+      description: '',
+      dueDate: '',
+      status: 'active' as const,
+      createdAt: '2026-11-10T00:00:00.000Z',
+    });
+
+    const overCapBackup: AppData = {
+      ...validV3,
+      projects: [makeProject('p1'), makeProject('p2'), makeProject('p3'), makeProject('p4'), makeProject('p5')],
+    };
+    const inspected = inspectBackupText(JSON.stringify(overCapBackup));
+    expect(inspected.archivedExcessProjects).toBe(2);
+    expect(inspected.data.projects.filter(p => p.status === 'active')).toHaveLength(3);
+    expect(inspected.data.projects.filter(p => p.status === 'archived')).toHaveLength(2);
+
+    const cloud: AppData = { ...validV3, projects: [makeProject('c1'), makeProject('c2')] };
+    const local: AppData = { ...validV3, projects: [makeProject('l1'), makeProject('l2')] };
+    const merged = mergeWorkspaceData(cloud, local);
+    expect(merged.projects).toHaveLength(4);
+    expect(merged.projects.filter(p => p.status === 'active')).toHaveLength(3);
+  });
+
+  it('performs lossless three-way merge preserving concurrent additions and edits', () => {
+    const base: AppData = {
+      ...validV3,
+      goals: [{ id: 'g1', lifeAreaId: null, title: 'Shared Goal', outcome: '', targetDate: '', status: 'active', createdAt: '2026-11-01' }],
+      tasks: [{ id: 't1', projectId: null, title: 'Old title', dueDate: '2026-11-12', priority: 'medium', status: 'todo', createdAt: '2026-11-01', completedAt: null }],
+    };
+    const local: AppData = {
+      ...base,
+      tasks: [
+        { ...base.tasks[0], title: 'Updated offline' },
+        { id: 't-local', projectId: null, title: 'Offline task', dueDate: '2026-11-12', priority: 'high', status: 'todo', createdAt: '2026-11-12', completedAt: null },
+      ],
+    };
+    const remote: AppData = {
+      ...base,
+      goals: [
+        ...base.goals,
+        { id: 'g-remote', lifeAreaId: null, title: 'Remote Goal', outcome: '', targetDate: '', status: 'active', createdAt: '2026-11-12' },
+      ],
+    };
+
+    const merged = threeWayMergeWorkspace(base, local, remote, true);
+    expect(merged.goals.map(g => g.title)).toEqual(['Shared Goal', 'Remote Goal']);
+    expect(merged.tasks.map(t => t.title)).toEqual(['Updated offline', 'Offline task']);
+  });
+
+  it('computes content hash ignoring updatedAt and syncVersion and wipes account storage cleanly', () => {
+    const d1: AppData = { ...validV3, updatedAt: '2026-11-10T00:00:00.000Z', syncVersion: 1 };
+    const d2: AppData = { ...validV3, updatedAt: '2026-11-12T12:00:00.000Z', syncVersion: 9 };
+    expect(computeWorkspaceHash(d1)).toBe(computeWorkspaceHash(d2));
+
+    saveAccountData('uid-x', d1);
+    saveSyncBase('uid-x', d1);
+    saveSyncMeta('uid-x', { pendingSync: false, lastSyncedAt: '2026-11-10T00:00:00.000Z' });
+    clearAccountStorage('uid-x');
+
+    expect(store[`${ACCOUNT_KEY_PREFIX}uid-x`]).toBeUndefined();
+    expect(store[`${SYNC_BASE_PREFIX}uid-x`]).toBeUndefined();
+    expect(store[`${SYNC_META_PREFIX}uid-x`]).toBeUndefined();
+  });
+
+  it('preserves conflicting same-date DailyReview entries and differing same-title goals during merge', () => {
+    const cloud: AppData = {
+      ...validV3,
+      goals: [{ id: 'cg1', lifeAreaId: null, title: 'Ship MVP', outcome: 'Cloud outcome', targetDate: '2026-12-01', status: 'active', createdAt: '' }],
+      dailyReviews: [{ date: '2026-11-12', wins: 'Cloud win', blockers: 'Cloud blocker', notes: '', energy: 4 }],
+    };
+    const local: AppData = {
+      ...validV3,
+      goals: [{ id: 'lg1', lifeAreaId: null, title: 'Ship MVP', outcome: 'Local outcome', targetDate: '2026-12-15', status: 'active', createdAt: '' }],
+      projects: [{ id: 'lp1', goalId: 'lg1', title: 'Local project', description: '', dueDate: '', status: 'active', createdAt: '' }],
+      dailyReviews: [{ date: '2026-11-12', wins: 'Local win', blockers: '', notes: 'Local note', energy: 2 }],
+    };
+
+    const detailed = mergeWorkspaceDataDetailed(cloud, local);
+    expect(detailed.data.goals.map(g => g.title)).toEqual(['Ship MVP', 'Ship MVP (Local)']);
+    expect(detailed.data.projects[0].goalId).toBe('lg1');
+    expect(detailed.data.dailyReviews).toHaveLength(1);
+    expect(detailed.data.dailyReviews[0].wins).toContain('Cloud win');
+    expect(detailed.data.dailyReviews[0].wins).toContain('Local win');
+    expect(detailed.data.dailyReviews[0].blockers).toBe('Cloud blocker');
+    expect(detailed.data.dailyReviews[0].notes).toBe('Local note');
+  });
+
+  it('surfaces active-project limit excess in threeWayMergeWorkspaceDetailed and honors explicit user selection', () => {
+    const makeProj = (id: string) => ({
+      id,
+      goalId: null,
+      title: `Proj ${id}`,
+      description: '',
+      dueDate: '',
+      status: 'active' as const,
+      createdAt: '2026-11-10T00:00:00.000Z',
+    });
+    const base: AppData = { ...validV3, projects: [makeProj('p1')] };
+    const local: AppData = { ...validV3, projects: [makeProj('p1'), makeProj('p2'), makeProj('p3')] };
+    const remote: AppData = { ...validV3, projects: [makeProj('p1'), makeProj('p4')] };
+
+    const detailed = threeWayMergeWorkspaceDetailed(base, local, remote, true);
+    expect(detailed.exceedsProjectLimit).toBe(true);
+    expect(detailed.activeProjects.map(p => p.id).sort()).toEqual(['p1', 'p2', 'p3', 'p4']);
+
+    const chosen = applySelectedActiveProjects(detailed.uncappedProjects, ['p2', 'p3', 'p4']);
+    expect(chosen.projects.filter(p => p.status === 'active').map(p => p.id).sort()).toEqual(['p2', 'p3', 'p4']);
+    expect(chosen.projects.find(p => p.id === 'p1')?.status).toBe('archived');
+  });
+
+  it('rekeys colliding IDs on differing backup records instead of dropping them silently', () => {
+    const backupWithCollision: AppData = {
+      ...validV3,
+      goals: [
+        { id: 'dup-1', lifeAreaId: null, title: 'Goal Alpha', outcome: '', targetDate: '', status: 'active', createdAt: '' },
+        { id: 'dup-1', lifeAreaId: null, title: 'Goal Beta', outcome: '', targetDate: '', status: 'active', createdAt: '' },
+      ],
+    };
+
+    const inspected = inspectBackupText(JSON.stringify(backupWithCollision));
+    expect(inspected.rekeyedDuplicateIds).toBe(1);
+    expect(inspected.data.goals.map(g => g.title)).toEqual(['Goal Alpha', 'Goal Beta']);
+    expect(new Set(inspected.data.goals.map(g => g.id)).size).toBe(2);
+  });
+
+  it('classifies v3, incompatible v4, and invalid remote snapshots distinctly', () => {
+    expect(classifyRemoteSnapshot({ ...validV3, syncVersion: 3 })).toMatchObject({
+      kind: 'valid-v3',
+      syncVersion: 3,
+    });
+    expect(
+      classifyRemoteSnapshot({
+        schemaVersion: 4,
+        migrationStatus: 'completed',
+        migratedFromSchema: 3,
+        updatedAt: '2026-11-14T00:00:00.000Z',
+      }),
+    ).toMatchObject({
+      kind: 'incompatible-v4',
+      schemaVersion: 4,
+    });
+    expect(classifyRemoteSnapshot({ schemaVersion: 3, goals: 'broken' })).toEqual({ kind: 'invalid' });
+  });
 });
+

@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useRef } from 'react';
+import { useModalFocus } from '../hooks/useModalFocus';
 import { AlertCircle, X } from './Icon';
 
 interface ConfirmModalProps {
@@ -7,6 +8,8 @@ interface ConfirmModalProps {
   body: string;
   details?: string[];
   confirmLabel: string;
+  secondaryLabel?: string;
+  onSecondary?: () => void;
   tone?: 'danger' | 'solid';
   onConfirm: () => void;
   onCancel: () => void;
@@ -18,21 +21,20 @@ export function ConfirmModal({
   body,
   details,
   confirmLabel,
+  secondaryLabel,
+  onSecondary,
   tone = 'solid',
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onCancel();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onCancel]);
+  const modalRef = useRef<HTMLDivElement>(null);
+  useModalFocus(modalRef, onCancel);
 
   return (
     <div className="modal-backdrop" onMouseDown={onCancel}>
       <div
+        ref={modalRef}
+        tabIndex={-1}
         className="modal confirm-modal"
         role="alertdialog"
         aria-modal="true"
@@ -66,6 +68,11 @@ export function ConfirmModal({
           <button className="ui-btn ui-btn-outline" type="button" onClick={onCancel}>
             Cancel
           </button>
+          {secondaryLabel && onSecondary && (
+            <button className="ui-btn ui-btn-solid" type="button" onClick={onSecondary}>
+              {secondaryLabel}
+            </button>
+          )}
           <button
             className={`ui-btn ${tone === 'danger' ? 'ui-btn-danger' : 'ui-btn-solid'}`}
             type="button"

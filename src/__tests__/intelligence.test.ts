@@ -64,6 +64,23 @@ describe('product intelligence utilities', () => {
     expect(progress.totalTasks).toBe(2);
   });
 
+  it('excludes archived projects so dropped initiatives do not distort goal progress', () => {
+    const goal = makeGoal('g1');
+    const projects = [
+      makeProject('p1', 'g1', 'completed'),
+      makeProject('p2', 'g1', 'archived'),
+    ];
+    const tasks = [
+      makeTask('t1', 'p1', 'done'),
+      makeTask('t2', 'p2', 'todo'),
+    ];
+
+    const progress = getGoalProgress(goal, projects, tasks);
+    expect(progress.percent).toBe(100);
+    expect(progress.linkedProjects).toBe(1);
+    expect(progress.totalTasks).toBe(1);
+  });
+
   it('respects habit schedules and excludes skipped days from adherence denominator', () => {
     const weekdayHabit: Habit = {
       id: 'h1',

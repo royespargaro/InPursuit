@@ -1,19 +1,18 @@
 # InPursuit
 
-InPursuit is a local-first personal execution workspace for life areas, goals, projects, habits, tasks, and reviews.
+InPursuit is a local-first personal execution workspace for life areas, goals, projects, habits, tasks, and daily reviews, with optional Google Sign-In and Firebase Firestore cloud sync.
 
 ## Run locally
 
 1. Install dependencies with `npm install`.
-2. Copy `.env.example` to `.env` and add a Google AI Studio API key to `GEMINI_API_KEY`.
-3. Start the app with `npm run dev`.
+2. Start the development server with `npm run dev` (serves on port `3000`).
 
-The app and its `/api/brain-dump` endpoint run on the same origin. The production server serves the Vite build and the same API with `npm run build` followed by `npm start`.
+## Production build & start
 
-## Free AI Brain Dump
+1. Build the client bundle and Node server with `npm run build`.
+2. Start the production server with `npm start`.
 
-The Brain Dump uses Gemini through a server-side endpoint; the API key is never sent to the browser. Google AI Studio may offer free-tier usage, subject to model, region, and quota availability. Use a key without billing enabled if you cannot risk charges. The app does not switch to a paid provider when a quota is exhausted; it returns an error instead.
+## Storage & cloud sync
 
-Brain Dump notes are sent to Google for parsing. Do not include passwords, API keys, or other credentials. Suggestions stay out of app data until you review and approve them. Other app data remains in browser local storage unless you export it.
-
-Set `GEMINI_MODEL` in `.env` to a model available to your AI Studio project. The default is `gemini-2.5-flash`.
+- Without signing in, all data is saved locally in your browser (`localStorage`) and can be exported/restored via versioned JSON backups in Settings.
+- Signing in with Google synchronizes your workspace with Firebase Firestore across devices while keeping a local cached copy for offline resilience.
