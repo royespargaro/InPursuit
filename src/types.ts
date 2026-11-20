@@ -78,6 +78,7 @@ export interface Task {
   createdAt: string;
   completedAt: string | null;
   targetQuantity?: number;
+  completedQuantity?: number;
   importId?: string;
   sourceQuote?: string;
 }
@@ -134,6 +135,7 @@ export interface AppData {
 
 export interface ExtractionGoal {
   title: string;
+  life_area?: string;
   pillar_weight_pct?: number;
   description?: string;
   source_quote: string;
@@ -164,6 +166,7 @@ export interface ExtractionTask {
   goal_ref?: string;
   phase_ref?: string;
   due?: string;
+  priority?: Priority;
   target_quantity?: number;
   source_quote: string;
 }

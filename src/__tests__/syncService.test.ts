@@ -249,5 +249,46 @@ describe('syncService transactional optimistic concurrency & v4 protection', () 
       }),
     );
   });
+
+  it('strips nested undefined fields before passing payload to Transaction.set', async () => {
+    const dirtyWorkspace = {
+      ...sampleWorkspace,
+      goals: [
+        {
+          id: 'g1',
+          lifeAreaId: null,
+          title: 'Goal 1',
+          outcome: '',
+          targetDate: '',
+          status: 'active' as const,
+          createdAt: '2026-11-14T00:00:00.000Z',
+          successCriteria: undefined,
+          principles: undefined,
+        },
+      ],
+      habits: [
+        {
+          id: 'h1',
+          name: 'Hydrate',
+          frequency: 'daily' as const,
+          minimumVersion: undefined,
+          active: true,
+          createdAt: '2026-11-14T00:00:00.000Z',
+        },
+      ],
+    };
+
+    await syncToFirestore('u-undef', dirtyWorkspace);
+
+    expect(mockTransactionSet).toHaveBeenCalledTimes(1);
+    const written = mockTransactionSet.mock.calls[0][1] as Record<string, unknown>;
+    const goalWritten = (written.goals as Array<Record<string, unknown>>)[0];
+    const habitWritten = (written.habits as Array<Record<string, unknown>>)[0];
+
+    expect('successCriteria' in goalWritten).toBe(false);
+    expect('principles' in goalWritten).toBe(false);
+    expect('minimumVersion' in habitWritten).toBe(false);
+    expect('syncVersion' in written).toBe(true);
+  });
 });
 

@@ -1,3 +1,4 @@
+import { ThinkingLevel } from '@google/genai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   checkUserRateLimit,
@@ -5,7 +6,15 @@ import {
   MAX_IMPORT_REQUEST_BYTES,
   resetRateLimitStore,
 } from '../../api/_lib/importAuth';
-import { extractPlanWithGemini, refinePlanWithGemini } from '../../api/_lib/planImport';
+import {
+  createGeminiCaller,
+  extractPlanWithGemini,
+  GEMINI_PLAN_FALLBACK_MODEL,
+  GEMINI_PLAN_MODEL,
+  PlanImportError,
+  refinePlanWithGemini,
+  resolvePlanModelConfig,
+} from '../../api/_lib/planImport';
 import {
   createDefaultData,
   sanitizeAppData,
@@ -16,6 +25,7 @@ import type { Extraction } from '../types';
 import { getTodayHabitCount, getWeeklyHabitCount, isHabitScheduledOnDate } from '../utils/habitUtils';
 import { applyImportedPlanToWorkspace, undoImportedPlan } from '../utils/planImportMerge';
 import {
+  ExtractionSchema,
   filterGroundedExtraction,
   filterGroundedExtractionWithStats,
   getMakassarDateKey,
@@ -173,13 +183,16 @@ describe('planImport deterministic schema, grounding, and date resolution', () =
 
     const result = await extractPlanWithGemini(planText, {
       now: new Date('2026-11-20T04:00:00Z'), // 2026-11-20 12:00 Asia/Makassar
+      deepCheck: true,
       caller,
     });
 
     expect(caller).toHaveBeenCalledTimes(3);
     expect(caller.mock.calls[0][0].temperature).toBe(0);
+    expect(caller.mock.calls[0][0].thinkingLevel).toBe(ThinkingLevel.LOW);
     expect(caller.mock.calls[0][0].systemInstruction).toContain('2026-11-20');
     expect(caller.mock.calls[0][0].systemInstruction).toContain('Asia/Makassar');
+    expect(caller.mock.calls[0][0].systemInstruction).toContain('max 12 words');
 
     expect(result.verified).toBe(true);
     expect(result.droppedCount).toBe(1);
@@ -190,6 +203,267 @@ describe('planImport deterministic schema, grounding, and date resolution', () =
     expect(result.extraction.tasks.map(t => t.title)).toEqual(['Ship landing page']);
     expect(result.extraction.tasks[0].due).toBe('2026-12-04');
     expect(result.extraction.principles.map(p => p.text)).toEqual(['Focus on shipping daily']);
+  });
+
+  it('skips Pass-2 verification by default and supports deepCheck on an existing draft', async () => {
+    const planText = [
+      'Goal: Launch SaaS MVP',
+      'Ship landing page on Day 15',
+    ].join('\n');
+
+    const caller = vi
+      .fn()
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          goals: [{ title: 'Launch SaaS MVP', source_quote: 'Goal: Launch SaaS MVP' }],
+          phases: [],
+          habits: [],
+          tasks: [],
+          success_criteria: [],
+          principles: [],
+          clarifications: [],
+        }),
+      )
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          missing: {
+            goals: [],
+            phases: [],
+            habits: [],
+            tasks: [{ title: 'Ship landing page', due: 'Day 15', source_quote: 'Ship landing page on Day 15' }],
+            success_criteria: [],
+            principles: [],
+            clarifications: [],
+          },
+          updates: [],
+          removals: [],
+        }),
+      );
+
+    // Default extract runs only Pass 1 (relying on deterministic grounding)
+    const fastResult = await extractPlanWithGemini(planText, {
+      now: new Date('2026-11-20T04:00:00Z'),
+      caller,
+    });
+    expect(caller).toHaveBeenCalledTimes(1);
+    expect(fastResult.verified).toBe(false);
+    expect(fastResult.extraction.goals).toHaveLength(1);
+    expect(fastResult.extraction.tasks).toHaveLength(0);
+
+    // Explicit deepCheck with currentDraft skips Pass 1 and runs Pass 2 verification only
+    const verifiedResult = await extractPlanWithGemini(planText, {
+      now: new Date('2026-11-20T04:00:00Z'),
+      deepCheck: true,
+      currentDraft: fastResult.extraction,
+      caller,
+    });
+    expect(caller).toHaveBeenCalledTimes(2);
+    expect(verifiedResult.verified).toBe(true);
+    expect(verifiedResult.extraction.tasks.map(t => t.title)).toEqual(['Ship landing page']);
+    expect(verifiedResult.extraction.tasks[0].due).toBe('2026-12-04');
+  });
+
+  it('resolves model, fallback model, and thinking level from env vars with safe defaults', () => {
+    const prevModel = process.env.GEMINI_PLAN_MODEL;
+    const prevFallback = process.env.GEMINI_PLAN_FALLBACK_MODEL;
+    const prevLevel = process.env.GEMINI_PLAN_THINKING_LEVEL;
+
+    try {
+      delete process.env.GEMINI_PLAN_MODEL;
+      delete process.env.GEMINI_PLAN_FALLBACK_MODEL;
+      delete process.env.GEMINI_PLAN_THINKING_LEVEL;
+
+      expect(resolvePlanModelConfig()).toEqual({
+        model: GEMINI_PLAN_MODEL,
+        fallbackModel: GEMINI_PLAN_FALLBACK_MODEL,
+        thinkingLevel: ThinkingLevel.LOW,
+      });
+
+      process.env.GEMINI_PLAN_MODEL = 'gemini-4-custom';
+      process.env.GEMINI_PLAN_FALLBACK_MODEL = 'gemini-3-flash-preview';
+      process.env.GEMINI_PLAN_THINKING_LEVEL = 'medium';
+
+      expect(resolvePlanModelConfig()).toEqual({
+        model: 'gemini-4-custom',
+        fallbackModel: 'gemini-3-flash-preview',
+        thinkingLevel: ThinkingLevel.MEDIUM,
+      });
+    } finally {
+      if (prevModel === undefined) delete process.env.GEMINI_PLAN_MODEL;
+      else process.env.GEMINI_PLAN_MODEL = prevModel;
+      if (prevFallback === undefined) delete process.env.GEMINI_PLAN_FALLBACK_MODEL;
+      else process.env.GEMINI_PLAN_FALLBACK_MODEL = prevFallback;
+      if (prevLevel === undefined) delete process.env.GEMINI_PLAN_THINKING_LEVEL;
+      else process.env.GEMINI_PLAN_THINKING_LEVEL = prevLevel;
+    }
+  });
+
+  it('retries 503 with backoff then succeeds on primary model with ThinkingLevel.LOW', async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const generateContent = vi
+      .fn()
+      .mockRejectedValueOnce(Object.assign(new Error('503 Service Unavailable'), { status: 503 }))
+      .mockResolvedValueOnce({ text: '{"ok":true}' });
+
+    const caller = createGeminiCaller('test-key', {
+      sleep,
+      generateContent,
+    });
+
+    const raw = await caller({
+      systemInstruction: 'sys',
+      contents: 'user',
+      responseSchema: {} as never,
+      temperature: 0,
+    });
+
+    expect(raw).toBe('{"ok":true}');
+    expect(generateContent).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledTimes(1);
+    expect(sleep).toHaveBeenCalledWith(1000);
+    expect(generateContent.mock.calls[0][0].model).toBe(GEMINI_PLAN_MODEL);
+    expect(generateContent.mock.calls[0][0].config?.thinkingConfig).toEqual({
+      thinkingLevel: ThinkingLevel.LOW,
+    });
+    expect(generateContent.mock.calls[0][0].config?.temperature).toBeUndefined();
+  });
+
+  it('falls back once to stable Flash model when all primary attempts return 503, and throws friendly AI_BUSY if fallback fails', async () => {
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const err503 = Object.assign(new Error('Upstream raw stack: 503 UNAVAILABLE'), { status: 503 });
+
+    const generateContent = vi
+      .fn()
+      .mockRejectedValueOnce(err503)
+      .mockRejectedValueOnce(err503)
+      .mockRejectedValueOnce(err503)
+      .mockResolvedValueOnce({ text: '{"fallback":true}' });
+
+    const caller = createGeminiCaller('test-key', {
+      sleep,
+      generateContent,
+    });
+
+    const raw = await caller({
+      systemInstruction: 'sys',
+      contents: 'user',
+      responseSchema: {} as never,
+      temperature: 0,
+    });
+
+    expect(raw).toBe('{"fallback":true}');
+    expect(generateContent).toHaveBeenCalledTimes(4);
+    expect(sleep.mock.calls.map(c => c[0])).toEqual([1000, 3000]);
+    expect(generateContent.mock.calls[0][0].model).toBe(GEMINI_PLAN_MODEL);
+    expect(generateContent.mock.calls[1][0].model).toBe(GEMINI_PLAN_MODEL);
+    expect(generateContent.mock.calls[2][0].model).toBe(GEMINI_PLAN_MODEL);
+    expect(generateContent.mock.calls[3][0].model).toBe(GEMINI_PLAN_FALLBACK_MODEL);
+
+    // If fallback also returns 503, returns friendly retryable AI_BUSY error without raw text
+    const alwaysBusy = vi.fn().mockRejectedValue(err503);
+    const failingCaller = createGeminiCaller('test-key', {
+      sleep: vi.fn().mockResolvedValue(undefined),
+      generateContent: alwaysBusy,
+    });
+
+    await expect(
+      failingCaller({
+        systemInstruction: 'sys',
+        contents: 'user',
+        responseSchema: {} as never,
+        temperature: 0,
+      }),
+    ).rejects.toMatchObject({
+      name: 'PlanImportError',
+      code: 'AI_BUSY',
+      status: 503,
+      retryable: true,
+    });
+  });
+
+  it('aborts timed-out Gemini calls via AbortController and throws friendly AI_TIMEOUT', async () => {
+    const observedSignals: AbortSignal[] = [];
+    const generateContent = vi.fn(
+      (params: { config?: { abortSignal?: AbortSignal } }) =>
+        new Promise<{ text: string }>((_, reject) => {
+          const signal = params.config?.abortSignal;
+          if (signal) {
+            observedSignals.push(signal);
+            signal.addEventListener(
+              'abort',
+              () => {
+                const abortErr = new Error('aborted');
+                abortErr.name = 'AbortError';
+                reject(abortErr);
+              },
+              { once: true },
+            );
+          }
+        }),
+    );
+
+    const caller = createGeminiCaller('test-key', {
+      timeoutMs: 20,
+      retryDelaysMs: [10, 20],
+      sleep: vi.fn().mockResolvedValue(undefined),
+      generateContent,
+    });
+
+    await expect(
+      caller({
+        systemInstruction: 'sys',
+        contents: 'user',
+        responseSchema: {} as never,
+        temperature: 0,
+      }),
+    ).rejects.toMatchObject({
+      name: 'PlanImportError',
+      code: 'AI_TIMEOUT',
+      status: 504,
+      retryable: true,
+    });
+
+    // Primary timed out once -> failed over once to fallback -> both AbortSignals aborted
+    expect(generateContent).toHaveBeenCalledTimes(2);
+    expect(observedSignals).toHaveLength(2);
+    expect(observedSignals.every(s => s.aborted)).toBe(true);
+  });
+
+  it('never retries 400 or 401 errors and surfaces non-retryable friendly PlanImportError', async () => {
+    for (const [status, expectedCode] of [
+      [400, 'AI_INVALID_REQUEST'],
+      [401, 'AI_UNCONFIGURED'],
+    ] as const) {
+      const sleep = vi.fn().mockResolvedValue(undefined);
+      const generateContent = vi
+        .fn()
+        .mockRejectedValueOnce(Object.assign(new Error(`HTTP ${status} raw detail`), { status }));
+
+      const caller = createGeminiCaller('test-key', {
+        sleep,
+        generateContent,
+      });
+
+      let caught: unknown;
+      try {
+        await caller({
+          systemInstruction: 'sys',
+          contents: 'user',
+          responseSchema: {} as never,
+          temperature: 0,
+        });
+      } catch (err) {
+        caught = err;
+      }
+
+      expect(caught).toBeInstanceOf(PlanImportError);
+      expect(caught).toMatchObject({
+        code: expectedCode,
+        retryable: false,
+      });
+      expect(generateContent).toHaveBeenCalledTimes(1);
+      expect(sleep).not.toHaveBeenCalled();
+    }
   });
 
   it('supports refine mode with chat instruction while grounding quotes cleanly', async () => {
@@ -303,31 +577,52 @@ describe('planImport deterministic schema, grounding, and date resolution', () =
     expect(limitedResp.status).toBe(429);
     expect(limitedResp.headers['Retry-After']).toBe('60');
 
+    const extractSpy = vi.fn().mockResolvedValue({
+      extraction: {
+        goals: [],
+        phases: [],
+        habits: [{ title: 'Run', cadence: 'weekly_count', target_count: 4, source_quote: 'Run 4 per week' }],
+        tasks: [],
+        success_criteria: [],
+        principles: [],
+        clarifications: [],
+      },
+      anchorDate: '2026-11-20',
+      timezone: 'Asia/Makassar',
+      verified: false,
+      droppedCount: 0,
+      droppedByKind: { goals: 0, phases: 0, habits: 0, tasks: 0, success_criteria: 0, principles: 0, clarifications: 0 },
+      dailyHabitCount: 0,
+    });
+
     const okResp = await handleImportPlanHttp({
       method: 'POST',
       authorizationHeader: 'Bearer valid-token',
-      body: { mode: 'extract', planText: 'Run 4 per week' },
+      body: { mode: 'extract', planText: 'Run 4 per week', deepCheck: true },
       nowMs: 1600,
       verifyToken: async () => ({ uid: 'user-fresh' }),
-      extractPlan: async () => ({
-        extraction: {
-          goals: [],
-          phases: [],
-          habits: [{ title: 'Run', cadence: 'weekly_count', target_count: 4, source_quote: 'Run 4 per week' }],
-          tasks: [],
-          success_criteria: [],
-          principles: [],
-          clarifications: [],
-        },
-        anchorDate: '2026-11-20',
-        timezone: 'Asia/Makassar',
-        verified: true,
-        droppedCount: 0,
-        droppedByKind: { goals: 0, phases: 0, habits: 0, tasks: 0, success_criteria: 0, principles: 0, clarifications: 0 },
-        dailyHabitCount: 0,
-      }),
+      extractPlan: extractSpy,
     });
     expect(okResp.status).toBe(200);
+    expect(extractSpy).toHaveBeenCalledWith('Run 4 per week', { deepCheck: true, currentDraft: undefined });
+
+    // Friendly error contract returned without leaking raw upstream text
+    const busyResp = await handleImportPlanHttp({
+      method: 'POST',
+      authorizationHeader: 'Bearer valid-token',
+      body: { mode: 'extract', planText: 'Run 4 per week' },
+      nowMs: 1601,
+      verifyToken: async () => ({ uid: 'user-fresh-2' }),
+      extractPlan: async () => {
+        throw new Error('SECRET_RAW_UPSTREAM_FAILURE');
+      },
+    });
+    expect(busyResp.status).toBe(503);
+    expect(busyResp.body).toEqual({
+      error: 'The AI planner is temporarily busy. Please try again in a moment.',
+      code: 'AI_BUSY',
+      retryable: true,
+    });
   });
 });
 
@@ -576,5 +871,78 @@ describe('batch workspace merge, planned phases, multi-log weekly_count, schedul
     expect(schedule.weekEnd).toBe('2026-11-22');
     expect(schedule.scheduledTasks.map(t => t.id)).toEqual(['t-overdue', 't-this-week', 't-undated-active']);
     expect(schedule.suggestedPriorityIds).toEqual(['t-overdue', 't-this-week', 't-undated-active']);
+  });
+
+  it('creates or reuses LifeAreas case-insensitively from goal.life_area, preserves extracted task priority, and sanitizes task quantities', () => {
+    const initial = createDefaultData();
+    const healthArea = initial.lifeAreas.find(a => a.name === 'Health')!;
+
+    const draft = ExtractionSchema.parse({
+      goals: [
+        {
+          title: 'Run a half marathon',
+          life_area: 'health', // case-insensitive match to existing "Health"
+          source_quote: 'Run a half marathon',
+        },
+        {
+          title: 'Launch Creative Studio',
+          life_area: 'Creative Side Hustle', // new LifeArea to create
+          source_quote: 'Launch Creative Studio',
+        },
+      ],
+      phases: [],
+      habits: [],
+      tasks: [
+        {
+          title: 'Submit permit',
+          priority: 'high',
+          due: '2026-11-22',
+          target_quantity: 30,
+          source_quote: 'Submit permit ASAP',
+        },
+        {
+          title: 'Clean inbox',
+          priority: 'low',
+          source_quote: 'Clean inbox eventually',
+        },
+        {
+          title: 'Review contract',
+          source_quote: 'Review contract',
+        },
+      ],
+      success_criteria: [],
+      principles: [],
+      clarifications: [],
+    });
+
+    const { nextData } = applyImportedPlanToWorkspace(initial, draft, { today: '2026-11-20' });
+
+    const marathonGoal = nextData.goals.find(g => g.title === 'Run a half marathon')!;
+    const studioGoal = nextData.goals.find(g => g.title === 'Launch Creative Studio')!;
+    const createdArea = nextData.lifeAreas.find(a => a.name === 'Creative Side Hustle');
+
+    expect(marathonGoal.lifeAreaId).toBe(healthArea.id);
+    expect(createdArea).toBeDefined();
+    expect(studioGoal.lifeAreaId).toBe(createdArea?.id);
+    // Reusing existing area should not duplicate "Health"
+    expect(nextData.lifeAreas.filter(a => a.name.toLowerCase() === 'health')).toHaveLength(1);
+
+    expect(nextData.tasks.find(t => t.title === 'Submit permit')?.priority).toBe('high');
+    expect(nextData.tasks.find(t => t.title === 'Clean inbox')?.priority).toBe('low');
+    expect(nextData.tasks.find(t => t.title === 'Review contract')?.priority).toBe('medium');
+
+    // sanitizeAppData clamps completedQuantity safely to targetQuantity and strips undefined fields
+    const sanitized = sanitizeAppData({
+      ...nextData,
+      tasks: nextData.tasks.map(t =>
+        t.title === 'Submit permit' ? { ...t, completedQuantity: 45 } : t,
+      ),
+    });
+    const permitTask = sanitized.tasks.find(t => t.title === 'Submit permit')!;
+    expect(permitTask.targetQuantity).toBe(30);
+    expect(permitTask.completedQuantity).toBe(30);
+    const inboxTask = sanitized.tasks.find(t => t.title === 'Clean inbox')!;
+    expect('completedQuantity' in inboxTask).toBe(false);
+    expect('targetQuantity' in inboxTask).toBe(false);
   });
 });

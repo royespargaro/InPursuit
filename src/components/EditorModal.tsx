@@ -57,6 +57,11 @@ export function EditorModal({
   const [description, setDescription] = useState(existingProject?.description ?? existingGoal?.outcome ?? '');
   const [dueDate, setDueDate] = useState(initialDueDate);
   const [priority, setPriority] = useState<Priority>(existingTask?.priority ?? 'medium');
+  const [targetQuantity, setTargetQuantity] = useState<string>(
+    typeof existingTask?.targetQuantity === 'number' && existingTask.targetQuantity > 0
+      ? String(existingTask.targetQuantity)
+      : '',
+  );
   const [projectId, setProjectId] = useState(existingTask?.projectId ?? newTaskProjectId ?? '');
   const [goalId, setGoalId] = useState(existingProject?.goalId ?? '');
   const [lifeAreaId, setLifeAreaId] = useState(existingGoal?.lifeAreaId ?? '');
@@ -130,7 +135,12 @@ export function EditorModal({
     }
 
     if (kind === 'task') {
-      onSave(kind, {
+      const parsedQty = Number(targetQuantity);
+      const nextTargetQty =
+        targetQuantity.trim() !== '' && Number.isFinite(parsedQty) && parsedQty > 0
+          ? Math.max(1, Math.round(parsedQty))
+          : undefined;
+      const nextTask: Task = {
         ...existingTask,
         id: existingTask?.id ?? createId(),
         title: title.trim(),
@@ -140,7 +150,14 @@ export function EditorModal({
         status,
         createdAt: existingTask?.createdAt ?? now,
         completedAt: status === 'done' ? existingTask?.completedAt ?? now : null,
-      });
+      };
+      if (nextTargetQty !== undefined) {
+        nextTask.targetQuantity = nextTargetQty;
+      } else {
+        delete nextTask.targetQuantity;
+        delete nextTask.completedQuantity;
+      }
+      onSave(kind, nextTask);
     }
     if (kind === 'goal') {
       onSave(kind, {
@@ -167,15 +184,21 @@ export function EditorModal({
       });
     }
     if (kind === 'habit') {
-      onSave(kind, {
+      const nextMinimum = minimumVersion.trim();
+      const nextHabit = {
         ...existingHabit,
         id: existingHabit?.id ?? createId(),
         name: title.trim(),
         frequency,
-        minimumVersion: minimumVersion.trim() || undefined,
         active,
         createdAt: existingHabit?.createdAt ?? now,
-      });
+      };
+      if (nextMinimum) {
+        nextHabit.minimumVersion = nextMinimum;
+      } else {
+        delete nextHabit.minimumVersion;
+      }
+      onSave(kind, nextHabit);
     }
   };
 
@@ -294,6 +317,15 @@ export function EditorModal({
                 <option value="medium">Medium</option>
                 <option value="low">Low</option>
               </select>
+            </Field>
+            <Field label="Target quantity (optional)">
+              <input
+                type="number"
+                min={1}
+                placeholder="e.g. 30 (leave blank for single checkoff)"
+                value={targetQuantity}
+                onChange={e => setTargetQuantity(e.target.value)}
+              />
             </Field>
             <Field label="Status">
               <select value={status} onChange={e => setStatus(e.target.value as typeof status)}>

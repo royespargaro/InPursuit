@@ -3,9 +3,11 @@ import type { Extraction, ExtractionClarification, ExtractionHabit, ExtractionPh
 
 export const WeekdayKeySchema = z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
 export const HabitCadenceSchema = z.enum(['daily', 'weekly_count', 'specific_days']);
+export const PrioritySchema = z.enum(['high', 'medium', 'low']);
 
 export const ExtractionGoalSchema = z.object({
   title: z.string().trim().min(1),
+  life_area: z.string().optional(),
   pillar_weight_pct: z.number().min(0).max(100).optional(),
   description: z.string().optional(),
   source_quote: z.string().trim().min(1),
@@ -41,6 +43,7 @@ export const ExtractionTaskSchema = z.object({
   goal_ref: z.string().optional(),
   phase_ref: z.string().optional(),
   due: z.string().optional(),
+  priority: PrioritySchema.optional(),
   target_quantity: z.number().positive().optional(),
   source_quote: z.string().trim().min(1),
 });
@@ -77,6 +80,7 @@ export const VerificationUpdateSchema = z.object({
   source_quote: z.string().trim().min(1),
   title: z.string().optional(),
   text: z.string().optional(),
+  life_area: z.string().optional(),
   description: z.string().optional(),
   pillar_weight_pct: z.number().min(0).max(100).optional(),
   start: z.string().optional(),
@@ -96,6 +100,7 @@ export const VerificationUpdateSchema = z.object({
     .optional(),
   minimum_version: z.string().optional(),
   due: z.string().optional(),
+  priority: PrioritySchema.optional(),
   target_quantity: z.number().positive().optional(),
 });
 
@@ -122,6 +127,8 @@ export const ImportPlanRequestSchema = z.discriminatedUnion('mode', [
   z.object({
     mode: z.literal('extract').optional().default('extract'),
     planText: z.string().trim().min(1).max(MAX_PLAN_TEXT_CHARS),
+    deepCheck: z.boolean().optional().default(false),
+    currentDraft: ExtractionSchema.optional(),
   }),
   z.object({
     mode: z.literal('refine'),
@@ -577,6 +584,7 @@ export function mergeVerificationPassWithStats(
           ? {
               ...item,
               title: update.title?.trim() || item.title,
+              life_area: update.life_area ?? item.life_area,
               description: update.description ?? item.description,
               pillar_weight_pct: update.pillar_weight_pct ?? item.pillar_weight_pct,
               source_quote: update.source_quote,
@@ -622,6 +630,7 @@ export function mergeVerificationPassWithStats(
               goal_ref: update.goal_ref ?? item.goal_ref,
               phase_ref: update.phase_ref ?? item.phase_ref,
               due: update.due ?? item.due,
+              priority: update.priority ?? item.priority,
               target_quantity: update.target_quantity ?? item.target_quantity,
               source_quote: update.source_quote,
             }

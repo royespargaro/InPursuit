@@ -22,7 +22,7 @@ import {
   workspaceHasImportId,
   writeLastImportRecord,
 } from './utils/planImportMerge';
-import { canActivateProject, MAX_ACTIVE_PROJECTS } from './utils/projectLimits';
+import { canActivateProject, MAX_ACTIVE_PROJECTS, promoteDuePlannedProjects } from './utils/projectLimits';
 import { TodayView } from './views/TodayView';
 
 const GoalsView = lazy(() => import('./views/GoalsView').then(m => ({ default: m.GoalsView })));
@@ -154,6 +154,18 @@ export default function App() {
       if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
     };
   }, []);
+
+  // Automatically promote planned projects/phases when their startDate arrives (respecting 3-active limit)
+  useEffect(() => {
+    if (!authReady) return;
+    const { promotedIds } = promoteDuePlannedProjects(data.projects, today);
+    if (promotedIds.length === 0) return;
+    updateData(current => {
+      const next = promoteDuePlannedProjects(current.projects, today);
+      if (next.promotedIds.length === 0) return current;
+      return { ...current, projects: next.projects };
+    });
+  }, [authReady, today, data.projects, updateData]);
 
   const avatarPhotoUrl = user?.photoURL && user.photoURL !== failedPhotoUrl ? user.photoURL : null;
 
@@ -411,12 +423,82 @@ export default function App() {
   const toggleTask = (task: Task) =>
     updateData(current => ({
       ...current,
-      tasks: current.tasks.map(t =>
-        t.id === task.id
-          ? { ...t, status: t.status === 'done' ? 'todo' : 'done', completedAt: t.status === 'done' ? null : new Date().toISOString() }
-          : t,
-      ),
+      tasks: current.tasks.map(t => {
+        if (t.id !== task.id) return t;
+        const nextDone = t.status !== 'done';
+        const hasTarget = typeof t.targetQuantity === 'number' && t.targetQuantity > 0;
+        const nextQty = hasTarget
+          ? nextDone
+            ? t.targetQuantity
+            : t.completedQuantity === t.targetQuantity
+              ? 0
+              : t.completedQuantity
+          : t.completedQuantity;
+        return {
+          ...t,
+          status: nextDone ? 'done' : 'todo',
+          completedAt: nextDone ? new Date().toISOString() : null,
+          ...(typeof nextQty === 'number' ? { completedQuantity: nextQty } : {}),
+        };
+      }),
     }));
+
+  const adjustTaskQuantity = (task: Task, delta: 1 | -1) => {
+    const nowIso = new Date().toISOString();
+    updateData(current => ({
+      ...current,
+      tasks: current.tasks.map(t => {
+        if (t.id !== task.id) return t;
+        const target = typeof t.targetQuantity === 'number' && t.targetQuantity > 0 ? t.targetQuantity : 0;
+        const base =
+          typeof t.completedQuantity === 'number'
+            ? t.completedQuantity
+            : t.status === 'done' && target > 0
+              ? target
+              : 0;
+        const nextQty = target > 0 ? Math.max(0, Math.min(target, base + delta)) : Math.max(0, base + delta);
+        if (target > 0) {
+          const reachedTarget = nextQty >= target;
+          return {
+            ...t,
+            completedQuantity: nextQty,
+            status: reachedTarget ? 'done' : 'todo',
+            completedAt: reachedTarget ? (t.completedAt ?? nowIso) : null,
+          };
+        }
+        return {
+          ...t,
+          completedQuantity: nextQty,
+        };
+      }),
+    }));
+  };
+
+  const startPhase = (projectId: string) => {
+    if (!canActivateProject(data.projects, projectId)) {
+      notify(`Active project limit reached (${MAX_ACTIVE_PROJECTS}). Complete or archive a project first.`);
+      return;
+    }
+    let startedTitle = '';
+    updateData(current => {
+      if (!canActivateProject(current.projects, projectId)) return current;
+      return {
+        ...current,
+        projects: current.projects.map(p => {
+          if (p.id !== projectId || p.status !== 'planned') return p;
+          startedTitle = p.title;
+          return {
+            ...p,
+            status: 'active' as const,
+            ...(!p.startDate || p.startDate > today ? { startDate: today } : {}),
+          };
+        }),
+      };
+    });
+    if (startedTitle) {
+      notify(`Started phase "${startedTitle}"`);
+    }
+  };
 
   const restoreTask = (task: Task) => {
     updateData(current => ({
@@ -722,6 +804,7 @@ export default function App() {
               onDecrementHabit={decrementHabitToday}
               onToggleSkipHabit={toggleSkipHabit}
               onToggleTask={toggleTask}
+              onAdjustTaskQuantity={adjustTaskQuantity}
               onRestoreTask={restoreTask}
               onMoveToToday={moveTaskToToday}
               onPriorities={setPriorities}
@@ -765,6 +848,8 @@ export default function App() {
                   openModal('task');
                 }}
                 onToggleTask={toggleTask}
+                onAdjustTaskQuantity={adjustTaskQuantity}
+                onStartPhase={startPhase}
                 onEditTask={id => openModal('task', id)}
               />
             )}

@@ -279,6 +279,22 @@ function dedupeById<T extends { id: string }>(items: readonly T[]): T[] {
 
 const clampStr = (value: string, max: number) => (value.length > max ? value.slice(0, max) : value);
 
+export function stripUndefinedDeep<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map(item => stripUndefinedDeep(item)) as unknown as T;
+  }
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v !== undefined) {
+        out[k] = stripUndefinedDeep(v);
+      }
+    }
+    return out as T;
+  }
+  return value;
+}
+
 export function sanitizeAppData(data: AppData): AppData {
   const lifeAreas = dedupeById(data.lifeAreas)
     .slice(0, WORKSPACE_LIMITS.lifeAreas)
@@ -319,15 +335,36 @@ export function sanitizeAppData(data: AppData): AppData {
 
   const tasks = dedupeById(data.tasks)
     .slice(0, WORKSPACE_LIMITS.tasks)
-    .map(task => ({
-      ...task,
-      id: clampStr(task.id, 128),
-      projectId: task.projectId && projectIds.has(task.projectId) ? task.projectId : null,
-      title: clampStr(task.title, 240),
-      dueDate: clampStr(task.dueDate, 20),
-      createdAt: clampStr(task.createdAt, 40),
-      completedAt: task.completedAt ? clampStr(task.completedAt, 40) : null,
-    }));
+    .map(task => {
+      const targetQuantity =
+        typeof task.targetQuantity === 'number' && Number.isFinite(task.targetQuantity) && task.targetQuantity > 0
+          ? Math.max(1, Math.round(task.targetQuantity))
+          : undefined;
+      const rawCompleted =
+        typeof task.completedQuantity === 'number' && Number.isFinite(task.completedQuantity) && task.completedQuantity >= 0
+          ? Math.round(task.completedQuantity)
+          : undefined;
+      const completedQuantity =
+        rawCompleted !== undefined
+          ? targetQuantity !== undefined
+            ? Math.min(targetQuantity, rawCompleted)
+            : rawCompleted
+          : undefined;
+      const cleanTask = {
+        ...task,
+        id: clampStr(task.id, 128),
+        projectId: task.projectId && projectIds.has(task.projectId) ? task.projectId : null,
+        title: clampStr(task.title, 240),
+        dueDate: clampStr(task.dueDate, 20),
+        createdAt: clampStr(task.createdAt, 40),
+        completedAt: task.completedAt ? clampStr(task.completedAt, 40) : null,
+      };
+      if (targetQuantity !== undefined) cleanTask.targetQuantity = targetQuantity;
+      else delete cleanTask.targetQuantity;
+      if (completedQuantity !== undefined) cleanTask.completedQuantity = completedQuantity;
+      else delete cleanTask.completedQuantity;
+      return cleanTask;
+    });
   const taskIds = new Set(tasks.map(t => t.id));
 
   const habits = dedupeById(data.habits)
@@ -418,7 +455,7 @@ export function sanitizeAppData(data: AppData): AppData {
   if (typeof data.updatedAt === 'string' && data.updatedAt) {
     normalized.updatedAt = data.updatedAt.slice(0, 40);
   }
-  return normalized;
+  return stripUndefinedDeep(normalized);
 }
 
 export function normalizeStoredData(data: StoredAppData): AppData {

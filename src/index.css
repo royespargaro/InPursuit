@@ -2361,3 +2361,67 @@ select:focus-visible {
   color: var(--muted);
   font: 11px 'JetBrains Mono', monospace;
 }
+
+.import-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 154, 139, 0.45);
+  background: rgba(255, 154, 139, 0.08);
+}
+
+.import-error-sub {
+  color: #f3c8c0;
+}
+
+.import-progress-banner {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  background: rgba(212, 255, 58, 0.05);
+}
+
+.import-progress-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 11px 'JetBrains Mono', monospace;
+  color: #e4e9d2;
+}
+
+.import-progress-track {
+  height: 3px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.import-progress-fill {
+  height: 100%;
+  background: var(--lime);
+  transition: width 0.3s ease;
+}
+
+.start-phase-btn {
+  border-color: rgba(212, 255, 58, 0.45) !important;
+  color: var(--lime) !important;
+}
+
+.start-phase-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.habit-mini-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.import-task-flag {
+  font: 11px 'JetBrains Mono', monospace;
+  color: #f8dfb5;
+}
+

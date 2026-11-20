@@ -5,6 +5,7 @@ import type {
   ExtractionHabit,
   Goal,
   Habit,
+  LifeArea,
   PlanImportRecord,
   PlanPrinciple,
   Project,
@@ -51,14 +52,36 @@ export function applyImportedPlanToWorkspace(
   const nowIso = options.nowIso ?? new Date().toISOString();
   const today = options.today;
 
+  const nextLifeAreas: LifeArea[] = [...current.lifeAreas];
   const nextGoals: Goal[] = current.goals.map(goal => ({
     ...goal,
-    successCriteria: goal.successCriteria ? [...goal.successCriteria] : undefined,
-    principles: goal.principles ? [...goal.principles] : undefined,
+    ...(goal.successCriteria ? { successCriteria: [...goal.successCriteria] } : {}),
+    ...(goal.principles ? { principles: [...goal.principles] } : {}),
   }));
   const nextProjects: Project[] = [...current.projects];
   const nextHabits: Habit[] = [...current.habits];
   const nextTasks: Task[] = [...current.tasks];
+
+  const lifeAreaByName = new Map<string, LifeArea>();
+  for (const area of nextLifeAreas) {
+    lifeAreaByName.set(normKey(area.name), area);
+  }
+
+  const resolveOrCreateLifeAreaId = (rawName?: string): string | null => {
+    const trimmed = rawName?.trim() ?? '';
+    if (!trimmed) return null;
+    const existing = lifeAreaByName.get(normKey(trimmed));
+    if (existing) return existing.id;
+    const created: LifeArea = {
+      id: createId(),
+      name: trimmed,
+      description: '',
+      createdAt: nowIso,
+    };
+    nextLifeAreas.push(created);
+    lifeAreaByName.set(normKey(trimmed), created);
+    return created.id;
+  };
 
   const goalByTitle = new Map<string, Goal>();
   for (const goal of nextGoals) {
@@ -94,7 +117,7 @@ export function applyImportedPlanToWorkspace(
 
     const goal: Goal = {
       id: createId(),
-      lifeAreaId: null,
+      lifeAreaId: resolveOrCreateLifeAreaId(item.life_area),
       title: item.title.trim(),
       outcome: item.description?.trim() ?? '',
       targetDate: '',
@@ -212,7 +235,7 @@ export function applyImportedPlanToWorkspace(
       projectId,
       title,
       dueDate,
-      priority: 'medium',
+      priority: item.priority ?? 'medium',
       status: 'todo',
       createdAt: nowIso,
       completedAt: null,
@@ -278,6 +301,7 @@ export function applyImportedPlanToWorkspace(
   return {
     nextData: {
       ...current,
+      lifeAreas: nextLifeAreas,
       goals: nextGoals,
       projects: nextProjects,
       habits: nextHabits,

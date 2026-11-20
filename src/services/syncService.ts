@@ -1,6 +1,6 @@
 import { collection, deleteDoc, doc, getDocs, onSnapshot, runTransaction, writeBatch } from 'firebase/firestore';
 import type { AppData, WorkspaceMetaV4 } from '../types';
-import { classifyRemoteSnapshot, isValidAppData, sanitizeAppData } from './appStore';
+import { classifyRemoteSnapshot, isValidAppData, sanitizeAppData, stripUndefinedDeep } from './appStore';
 import { auth, db } from './firebase';
 
 export enum OperationType {
@@ -77,6 +77,19 @@ export function isOfflineError(error: unknown): boolean {
   );
 }
 
+export function isQuotaExceededError(error: unknown): boolean {
+  const code = typeof error === 'object' && error !== null && 'code' in error ? String((error as { code?: unknown }).code).toLowerCase() : '';
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return (
+    code === 'resource-exhausted' ||
+    message.includes('quota limit exceeded') ||
+    message.includes('quota exceeded') ||
+    message.includes('free daily write units') ||
+    message.includes('free daily read units') ||
+    message.includes('resource-exhausted')
+  );
+}
+
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): Error {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
@@ -109,7 +122,7 @@ export function prepareFirestorePayload(data: AppData, syncVersion?: number): Ap
   if (typeof syncVersion === 'number' && Number.isInteger(syncVersion) && syncVersion >= 0) {
     payload.syncVersion = syncVersion;
   }
-  return payload;
+  return stripUndefinedDeep(payload);
 }
 
 export const subscribeToFirestore = (

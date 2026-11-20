@@ -1,12 +1,23 @@
 import type { User } from 'firebase/auth';
-import { useMemo, useState } from 'react';
-import type { Extraction, HabitCadence, PlanImportRecord, WeekdayKey } from '../types';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { Extraction, HabitCadence, PlanImportRecord, Priority, WeekdayKey } from '../types';
 import { MAX_PLAN_TEXT_CHARS } from '../utils/planImportSchema';
 import { Check, LoaderCircle, MessageSquare, RotateCcw, Sparkles, Trash2, X } from './Icon';
 import { Button, cx } from './ui';
 
 const WEEKDAYS: WeekdayKey[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const MAX_RECOMMENDED_DAILY_HABITS = 6;
+
+const EXTRACT_PROGRESS_STAGES = [
+  'Reading plan text & date anchors…',
+  'Extracting goals, phases, habits & tasks…',
+  'Grounding quotes & resolving dates…',
+] as const;
+
+const DEEP_CHECK_PROGRESS_STAGES = [
+  'Auditing extracted items against your plan…',
+  'Merging fixes & verifying quotes…',
+] as const;
 
 interface PlanImportModalProps {
   today: string;
@@ -27,6 +38,18 @@ interface ExtractApiResponse {
   dailyHabitCount?: number;
 }
 
+interface ErrorBannerState {
+  message: string;
+  retryable: boolean;
+  action: 'extract' | 'deep-check' | 'refine';
+}
+
+function isAbortError(err: unknown): boolean {
+  return err instanceof DOMException
+    ? err.name === 'AbortError'
+    : err instanceof Error && (err.name === 'AbortError' || err.message.toLowerCase().includes('aborted'));
+}
+
 export function PlanImportModal({
   today,
   user = null,
@@ -45,10 +68,39 @@ export function PlanImportModal({
     droppedCount: number;
   } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deepChecking, setDeepChecking] = useState(false);
   const [refining, setRefining] = useState(false);
-  const [error, setError] = useState('');
+  const [progressStage, setProgressStage] = useState(0);
+  const [cancelNotice, setCancelNotice] = useState('');
+  const [errorState, setErrorState] = useState<ErrorBannerState | null>(null);
   const [refineInput, setRefineInput] = useState('');
   const [clarificationAnswers, setClarificationAnswers] = useState<Record<number, string>>({});
+
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!loading && !deepChecking) {
+      setProgressStage(0);
+      return;
+    }
+    setProgressStage(0);
+    if (loading) {
+      const t1 = window.setTimeout(() => setProgressStage(1), 1200);
+      const t2 = window.setTimeout(() => setProgressStage(2), 7000);
+      return () => {
+        window.clearTimeout(t1);
+        window.clearTimeout(t2);
+      };
+    }
+    const tDeep = window.setTimeout(() => setProgressStage(1), 2000);
+    return () => window.clearTimeout(tDeep);
+  }, [loading, deepChecking]);
 
   const totalDraftItems = useMemo(() => {
     if (!draft) return 0;
@@ -67,6 +119,25 @@ export function PlanImportModal({
     [draft],
   );
 
+  const unscheduledTasksCount = useMemo(
+    () => (draft ? draft.tasks.filter(t => !t.phase_ref?.trim() && !t.due?.trim()).length : 0),
+    [draft],
+  );
+
+  const availablePhaseTitles = useMemo(() => {
+    if (!draft) return [];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const phase of draft.phases) {
+      const title = phase.title.trim();
+      if (title && !seen.has(title)) {
+        seen.add(title);
+        out.push(title);
+      }
+    }
+    return out;
+  }, [draft]);
+
   const getAuthHeader = async (): Promise<string> => {
     if (!user) {
       throw new Error('Sign in via Settings to extract a plan with AI.');
@@ -78,20 +149,43 @@ export function PlanImportModal({
     return `Bearer ${token}`;
   };
 
-  const handleExtract = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCancelRequest = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setLoading(false);
+    setDeepChecking(false);
+    setErrorState(null);
+    setCancelNotice('Cancelled. Your pasted text is preserved.');
+  };
+
+  const runExtract = async () => {
     const trimmed = planText.trim();
     if (!trimmed) {
-      setError('Paste a plan first so items can be extracted.');
+      setErrorState({
+        message: 'Paste a plan first so items can be extracted.',
+        retryable: false,
+        action: 'extract',
+      });
       return;
     }
     if (trimmed.length > MAX_PLAN_TEXT_CHARS) {
-      setError(`Plan text exceeds the ${MAX_PLAN_TEXT_CHARS.toLocaleString()}-character limit.`);
+      setErrorState({
+        message: `Plan text exceeds the ${MAX_PLAN_TEXT_CHARS.toLocaleString()}-character limit.`,
+        retryable: false,
+        action: 'extract',
+      });
       return;
     }
 
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
-    setError('');
+    setErrorState(null);
+    setCancelNotice('');
     try {
       const authorization = await getAuthHeader();
       const response = await fetch('/api/import-plan', {
@@ -101,10 +195,21 @@ export function PlanImportModal({
           Authorization: authorization,
         },
         body: JSON.stringify({ mode: 'extract', planText: trimmed }),
+        signal: controller.signal,
       });
-      const payload = (await response.json()) as Partial<ExtractApiResponse> & { error?: string };
+      const payload = (await response.json()) as Partial<ExtractApiResponse> & {
+        error?: string;
+        code?: string;
+        retryable?: boolean;
+      };
       if (!response.ok || !payload.extraction) {
-        throw new Error(payload.error || 'Could not extract plan items.');
+        const retryable = payload.retryable ?? (response.status >= 500 || response.status === 429);
+        setErrorState({
+          message: payload.error || 'Could not extract plan items. Please try again.',
+          retryable,
+          action: 'extract',
+        });
+        return;
       }
       setDraft(payload.extraction);
       setMeta({
@@ -115,9 +220,86 @@ export function PlanImportModal({
       });
       setClarificationAnswers({});
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not extract plan.');
+      if (isAbortError(err)) return;
+      setErrorState({
+        message: err instanceof Error ? err.message : 'Network issue while extracting plan. Please retry.',
+        retryable: true,
+        action: 'extract',
+      });
     } finally {
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
       setLoading(false);
+    }
+  };
+
+  const handleExtract = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await runExtract();
+  };
+
+  const handleDeepCheck = async () => {
+    if (!draft) return;
+    const trimmed = planText.trim();
+    if (!trimmed) return;
+
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    setDeepChecking(true);
+    setErrorState(null);
+    setCancelNotice('');
+    try {
+      const authorization = await getAuthHeader();
+      const response = await fetch('/api/import-plan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authorization,
+        },
+        body: JSON.stringify({
+          mode: 'extract',
+          planText: trimmed,
+          currentDraft: draft,
+          deepCheck: true,
+        }),
+        signal: controller.signal,
+      });
+      const payload = (await response.json()) as Partial<ExtractApiResponse> & {
+        error?: string;
+        code?: string;
+        retryable?: boolean;
+      };
+      if (!response.ok || !payload.extraction) {
+        const retryable = payload.retryable ?? (response.status >= 500 || response.status === 429);
+        setErrorState({
+          message: payload.error || 'Deep check could not finish. Your draft is safe — please retry.',
+          retryable,
+          action: 'deep-check',
+        });
+        return;
+      }
+      setDraft(payload.extraction);
+      setMeta({
+        anchorDate: payload.anchorDate ?? today,
+        timezone: payload.timezone ?? 'Asia/Makassar',
+        verified: Boolean(payload.verified),
+        droppedCount: typeof payload.droppedCount === 'number' ? payload.droppedCount : 0,
+      });
+    } catch (err) {
+      if (isAbortError(err)) return;
+      setErrorState({
+        message: err instanceof Error ? err.message : 'Deep check timed out or lost connection. Please retry.',
+        retryable: true,
+        action: 'deep-check',
+      });
+    } finally {
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
+      setDeepChecking(false);
     }
   };
 
@@ -133,12 +315,17 @@ export function PlanImportModal({
       .filter(a => a.answer.length > 0);
 
     if (!instruction && answers.length === 0) {
-      setError('Enter a refinement instruction or answer a clarification first.');
+      setErrorState({
+        message: 'Enter a refinement instruction or answer a clarification first.',
+        retryable: false,
+        action: 'refine',
+      });
       return;
     }
 
     setRefining(true);
-    setError('');
+    setErrorState(null);
+    setCancelNotice('');
     try {
       const authorization = await getAuthHeader();
       const response = await fetch('/api/import-plan', {
@@ -155,9 +342,17 @@ export function PlanImportModal({
           answers,
         }),
       });
-      const payload = (await response.json()) as Partial<ExtractApiResponse> & { error?: string };
+      const payload = (await response.json()) as Partial<ExtractApiResponse> & {
+        error?: string;
+        retryable?: boolean;
+      };
       if (!response.ok || !payload.extraction) {
-        throw new Error(payload.error || 'Refinement failed.');
+        setErrorState({
+          message: payload.error || 'Refinement failed. Your draft is preserved — please retry.',
+          retryable: payload.retryable ?? (response.status >= 500 || response.status === 429),
+          action: 'refine',
+        });
+        return;
       }
       setDraft(payload.extraction);
       setMeta(prev => ({
@@ -169,7 +364,11 @@ export function PlanImportModal({
       setRefineInput('');
       setClarificationAnswers({});
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Refinement failed.');
+      setErrorState({
+        message: err instanceof Error ? err.message : 'Refinement failed. Please retry.',
+        retryable: true,
+        action: 'refine',
+      });
     } finally {
       setRefining(false);
     }
@@ -190,13 +389,16 @@ export function PlanImportModal({
     });
   };
 
+  const activeProgressStages = loading ? EXTRACT_PROGRESS_STAGES : DEEP_CHECK_PROGRESS_STAGES;
+  const activeStageText = activeProgressStages[Math.min(progressStage, activeProgressStages.length - 1)];
+
   return (
     <div
       className="modal-backdrop"
       role="dialog"
       aria-modal="true"
       aria-labelledby="plan-import-title"
-      onMouseDown={e => e.target === e.currentTarget && onClose()}
+      onMouseDown={e => e.target === e.currentTarget && !loading && !deepChecking && onClose()}
     >
       <div className="modal plan-import-modal">
         <div className="modal-head">
@@ -204,14 +406,70 @@ export function PlanImportModal({
             <div className="eyebrow">import plan · grounded extraction</div>
             <h2 id="plan-import-title">{draft ? 'Review extracted plan' : 'Paste your plan'}</h2>
           </div>
-          <button type="button" className="icon-btn" aria-label="Close import modal" onClick={onClose}>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Close import modal"
+            onClick={() => {
+              abortControllerRef.current?.abort();
+              onClose();
+            }}
+          >
             <X size={18} />
           </button>
         </div>
 
-        {error && (
-          <div className="form-error" role="alert">
-            {error}
+        {errorState && (
+          <div className="form-error import-error-banner" role="alert">
+            <div>
+              <span>{errorState.message}</span>
+              {errorState.retryable && (
+                <span className="import-error-sub">
+                  {draft ? ' Your draft and pasted text are safe — please retry.' : ' Your pasted text is preserved — please retry.'}
+                </span>
+              )}
+            </div>
+            {errorState.retryable && errorState.action !== 'refine' && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={loading || deepChecking || refining}
+                onClick={() => {
+                  if (errorState.action === 'deep-check') {
+                    void handleDeepCheck();
+                  } else {
+                    void runExtract();
+                  }
+                }}
+              >
+                Retry
+              </Button>
+            )}
+          </div>
+        )}
+
+        {cancelNotice && !errorState && !loading && !deepChecking && (
+          <div className="import-dropped-note" role="status">
+            {cancelNotice}
+          </div>
+        )}
+
+        {(loading || deepChecking) && (
+          <div className="import-progress-banner" role="status" aria-live="polite">
+            <div className="import-progress-top">
+              <LoaderCircle size={14} className="spin" />
+              <span>
+                Step {Math.min(progressStage + 1, activeProgressStages.length)}/{activeProgressStages.length} · {activeStageText}
+              </span>
+            </div>
+            <div className="import-progress-track" aria-hidden="true">
+              <div
+                className="import-progress-fill"
+                style={{
+                  width: `${Math.round(((Math.min(progressStage + 1, activeProgressStages.length)) / activeProgressStages.length) * 100)}%`,
+                }}
+              />
+            </div>
           </div>
         )}
 
@@ -256,10 +514,18 @@ export function PlanImportModal({
               )}
             </div>
             <div className="modal-foot">
-              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              {loading ? (
+                <Button type="button" variant="outline" onClick={handleCancelRequest}>
+                  Cancel
+                </Button>
+              ) : (
+                <Button type="button" variant="outline" onClick={onClose}>
+                  Close
+                </Button>
+              )}
               <Button type="submit" variant="solid" disabled={loading || !user}>
                 {loading ? <LoaderCircle size={15} className="spin" /> : <Sparkles size={15} />}
-                {loading ? 'Extracting & verifying…' : 'Extract plan'}
+                {loading ? 'Extracting…' : 'Extract plan'}
               </Button>
             </div>
           </form>
@@ -269,18 +535,32 @@ export function PlanImportModal({
               <div className="import-review-meta">
                 <span>
                   {totalDraftItems} items ready · {meta?.timezone ?? 'Asia/Makassar'} ({meta?.anchorDate ?? today})
-                  {meta?.verified ? ' · verified pass complete' : ''}
+                  {meta?.verified ? ' · deep check verified' : ''}
                   {meta && meta.droppedCount > 0 ? ` · ${meta.droppedCount} unverified dropped` : ''}
                 </span>
               </div>
               <div className="import-toolbar-actions">
-                <Button type="button" variant="outline" onClick={() => setDraft(null)} disabled={refining}>
+                <Button type="button" variant="outline" onClick={() => setDraft(null)} disabled={refining || deepChecking}>
                   Back to text
                 </Button>
+                {deepChecking ? (
+                  <Button type="button" variant="outline" onClick={handleCancelRequest}>
+                    Cancel
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={refining || deepChecking}
+                    onClick={() => void handleDeepCheck()}
+                  >
+                    <Sparkles size={14} /> Deep check
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="solid"
-                  disabled={refining || totalDraftItems === 0}
+                  disabled={refining || deepChecking || totalDraftItems === 0}
                   onClick={() => onApproveImport(draft)}
                 >
                   <Check size={15} /> Approve all
@@ -437,24 +717,42 @@ export function PlanImportModal({
                           <Trash2 size={14} />
                         </button>
                       </div>
-                      <input
-                        aria-label={`Goal description ${idx + 1}`}
-                        className="import-inline-input"
-                        placeholder="Description / outcome"
-                        value={goal.description ?? ''}
-                        onChange={e =>
-                          setDraft(prev =>
-                            prev
-                              ? {
-                                  ...prev,
-                                  goals: prev.goals.map((g, i) =>
-                                    i === idx ? { ...g, description: e.target.value } : g,
-                                  ),
-                                }
-                              : prev,
-                          )
-                        }
-                      />
+                      <div className="import-field-grid">
+                        <input
+                          aria-label={`Goal life area ${idx + 1}`}
+                          placeholder="Life area (e.g. Health, Career)"
+                          value={goal.life_area ?? ''}
+                          onChange={e =>
+                            setDraft(prev =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    goals: prev.goals.map((g, i) =>
+                                      i === idx ? { ...g, life_area: e.target.value || undefined } : g,
+                                    ),
+                                  }
+                                : prev,
+                            )
+                          }
+                        />
+                        <input
+                          aria-label={`Goal description ${idx + 1}`}
+                          placeholder="Description / outcome"
+                          value={goal.description ?? ''}
+                          onChange={e =>
+                            setDraft(prev =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    goals: prev.goals.map((g, i) =>
+                                      i === idx ? { ...g, description: e.target.value } : g,
+                                    ),
+                                  }
+                                : prev,
+                            )
+                          }
+                        />
+                      </div>
                       <blockquote className="import-quote">&ldquo;{goal.source_quote}&rdquo;</blockquote>
                     </div>
                   ))}
@@ -770,88 +1068,150 @@ export function PlanImportModal({
                 <h3>Tasks</h3>
                 <span>{draft.tasks.length}</span>
               </div>
+              {unscheduledTasksCount > 0 && (
+                <div className="import-warning-banner" role="status" aria-label="Unassigned tasks warning">
+                  <span>
+                    <strong>{unscheduledTasksCount}</strong>{' '}
+                    {unscheduledTasksCount === 1 ? 'task has' : 'tasks have'} no phase and no due date — assign a phase or set a due date so{' '}
+                    {unscheduledTasksCount === 1 ? 'it appears' : 'they appear'} in Today&apos;s focus queue.
+                  </span>
+                </div>
+              )}
               {draft.tasks.length === 0 ? (
                 <p className="import-group-empty">No tasks in draft.</p>
               ) : (
                 <div className="import-card-list">
-                  {draft.tasks.map((task, idx) => (
-                    <div className="import-item-card" key={`task-${idx}`}>
-                      <div className="import-item-top">
-                        <input
-                          aria-label={`Task title ${idx + 1}`}
-                          className="import-title-input"
-                          value={task.title}
-                          onChange={e =>
-                            setDraft(prev =>
-                              prev
-                                ? {
-                                    ...prev,
-                                    tasks: prev.tasks.map((t, i) =>
-                                      i === idx ? { ...t, title: e.target.value } : t,
-                                    ),
-                                  }
-                                : prev,
-                            )
-                          }
-                        />
-                        <input
-                          aria-label={`Task due ${idx + 1}`}
-                          type="date"
-                          value={task.due ?? ''}
-                          onChange={e =>
-                            setDraft(prev =>
-                              prev
-                                ? {
-                                    ...prev,
-                                    tasks: prev.tasks.map((t, i) =>
-                                      i === idx ? { ...t, due: e.target.value || undefined } : t,
-                                    ),
-                                  }
-                                : prev,
-                            )
-                          }
-                        />
-                        <input
-                          aria-label={`Task quantity ${idx + 1}`}
-                          className="import-small-input"
-                          type="number"
-                          min={1}
-                          placeholder="Qty"
-                          value={task.target_quantity ?? ''}
-                          onChange={e =>
-                            setDraft(prev =>
-                              prev
-                                ? {
-                                    ...prev,
-                                    tasks: prev.tasks.map((t, i) =>
-                                      i === idx
-                                        ? {
-                                            ...t,
-                                            target_quantity: e.target.value ? Number(e.target.value) : undefined,
-                                          }
-                                        : t,
-                                    ),
-                                  }
-                                : prev,
-                            )
-                          }
-                        />
-                        <button
-                          type="button"
-                          className="icon-btn subtle"
-                          aria-label={`Delete task ${task.title}`}
-                          onClick={() =>
-                            setDraft(prev =>
-                              prev ? { ...prev, tasks: prev.tasks.filter((_, i) => i !== idx) } : prev,
-                            )
-                          }
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                  {draft.tasks.map((task, idx) => {
+                    const needsPhaseOrDue = !task.phase_ref?.trim() && !task.due?.trim();
+                    const phaseOptions =
+                      task.phase_ref?.trim() && !availablePhaseTitles.includes(task.phase_ref.trim())
+                        ? [task.phase_ref.trim(), ...availablePhaseTitles]
+                        : availablePhaseTitles;
+                    return (
+                      <div className="import-item-card" key={`task-${idx}`}>
+                        <div className="import-item-top">
+                          <input
+                            aria-label={`Task title ${idx + 1}`}
+                            className="import-title-input"
+                            value={task.title}
+                            onChange={e =>
+                              setDraft(prev =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      tasks: prev.tasks.map((t, i) =>
+                                        i === idx ? { ...t, title: e.target.value } : t,
+                                      ),
+                                    }
+                                  : prev,
+                              )
+                            }
+                          />
+                          <select
+                            aria-label={`Task phase ${idx + 1}`}
+                            value={task.phase_ref ?? ''}
+                            onChange={e =>
+                              setDraft(prev =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      tasks: prev.tasks.map((t, i) =>
+                                        i === idx ? { ...t, phase_ref: e.target.value || undefined } : t,
+                                      ),
+                                    }
+                                  : prev,
+                              )
+                            }
+                          >
+                            <option value="">No phase</option>
+                            {phaseOptions.map(phaseTitle => (
+                              <option key={phaseTitle} value={phaseTitle}>
+                                {phaseTitle}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            aria-label={`Task priority ${idx + 1}`}
+                            value={task.priority ?? 'medium'}
+                            onChange={e =>
+                              setDraft(prev =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      tasks: prev.tasks.map((t, i) =>
+                                        i === idx ? { ...t, priority: e.target.value as Priority } : t,
+                                      ),
+                                    }
+                                  : prev,
+                              )
+                            }
+                          >
+                            <option value="high">high</option>
+                            <option value="medium">medium</option>
+                            <option value="low">low</option>
+                          </select>
+                          <input
+                            aria-label={`Task due ${idx + 1}`}
+                            type="date"
+                            value={task.due ?? ''}
+                            onChange={e =>
+                              setDraft(prev =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      tasks: prev.tasks.map((t, i) =>
+                                        i === idx ? { ...t, due: e.target.value || undefined } : t,
+                                      ),
+                                    }
+                                  : prev,
+                              )
+                            }
+                          />
+                          <input
+                            aria-label={`Task quantity ${idx + 1}`}
+                            className="import-small-input"
+                            type="number"
+                            min={1}
+                            placeholder="Qty"
+                            value={task.target_quantity ?? ''}
+                            onChange={e =>
+                              setDraft(prev =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      tasks: prev.tasks.map((t, i) =>
+                                        i === idx
+                                          ? {
+                                              ...t,
+                                              target_quantity: e.target.value ? Number(e.target.value) : undefined,
+                                            }
+                                          : t,
+                                      ),
+                                    }
+                                  : prev,
+                              )
+                            }
+                          />
+                          <button
+                            type="button"
+                            className="icon-btn subtle"
+                            aria-label={`Delete task ${task.title}`}
+                            onClick={() =>
+                              setDraft(prev =>
+                                prev ? { ...prev, tasks: prev.tasks.filter((_, i) => i !== idx) } : prev,
+                              )
+                            }
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                        {needsPhaseOrDue && (
+                          <span className="import-task-flag">No phase or due date assigned</span>
+                        )}
+                        <blockquote className="import-quote">&ldquo;{task.source_quote}&rdquo;</blockquote>
                       </div>
-                      <blockquote className="import-quote">&ldquo;{task.source_quote}&rdquo;</blockquote>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </section>

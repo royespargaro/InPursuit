@@ -32,6 +32,7 @@ interface TodayViewProps {
   onDecrementHabit?: (h: Habit) => void;
   onToggleSkipHabit: (h: Habit) => void;
   onToggleTask: (t: Task) => void;
+  onAdjustTaskQuantity?: (t: Task, delta: 1 | -1) => void;
   onRestoreTask: (t: Task) => void;
   onMoveToToday: (id: string) => void;
   onPriorities: (ids: string[]) => void;
@@ -85,6 +86,7 @@ export function TodayView({
   onDecrementHabit,
   onToggleSkipHabit,
   onToggleTask,
+  onAdjustTaskQuantity,
   onRestoreTask,
   onMoveToToday,
   onPriorities,
@@ -461,8 +463,12 @@ export function TodayView({
                         ? shortDate(task.dueDate)
                         : 'Undated';
 
+              const hasTargetQty = typeof task.targetQuantity === 'number' && task.targetQuantity > 0;
+              const completedQty = hasTargetQty
+                ? Math.max(0, task.completedQuantity ?? (task.status === 'done' ? task.targetQuantity! : 0))
+                : 0;
               const metaParts = [projectName(task.projectId), scheduleNote, `${task.priority} priority`];
-              if (task.targetQuantity) metaParts.push(`Target ${task.targetQuantity}`);
+              if (hasTargetQty) metaParts.push(`${completedQty}/${task.targetQuantity}`);
 
               return (
                 <div className={cx('task-row', done && 'is-done')} key={item.key}>
@@ -478,6 +484,29 @@ export function TodayView({
                     <b>{task.title}</b>
                     <small>{metaParts.join(' · ')}</small>
                   </button>
+                  {hasTargetQty && (
+                    <div className="weekly-habit-actions" aria-label={`${task.title} quantity progress`}>
+                      <button
+                        type="button"
+                        className="habit-mini-btn"
+                        disabled={completedQty <= 0}
+                        aria-label={`Decrease progress for ${task.title} (-1)`}
+                        onClick={() => onAdjustTaskQuantity?.(task, -1)}
+                      >
+                        -1
+                      </button>
+                      <span className="weekly-counter">{completedQty}/{task.targetQuantity}</span>
+                      <button
+                        type="button"
+                        className="habit-mini-btn"
+                        disabled={completedQty >= task.targetQuantity!}
+                        aria-label={`Increase progress for ${task.title} (+1)`}
+                        onClick={() => onAdjustTaskQuantity?.(task, 1)}
+                      >
+                        +1
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -755,42 +784,71 @@ export function TodayView({
 
         {visibleTabTasks.length ? (
           <div className="task-table">
-            {visibleTabTasks.map(task => (
-              <div className={cx('task-row', task.status === 'done' && 'is-done')} key={task.id}>
-                <button
-                  type="button"
-                  aria-label={
-                    task.status === 'skipped'
-                      ? `Restore ${task.title}`
-                      : task.status === 'done'
-                        ? `Reopen ${task.title}`
-                        : `Complete ${task.title}`
-                  }
-                  className={cx('check-control', task.status === 'done' && 'checked')}
-                  onClick={() => (task.status === 'skipped' ? onRestoreTask(task) : onToggleTask(task))}
-                >
-                  {task.status === 'done' && <Check size={14} />}
-                </button>
-                <button type="button" className="task-title-button" onClick={() => onEditTask(task.id)}>
-                  <b>{task.title}</b>
-                  <small>
-                    {projectName(task.projectId)}
-                    {task.dueDate ? ` · ${task.dueDate === today ? 'Today' : shortDate(task.dueDate)}` : ' · No date'}
-                    {task.dueDate !== '' && task.dueDate < today && task.status === 'todo' ? ' (Overdue)' : ''}
-                  </small>
-                </button>
-                <span className={cx('priority-tag', task.priority)}>{task.priority}</span>
-                {task.status === 'skipped' ? (
-                  <button type="button" className="move-today-btn" onClick={() => onRestoreTask(task)}>
-                    Restore
+            {visibleTabTasks.map(task => {
+              const hasTargetQty = typeof task.targetQuantity === 'number' && task.targetQuantity > 0;
+              const completedQty = hasTargetQty
+                ? Math.max(0, task.completedQuantity ?? (task.status === 'done' ? task.targetQuantity! : 0))
+                : 0;
+              return (
+                <div className={cx('task-row', task.status === 'done' && 'is-done')} key={task.id}>
+                  <button
+                    type="button"
+                    aria-label={
+                      task.status === 'skipped'
+                        ? `Restore ${task.title}`
+                        : task.status === 'done'
+                          ? `Reopen ${task.title}`
+                          : `Complete ${task.title}`
+                    }
+                    className={cx('check-control', task.status === 'done' && 'checked')}
+                    onClick={() => (task.status === 'skipped' ? onRestoreTask(task) : onToggleTask(task))}
+                  >
+                    {task.status === 'done' && <Check size={14} />}
                   </button>
-                ) : (
-                  <button type="button" className="icon-btn subtle" aria-label={`Edit ${task.title}`} onClick={() => onEditTask(task.id)}>
-                    <ArrowUpRight size={15} />
+                  <button type="button" className="task-title-button" onClick={() => onEditTask(task.id)}>
+                    <b>{task.title}</b>
+                    <small>
+                      {projectName(task.projectId)}
+                      {task.dueDate ? ` · ${task.dueDate === today ? 'Today' : shortDate(task.dueDate)}` : ' · No date'}
+                      {task.dueDate !== '' && task.dueDate < today && task.status === 'todo' ? ' (Overdue)' : ''}
+                    </small>
                   </button>
-                )}
-              </div>
-            ))}
+                  {hasTargetQty && task.status !== 'skipped' && (
+                    <div className="weekly-habit-actions" aria-label={`${task.title} quantity progress`}>
+                      <button
+                        type="button"
+                        className="habit-mini-btn"
+                        disabled={completedQty <= 0}
+                        aria-label={`Decrease progress for ${task.title} (-1)`}
+                        onClick={() => onAdjustTaskQuantity?.(task, -1)}
+                      >
+                        -1
+                      </button>
+                      <span className="weekly-counter">{completedQty}/{task.targetQuantity}</span>
+                      <button
+                        type="button"
+                        className="habit-mini-btn"
+                        disabled={completedQty >= task.targetQuantity!}
+                        aria-label={`Increase progress for ${task.title} (+1)`}
+                        onClick={() => onAdjustTaskQuantity?.(task, 1)}
+                      >
+                        +1
+                      </button>
+                    </div>
+                  )}
+                  <span className={cx('priority-tag', task.priority)}>{task.priority}</span>
+                  {task.status === 'skipped' ? (
+                    <button type="button" className="move-today-btn" onClick={() => onRestoreTask(task)}>
+                      Restore
+                    </button>
+                  ) : (
+                    <button type="button" className="icon-btn subtle" aria-label={`Edit ${task.title}`} onClick={() => onEditTask(task.id)}>
+                      <ArrowUpRight size={15} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <Empty

@@ -140,6 +140,10 @@ vi.mock('../services/syncService', () => {
     syncToFirestore: (...args: unknown[]) => mockSyncToFirestore(...args),
     deleteUserWorkspaceDoc: (...args: unknown[]) => mockDeleteUserWorkspaceDoc(...args),
     isOfflineError: (err: unknown) => err instanceof Error && err.message.includes('offline'),
+    isQuotaExceededError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+      return msg.includes('quota limit exceeded') || msg.includes('quota exceeded') || msg.includes('resource-exhausted');
+    },
   };
 });
 
@@ -327,6 +331,54 @@ describe('HabitContext synchronization & account isolation', () => {
     act(() => screen.getByTestId('retry-sync').click());
 
     await waitFor(() => expect(screen.getByTestId('sync-status').textContent).toBe('synced'));
+    expect(screen.getByTestId('pending-sync').textContent).toBe('false');
+  });
+
+  it('pauses automatic Firestore retries during quota cooldown, displays friendly quota notice, and allows manual retrySync', async () => {
+    render(
+      <HabitProvider>
+        <Harness />
+      </HabitProvider>,
+    );
+
+    act(() => authCallback?.(makeUser('user-quota')));
+    const cloudDoc = createDefaultData();
+    act(() => {
+      firestoreListeners.get('user-quota')?.onNext({ data: cloudDoc, fromCache: false, hasPendingWrites: false });
+    });
+    expect(screen.getByTestId('sync-status').textContent).toBe('synced');
+
+    mockSyncToFirestore.mockRejectedValueOnce(
+      new Error(
+        JSON.stringify({
+          error:
+            "Quota limit exceeded. Cause - Quota exceeded for quota metric 'Free daily write units per project (free tier database)'",
+          operationType: 'write',
+          path: 'users/user-quota',
+        }),
+      ),
+    );
+
+    act(() => screen.getByTestId('add-goal').click());
+    await waitFor(() => expect(screen.getByTestId('sync-status').textContent).toBe('error'));
+    expect(screen.getByTestId('pending-sync').textContent).toBe('true');
+    expect(screen.getByTestId('sync-error').textContent).toContain('daily Firestore free-tier quota was exceeded');
+    expect(mockSyncToFirestore).toHaveBeenCalledTimes(1);
+
+    // Subsequent edits and online reconnects must not hammer Firestore while in cooldown
+    act(() => screen.getByTestId('add-goal').click());
+    act(() => {
+      window.dispatchEvent(new Event('online'));
+    });
+    await new Promise(resolve => setTimeout(resolve, 750));
+    expect(mockSyncToFirestore).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('sync-status').textContent).toBe('error');
+
+    // Manual retrySync explicitly bypasses cooldown and succeeds when quota recovers
+    mockSyncToFirestore.mockResolvedValueOnce({ syncVersion: 2, updatedAt: new Date().toISOString() });
+    act(() => screen.getByTestId('retry-sync').click());
+    await waitFor(() => expect(screen.getByTestId('sync-status').textContent).toBe('synced'));
+    expect(mockSyncToFirestore).toHaveBeenCalledTimes(2);
     expect(screen.getByTestId('pending-sync').textContent).toBe('false');
   });
 

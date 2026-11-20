@@ -102,8 +102,12 @@ type HabitContextValue = {
 export const HabitContext = createContext<HabitContextValue | undefined>(undefined);
 
 const SYNC_DEBOUNCE_MS = 650;
+const QUOTA_COOLDOWN_MS = 5 * 60 * 1000;
 const RECENT_AUTH_MAX_AGE_MS = 2 * 60 * 1000;
 const MAX_CONFLICT_RETRIES = 2;
+
+const QUOTA_EXCEEDED_USER_MESSAGE =
+  'Cloud sync paused: daily Firestore free-tier quota was exceeded. Your changes remain saved on this device and will sync after quota resets tomorrow.';
 
 function isSessionConfirmedRecent(user: User): boolean {
   const raw = user.metadata?.lastSignInTime;
@@ -114,13 +118,34 @@ function isSessionConfirmedRecent(user: User): boolean {
   return ageMs >= 0 && ageMs < RECENT_AUTH_MAX_AGE_MS;
 }
 
+function isQuotaError(error: unknown): boolean {
+  if (typeof sync.isQuotaExceededError === 'function' && sync.isQuotaExceededError(error)) {
+    return true;
+  }
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return (
+    message.includes('quota limit exceeded') ||
+    message.includes('quota exceeded') ||
+    message.includes('free daily write units') ||
+    message.includes('free daily read units') ||
+    message.includes('resource-exhausted')
+  );
+}
+
 function formatFriendlySyncError(error: unknown): string {
+  if (isQuotaError(error)) {
+    return QUOTA_EXCEEDED_USER_MESSAGE;
+  }
   const raw = error instanceof Error ? error.message : String(error);
   try {
     const parsed = JSON.parse(raw) as { error?: string };
     if (typeof parsed.error === 'string') {
-      if (parsed.error.toLowerCase().includes('permission') || parsed.error.toLowerCase().includes('insufficient')) {
+      const lower = parsed.error.toLowerCase();
+      if (lower.includes('permission') || lower.includes('insufficient')) {
         return 'Cloud sync was rejected by Firestore permissions. Your changes are safe locally.';
+      }
+      if (lower.includes('quota limit exceeded') || lower.includes('quota exceeded')) {
+        return QUOTA_EXCEEDED_USER_MESSAGE;
       }
       return parsed.error;
     }
@@ -168,6 +193,7 @@ export const HabitProvider = ({ children }: { children: React.ReactNode }) => {
   const lastKnownRemoteVersionRef = useRef<number | null>(null);
   const pendingConflictRef = useRef<PendingConflict | null>(null);
   const incompatibleMetaRef = useRef<WorkspaceMetaV4 | null>(null);
+  const quotaCooldownUntilRef = useRef<number>(0);
 
   const unsubscribeFirestoreRef = useRef<(() => void) | null>(null);
   const unsubscribeEntitlementRef = useRef<(() => void) | null>(null);
@@ -263,8 +289,14 @@ export const HabitProvider = ({ children }: { children: React.ReactNode }) => {
   );
 
   const flushCloudWrite = useCallback(
-    async (uid: string, sessionGen: number, expectedSeq?: number) => {
+    async (uid: string, sessionGen: number, expectedSeq?: number, force = false) => {
       if (sessionGen !== sessionGenRef.current || isCloudWriteBlocked(uid)) return;
+      if (!force && Date.now() < quotaCooldownUntilRef.current) {
+        setPendingSync(true);
+        setSyncStatus('error');
+        setSyncError(QUOTA_EXCEEDED_USER_MESSAGE);
+        return;
+      }
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         setSyncStatus('offline');
         setPendingSync(true);
@@ -387,6 +419,10 @@ export const HabitProvider = ({ children }: { children: React.ReactNode }) => {
             }
 
             const offline = sync.isOfflineError(error);
+            const quotaHit = isQuotaError(error);
+            if (quotaHit) {
+              quotaCooldownUntilRef.current = Date.now() + QUOTA_COOLDOWN_MS;
+            }
             saveSyncMeta(uid, {
               pendingSync: true,
               lastSyncedAt: lastSyncedAtRef.current,
@@ -418,6 +454,12 @@ export const HabitProvider = ({ children }: { children: React.ReactNode }) => {
     (uid: string, seq: number) => {
       clearDebounce();
       if (isCloudWriteBlocked(uid)) return;
+      if (Date.now() < quotaCooldownUntilRef.current) {
+        setPendingSync(true);
+        setSyncStatus('error');
+        setSyncError(QUOTA_EXCEEDED_USER_MESSAGE);
+        return;
+      }
       const sessionGen = sessionGenRef.current;
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         setSyncStatus('offline');
@@ -651,6 +693,7 @@ export const HabitProvider = ({ children }: { children: React.ReactNode }) => {
       lastSyncedHashRef.current = null;
       lastKnownRemoteVersionRef.current = null;
       incompatibleMetaRef.current = null;
+      quotaCooldownUntilRef.current = 0;
       setIncompatibleSchema(null);
       setConflict(null);
       setSyncError('');
@@ -941,7 +984,8 @@ export const HabitProvider = ({ children }: { children: React.ReactNode }) => {
   const retrySync = useCallback(async () => {
     const currentUser = userRef.current;
     if (!currentUser || isCloudWriteBlocked(currentUser.uid)) return;
-    await flushCloudWrite(currentUser.uid, sessionGenRef.current, writeSeqRef.current);
+    quotaCooldownUntilRef.current = 0;
+    await flushCloudWrite(currentUser.uid, sessionGenRef.current, writeSeqRef.current, true);
   }, [flushCloudWrite, isCloudWriteBlocked]);
 
   const exportRecoveryBackup = useCallback(async () => {

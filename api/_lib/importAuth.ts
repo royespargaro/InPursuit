@@ -1,6 +1,13 @@
+import type { Extraction } from '../../src/types';
 import { ImportPlanRequestSchema, MAX_PLAN_TEXT_CHARS } from '../../src/utils/planImportSchema';
 import { getTokenVerificationAuth } from './firebaseAdmin';
-import { extractPlanWithGemini, refinePlanWithGemini, type ImportPlanResult } from './planImport';
+import {
+  extractPlanWithGemini,
+  PlanImportError,
+  refinePlanWithGemini,
+  type ImportPlanResult,
+  type PlanImportServiceOptions,
+} from './planImport';
 
 export const MAX_IMPORT_REQUEST_BYTES = 128 * 1024;
 export const DEFAULT_IMPORT_RATE_LIMIT = {
@@ -129,10 +136,13 @@ export interface HandleImportPlanParams {
   nowMs?: number;
   verifyToken?: TokenVerifier;
   rateLimiter?: (uid: string, nowMs: number) => RateLimitDecision;
-  extractPlan?: (planText: string) => Promise<ImportPlanResult>;
+  extractPlan?: (
+    planText: string,
+    options?: Pick<PlanImportServiceOptions, 'deepCheck' | 'currentDraft'>,
+  ) => Promise<ImportPlanResult>;
   refinePlan?: (params: {
     planText: string;
-    currentDraft: Parameters<typeof refinePlanWithGemini>[0]['currentDraft'];
+    currentDraft: Extraction;
     instruction?: string;
     answers?: Parameters<typeof refinePlanWithGemini>[0]['answers'];
   }) => Promise<ImportPlanResult>;
@@ -153,7 +163,7 @@ export async function handleImportPlanHttp(params: HandleImportPlanParams): Prom
     return {
       status: 405,
       headers: { ...headers, Allow: 'POST' },
-      body: { error: 'Method not allowed.' },
+      body: { error: 'Method not allowed.', code: 'METHOD_NOT_ALLOWED', retryable: false },
     };
   }
 
@@ -166,7 +176,7 @@ export async function handleImportPlanHttp(params: HandleImportPlanParams): Prom
     return {
       status,
       headers,
-      body: { error: message },
+      body: { error: message, code: 'UNAUTHORIZED', retryable: false },
     };
   }
 
@@ -181,6 +191,8 @@ export async function handleImportPlanHttp(params: HandleImportPlanParams): Prom
       },
       body: {
         error: `Too many plan imports. Please wait ${limitDecision.retryAfterSeconds} seconds before trying again.`,
+        code: 'AI_RATE_LIMITED',
+        retryable: true,
       },
     };
   }
@@ -195,6 +207,8 @@ export async function handleImportPlanHttp(params: HandleImportPlanParams): Prom
       headers,
       body: {
         error: `Request payload too large. Maximum size is ${Math.round(MAX_IMPORT_REQUEST_BYTES / 1024)}KB.`,
+        code: 'PAYLOAD_TOO_LARGE',
+        retryable: false,
       },
     };
   }
@@ -212,6 +226,8 @@ export async function handleImportPlanHttp(params: HandleImportPlanParams): Prom
       headers,
       body: {
         error: `Plan text is too long. Limit is ${MAX_PLAN_TEXT_CHARS.toLocaleString()} characters.`,
+        code: 'PLAN_TOO_LONG',
+        retryable: false,
       },
     };
   }
@@ -223,6 +239,8 @@ export async function handleImportPlanHttp(params: HandleImportPlanParams): Prom
       headers,
       body: {
         error: parsed.error.issues[0]?.message ?? 'Invalid import plan request payload.',
+        code: 'INVALID_REQUEST',
+        retryable: false,
       },
     };
   }
@@ -237,7 +255,10 @@ export async function handleImportPlanHttp(params: HandleImportPlanParams): Prom
             instruction: payload.instruction,
             answers: payload.answers,
           })
-        : await (params.extractPlan ?? extractPlanWithGemini)(payload.planText);
+        : await (params.extractPlan ?? extractPlanWithGemini)(payload.planText, {
+            deepCheck: payload.deepCheck,
+            currentDraft: payload.currentDraft,
+          });
 
     return {
       status: 200,
@@ -245,12 +266,37 @@ export async function handleImportPlanHttp(params: HandleImportPlanParams): Prom
       body: result,
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to extract plan.';
-    const status = message.includes('GEMINI_API_KEY') ? 503 : 500;
+    if (error instanceof PlanImportError) {
+      return {
+        status: error.status,
+        headers,
+        body: {
+          error: error.userMessage,
+          code: error.code,
+          retryable: error.retryable,
+        },
+      };
+    }
+    const rawMessage = error instanceof Error ? error.message : '';
+    if (rawMessage.includes('GEMINI_API_KEY')) {
+      return {
+        status: 503,
+        headers,
+        body: {
+          error: 'Plan import is not configured on the server yet.',
+          code: 'AI_UNCONFIGURED',
+          retryable: false,
+        },
+      };
+    }
     return {
-      status,
+      status: 503,
       headers,
-      body: { error: message },
+      body: {
+        error: 'The AI planner is temporarily busy. Please try again in a moment.',
+        code: 'AI_BUSY',
+        retryable: true,
+      },
     };
   }
 }

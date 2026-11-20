@@ -14,6 +14,8 @@ interface ProjectsViewProps {
   onDelete: (id: string, title: string) => void;
   onAddTask: (id: string) => void;
   onToggleTask: (t: Task) => void;
+  onAdjustTaskQuantity?: (t: Task, delta: 1 | -1) => void;
+  onStartPhase?: (id: string) => void;
   onEditTask: (id: string) => void;
 }
 
@@ -26,6 +28,8 @@ export function ProjectsView({
   onDelete,
   onAddTask,
   onToggleTask,
+  onAdjustTaskQuantity,
+  onStartPhase,
   onEditTask,
 }: ProjectsViewProps) {
   const [filter, setFilter] = useState<'active' | 'planned' | 'all'>('active');
@@ -110,6 +114,21 @@ export function ProjectsView({
                         : 'No deadline'}
                   </span>
                   <div className="project-foot-actions">
+                    {project.status === 'planned' && onStartPhase && (
+                      <button
+                        type="button"
+                        className="start-phase-btn"
+                        disabled={activeCount >= MAX_ACTIVE_PROJECTS}
+                        title={
+                          activeCount >= MAX_ACTIVE_PROJECTS
+                            ? `Active project limit reached (${MAX_ACTIVE_PROJECTS}). Complete or archive a project first.`
+                            : 'Activate this phase now'
+                        }
+                        onClick={() => onStartPhase(project.id)}
+                      >
+                        Start phase
+                      </button>
+                    )}
                     <button type="button" onClick={() => setExpandedProjectId(isExpanded ? null : project.id)}>
                       {isExpanded ? 'Hide tasks' : `Tasks (${projectTasks.length})`}
                     </button>
@@ -120,25 +139,54 @@ export function ProjectsView({
                 {isExpanded && (
                   <div className="project-task-drawer">
                     {projectTasks.length ? (
-                      projectTasks.map(task => (
-                        <div className={cx('task-row', task.status === 'done' && 'is-done')} key={task.id}>
-                          <button
-                            type="button"
-                            aria-label={task.status === 'done' ? `Reopen ${task.title}` : `Complete ${task.title}`}
-                            className={cx('check-control', task.status === 'done' && 'checked')}
-                            onClick={() => onToggleTask(task)}
-                          >
-                            {task.status === 'done' && <Check size={14} />}
-                          </button>
-                          <button type="button" className="task-title-button" onClick={() => onEditTask(task.id)}>
-                            <b>{task.title}</b>
-                            <small>{task.dueDate ? `Due ${shortDate(task.dueDate)}` : 'No date'} · {task.priority}</small>
-                          </button>
-                          <button type="button" className="icon-btn subtle" aria-label={`Edit ${task.title}`} onClick={() => onEditTask(task.id)}>
-                            <ArrowUpRight size={14} />
-                          </button>
-                        </div>
-                      ))
+                      projectTasks.map(task => {
+                        const hasTargetQty = typeof task.targetQuantity === 'number' && task.targetQuantity > 0;
+                        const completedQty = hasTargetQty
+                          ? Math.max(0, task.completedQuantity ?? (task.status === 'done' ? task.targetQuantity! : 0))
+                          : 0;
+                        return (
+                          <div className={cx('task-row', task.status === 'done' && 'is-done')} key={task.id}>
+                            <button
+                              type="button"
+                              aria-label={task.status === 'done' ? `Reopen ${task.title}` : `Complete ${task.title}`}
+                              className={cx('check-control', task.status === 'done' && 'checked')}
+                              onClick={() => onToggleTask(task)}
+                            >
+                              {task.status === 'done' && <Check size={14} />}
+                            </button>
+                            <button type="button" className="task-title-button" onClick={() => onEditTask(task.id)}>
+                              <b>{task.title}</b>
+                              <small>{task.dueDate ? `Due ${shortDate(task.dueDate)}` : 'No date'} · {task.priority}</small>
+                            </button>
+                            {hasTargetQty && (
+                              <div className="weekly-habit-actions" aria-label={`${task.title} quantity progress`}>
+                                <button
+                                  type="button"
+                                  className="habit-mini-btn"
+                                  disabled={completedQty <= 0}
+                                  aria-label={`Decrease progress for ${task.title} (-1)`}
+                                  onClick={() => onAdjustTaskQuantity?.(task, -1)}
+                                >
+                                  -1
+                                </button>
+                                <span className="weekly-counter">{completedQty}/{task.targetQuantity}</span>
+                                <button
+                                  type="button"
+                                  className="habit-mini-btn"
+                                  disabled={completedQty >= task.targetQuantity!}
+                                  aria-label={`Increase progress for ${task.title} (+1)`}
+                                  onClick={() => onAdjustTaskQuantity?.(task, 1)}
+                                >
+                                  +1
+                                </button>
+                              </div>
+                            )}
+                            <button type="button" className="icon-btn subtle" aria-label={`Edit ${task.title}`} onClick={() => onEditTask(task.id)}>
+                              <ArrowUpRight size={14} />
+                            </button>
+                          </div>
+                        );
+                      })
                     ) : (
                       <p className="project-drawer-empty">No tasks linked yet. Add a concrete next action.</p>
                     )}
