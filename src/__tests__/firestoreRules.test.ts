@@ -36,6 +36,9 @@ describe('firestore.rules static security invariant verification (no emulator ex
     expect(rulesText).toContain('(data.priorityTaskIds.size() < 2 || isValidId(data.priorityTaskIds[1]))');
     expect(rulesText).toContain('(data.priorityTaskIds.size() < 3 || isValidId(data.priorityTaskIds[2]))');
     expect(rulesText).toContain('existing().schemaVersion == 3');
+    expect(rulesText).toContain('existing().schemaVersion == 2');
+    expect(rulesText).toContain('addedKeys().hasOnly(');
+    expect(rulesText).toContain('changedKeys().hasOnly(');
     expect(rulesText).toContain("'syncVersion'");
     expect(rulesText).toContain('Firestore Rules CEL cannot loop over arbitrary-length lists');
   });

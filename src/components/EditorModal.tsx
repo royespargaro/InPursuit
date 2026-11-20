@@ -67,6 +67,7 @@ export function EditorModal({
   const [projectStatus, setProjectStatus] = useState<Project['status']>(existingProject?.status ?? 'active');
   const [formError, setFormError] = useState('');
   const [frequency, setFrequency] = useState<Habit['frequency']>(existingHabit?.frequency ?? 'daily');
+  const [minimumVersion, setMinimumVersion] = useState(existingHabit?.minimumVersion ?? '');
   const [active, setActive] = useState(existingHabit?.active ?? true);
   const [wins, setWins] = useState(existingReview?.wins ?? '');
   const [blockers, setBlockers] = useState(existingReview?.blockers ?? '');
@@ -130,6 +131,7 @@ export function EditorModal({
 
     if (kind === 'task') {
       onSave(kind, {
+        ...existingTask,
         id: existingTask?.id ?? createId(),
         title: title.trim(),
         projectId: projectId || null,
@@ -142,6 +144,7 @@ export function EditorModal({
     }
     if (kind === 'goal') {
       onSave(kind, {
+        ...existingGoal,
         id: existingGoal?.id ?? createId(),
         lifeAreaId: lifeAreaId || null,
         title: title.trim(),
@@ -153,6 +156,7 @@ export function EditorModal({
     }
     if (kind === 'project') {
       onSave(kind, {
+        ...existingProject,
         id: existingProject?.id ?? createId(),
         title: title.trim(),
         description: description.trim(),
@@ -164,9 +168,11 @@ export function EditorModal({
     }
     if (kind === 'habit') {
       onSave(kind, {
+        ...existingHabit,
         id: existingHabit?.id ?? createId(),
         name: title.trim(),
         frequency,
+        minimumVersion: minimumVersion.trim() || undefined,
         active,
         createdAt: existingHabit?.createdAt ?? now,
       });
@@ -320,6 +326,7 @@ export function EditorModal({
                 }}
               >
                 <option value="active">Active</option>
+                <option value="planned">Planned</option>
                 <option value="completed">Completed</option>
                 <option value="archived">Archived</option>
               </select>
@@ -340,6 +347,15 @@ export function EditorModal({
                 <option value="weekdays">Weekdays</option>
                 <option value="weekends">Weekends</option>
               </select>
+            </Field>
+            <Field label="Minimum version (for rough days, optional)">
+              <input
+                type="text"
+                maxLength={100}
+                value={minimumVersion}
+                onChange={e => setMinimumVersion(e.target.value)}
+                placeholder="e.g. 5 minutes stretching"
+              />
             </Field>
             <label className="toggle-field">
               <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} /> Active habit

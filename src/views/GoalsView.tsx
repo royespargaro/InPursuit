@@ -1,5 +1,5 @@
-import { ArrowUpRight, CalendarDays, CheckCircle2, Plus, Settings2, Trash2 } from '../components/Icon';
-import { Button, Empty, Progress, SectionTitle, shortDate } from '../components/ui';
+import { ArrowUpRight, CalendarDays, Check, CheckCircle2, Plus, Settings2, Sparkles, Trash2 } from '../components/Icon';
+import { Button, cx, Empty, Progress, SectionTitle, shortDate } from '../components/ui';
 import type { Goal, LifeArea, Project, Task } from '../types';
 import { getGoalProgress } from '../utils/intelligence';
 
@@ -12,6 +12,8 @@ interface GoalsViewProps {
   onEdit: (id: string) => void;
   onDelete: (id: string, title: string) => void;
   onManageAreas: () => void;
+  onOpenImportPlan?: () => void;
+  onToggleCriterion?: (goalId: string, criterionId: string) => void;
 }
 
 export function GoalsView({
@@ -23,6 +25,8 @@ export function GoalsView({
   onEdit,
   onDelete,
   onManageAreas,
+  onOpenImportPlan,
+  onToggleCriterion,
 }: GoalsViewProps) {
   const active = goals.filter(g => g.status === 'active');
   const inactive = goals.filter(g => g.status !== 'active');
@@ -31,6 +35,9 @@ export function GoalsView({
     <div className="view-stack">
       <SectionTitle eyebrow="direction · outcomes" title="Goals">
         <div className="project-title-actions">
+          {onOpenImportPlan && (
+            <Button variant="outline" onClick={onOpenImportPlan}><Sparkles size={14} /> Import plan</Button>
+          )}
           <Button variant="outline" onClick={onManageAreas}>Manage areas</Button>
           <Button variant="solid" onClick={onAdd}><Plus size={15} /> New goal</Button>
         </div>
@@ -45,7 +52,10 @@ export function GoalsView({
             return (
               <article className="goal-card" key={goal.id}>
                 <div className="card-topline">
-                  <span className="tag-label">{lifeArea?.name ?? 'UNASSIGNED AREA'}</span>
+                  <span className="tag-label">
+                    {lifeArea?.name ?? 'UNASSIGNED AREA'}
+                    {typeof goal.pillarWeightPct === 'number' ? ` · ${goal.pillarWeightPct}%` : ''}
+                  </span>
                   <div className="project-actions">
                     <button type="button" className="icon-btn" title="Edit goal" aria-label={`Edit goal ${goal.title}`} onClick={() => onEdit(goal.id)}>
                       <Settings2 size={15} />
@@ -58,6 +68,34 @@ export function GoalsView({
                 <h3>{goal.title}</h3>
                 <p>{goal.outcome || 'Define what success looks like.'}</p>
                 <div className="goal-date"><CalendarDays size={14} /> Target · {goal.targetDate ? shortDate(goal.targetDate) : 'No deadline'}</div>
+                {goal.successCriteria && goal.successCriteria.length > 0 && (
+                  <div className="goal-extra-list" aria-label={`Success criteria for ${goal.title}`}>
+                    <div className="eyebrow">success criteria</div>
+                    {goal.successCriteria.map(criterion => (
+                      <button
+                        key={criterion.id}
+                        type="button"
+                        className={cx('goal-criterion-row', criterion.done && 'is-done')}
+                        onClick={() => onToggleCriterion?.(goal.id, criterion.id)}
+                      >
+                        <span className={cx('criterion-check', criterion.done && 'checked')}>
+                          {criterion.done && <Check size={11} />}
+                        </span>
+                        <span>{criterion.text}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {goal.principles && goal.principles.length > 0 && (
+                  <div className="goal-extra-list" aria-label={`Principles for ${goal.title}`}>
+                    <div className="eyebrow">principles</div>
+                    {goal.principles.map(principle => (
+                      <div key={principle.id} className="goal-principle-row">
+                        {principle.text}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="goal-progress-head">
                   <span>Execution progress</span>
                   <b>{metrics.percent}%</b>

@@ -1,4 +1,4 @@
-import type { Habit, HabitLog } from '../types';
+import type { Habit, HabitLog, WeekdayKey } from '../types';
 
 export const localDateKey = (date = new Date()): string => {
   const year = date.getFullYear();
@@ -17,18 +17,68 @@ export const mk = (year: number, month: number) => `${year}-${month + 1}`;
 export const pad = (value: number) => String(value).padStart(2, '0');
 export const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
 
-export const isHabitScheduledOnDate = (habit: Pick<Habit, 'frequency'>, dateStr: string): boolean => {
+const DAY_INDEX_TO_KEY: WeekdayKey[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+export const isHabitScheduledOnDate = (
+  habit: Pick<Habit, 'frequency' | 'cadence' | 'days'>,
+  dateStr: string,
+): boolean => {
+  if (habit.cadence === 'specific_days' && habit.days && habit.days.length > 0) {
+    const dayKey = DAY_INDEX_TO_KEY[new Date(`${dateStr}T12:00:00`).getDay()];
+    return habit.days.includes(dayKey);
+  }
+  if (habit.cadence === 'weekly_count') return true;
   if (habit.frequency === 'daily') return true;
   const day = new Date(`${dateStr}T12:00:00`).getDay();
   const isWeekend = day === 0 || day === 6;
   return habit.frequency === 'weekends' ? isWeekend : !isWeekend;
 };
 
-function resolveHabitRef(habitOrId: string | Pick<Habit, 'id' | 'frequency'>, frequency?: Habit['frequency']): { id: string; frequency: Habit['frequency'] } {
+export const getWeeklyHabitCount = (
+  habitId: string,
+  logs: readonly HabitLog[],
+  todayStr: string,
+): number => {
+  const baseDate = new Date(`${todayStr}T12:00:00`);
+  const mondayOffset = (baseDate.getDay() + 6) % 7;
+  const weekStart = shiftDateKey(todayStr, -mondayOffset);
+  const weekEnd = shiftDateKey(weekStart, 6);
+  let count = 0;
+  for (const log of logs) {
+    if (log.habitId === habitId && log.status === 'done' && log.date >= weekStart && log.date <= weekEnd) {
+      count += 1;
+    }
+  }
+  return count;
+};
+
+export const getTodayHabitCount = (
+  habitId: string,
+  logs: readonly HabitLog[],
+  todayStr: string,
+): number => {
+  let count = 0;
+  for (const log of logs) {
+    if (log.habitId === habitId && log.status === 'done' && log.date === todayStr) {
+      count += 1;
+    }
+  }
+  return count;
+};
+
+function resolveHabitRef(
+  habitOrId: string | Pick<Habit, 'id' | 'frequency' | 'cadence' | 'days'>,
+  frequency?: Habit['frequency'],
+): Pick<Habit, 'id' | 'frequency' | 'cadence' | 'days'> {
   if (typeof habitOrId === 'string') {
     return { id: habitOrId, frequency: frequency ?? 'daily' };
   }
-  return { id: habitOrId.id, frequency: habitOrId.frequency };
+  return {
+    id: habitOrId.id,
+    frequency: habitOrId.frequency,
+    cadence: habitOrId.cadence,
+    days: habitOrId.days,
+  };
 }
 
 export const getStreak = (

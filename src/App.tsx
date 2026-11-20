@@ -13,8 +13,15 @@ import {
   ONBOARDING_KEY_PREFIX,
   type ParsedBackup,
 } from './services/appStore';
-import type { DailyReview, Goal, Habit, LifeArea, Project, Task } from './types';
+import type { DailyReview, Extraction, Goal, Habit, LifeArea, PlanImportRecord, Project, Task } from './types';
 import { isHabitScheduledOnDate, localDateKey } from './utils/habitUtils';
+import {
+  applyImportedPlanToWorkspace,
+  readLastImportRecord,
+  undoImportedPlan,
+  workspaceHasImportId,
+  writeLastImportRecord,
+} from './utils/planImportMerge';
 import { canActivateProject, MAX_ACTIVE_PROJECTS } from './utils/projectLimits';
 import { TodayView } from './views/TodayView';
 
@@ -28,6 +35,7 @@ const ConfirmModal = lazy(() => import('./components/ConfirmModal').then(m => ({
 const ConflictModal = lazy(() => import('./components/ConflictModal').then(m => ({ default: m.ConflictModal })));
 const SettingsModal = lazy(() => import('./components/SettingsModal').then(m => ({ default: m.SettingsModal })));
 const SignInPage = lazy(() => import('./components/SignInPage').then(m => ({ default: m.SignInPage })));
+const PlanImportModal = lazy(() => import('./components/PlanImportModal').then(m => ({ default: m.PlanImportModal })));
 
 type View = 'today' | 'goals' | 'projects' | 'habits' | 'review';
 type DeleteTarget =
@@ -101,10 +109,12 @@ export default function App() {
   const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [pendingRestore, setPendingRestore] = useState<ParsedBackup | null>(null);
+  const [showPlanImport, setShowPlanImport] = useState(false);
 
   const onboardingScope = user?.uid ?? 'guest';
   const [onboardingDismissed, setOnboardingDismissed] = useState<boolean>(() => readOnboardingDismissed('guest'));
   const [onboardingPinned, setOnboardingPinned] = useState(false);
+  const [lastImportRecord, setLastImportRecord] = useState<PlanImportRecord | null>(() => readLastImportRecord('guest'));
 
   const importRef = useRef<HTMLInputElement>(null);
   const toastTimerRef = useRef<number | null>(null);
@@ -112,6 +122,7 @@ export default function App() {
   useEffect(() => {
     setOnboardingDismissed(readOnboardingDismissed(onboardingScope));
     setOnboardingPinned(false);
+    setLastImportRecord(readLastImportRecord(onboardingScope));
   }, [onboardingScope]);
 
   // Clear local mode flag once signed in with Firebase
@@ -207,6 +218,56 @@ export default function App() {
     setOnboardingPinned(false);
   };
 
+  const activeLastImport = useMemo(
+    () => (lastImportRecord && workspaceHasImportId(data, lastImportRecord.importId) ? lastImportRecord : null),
+    [data, lastImportRecord],
+  );
+
+  const handleApprovePlanImport = (draft: Extraction) => {
+    let createdRecord: PlanImportRecord | null = null;
+    updateData(current => {
+      const result = applyImportedPlanToWorkspace(current, draft, { today });
+      createdRecord = result.record;
+      return result.nextData;
+    });
+    if (createdRecord) {
+      writeLastImportRecord(onboardingScope, createdRecord);
+      setLastImportRecord(createdRecord);
+      const counts = (createdRecord as PlanImportRecord).counts;
+      notify(
+        `Imported ${counts.goals} goals, ${counts.phases} phases, ${counts.habits} habits, ${counts.tasks} tasks` +
+          (counts.deduped > 0 ? ` (${counts.deduped} deduped)` : ''),
+      );
+    }
+    dismissOnboarding();
+    setShowPlanImport(false);
+  };
+
+  const handleUndoPlanImport = () => {
+    if (!activeLastImport) return;
+    const importId = activeLastImport.importId;
+    updateData(current => undoImportedPlan(current, importId));
+    writeLastImportRecord(onboardingScope, null);
+    setLastImportRecord(null);
+    notify('Last plan import undone');
+  };
+
+  const toggleGoalCriterion = (goalId: string, criterionId: string) => {
+    updateData(current => ({
+      ...current,
+      goals: current.goals.map(goal =>
+        goal.id === goalId && goal.successCriteria
+          ? {
+              ...goal,
+              successCriteria: goal.successCriteria.map(c =>
+                c.id === criterionId ? { ...c, done: !c.done } : c,
+              ),
+            }
+          : goal,
+      ),
+    }));
+  };
+
   const applyStarterTemplate = (template: StarterTemplateOption) => {
     const now = new Date().toISOString();
     const canActivate = activeProjects.length < MAX_ACTIVE_PROJECTS;
@@ -282,9 +343,46 @@ export default function App() {
     });
   };
 
+  const addWeeklyHabitLogOnDate = (habit: Habit, date: string) => {
+    updateData(current => {
+      if (date > today) return current;
+      // Clear any skipped marker on that date while keeping existing done completions intact
+      const kept = current.habitLogs.filter(
+        l => !(l.habitId === habit.id && l.date === date && l.status === 'skipped'),
+      );
+      return { ...current, habitLogs: [...kept, { id: uid(), habitId: habit.id, date, status: 'done' }] };
+    });
+  };
+
+  const removeLastDoneHabitLogOnDate = (habit: Habit, date: string) => {
+    updateData(current => {
+      let targetIdx = -1;
+      for (let i = current.habitLogs.length - 1; i >= 0; i -= 1) {
+        const log = current.habitLogs[i];
+        if (log.habitId === habit.id && log.date === date && log.status === 'done') {
+          targetIdx = i;
+          break;
+        }
+      }
+      if (targetIdx === -1) return current;
+      return {
+        ...current,
+        habitLogs: current.habitLogs.filter((_, idx) => idx !== targetIdx),
+      };
+    });
+  };
+
   const toggleHabit = (habit: Habit) => {
+    if (habit.cadence === 'weekly_count') {
+      addWeeklyHabitLogOnDate(habit, today);
+      return;
+    }
     const currentStatus = todayHabitLogMap.get(habit.id);
     setHabitStatusOnDate(habit, today, currentStatus === 'done' ? 'clear' : 'done');
+  };
+
+  const decrementHabitToday = (habit: Habit) => {
+    removeLastDoneHabitLogOnDate(habit, today);
   };
 
   const toggleSkipHabit = (habit: Habit) => {
@@ -293,6 +391,17 @@ export default function App() {
   };
 
   const cycleHabitMatrixDay = (habit: Habit, date: string) => {
+    if (habit.cadence === 'weekly_count') {
+      const doneOnDate = data.habitLogs.filter(
+        l => l.habitId === habit.id && l.date === date && l.status === 'done',
+      ).length;
+      if (doneOnDate < 3) {
+        addWeeklyHabitLogOnDate(habit, date);
+      } else {
+        setHabitStatusOnDate(habit, date, 'clear');
+      }
+      return;
+    }
     const current = data.habitLogs.find(l => l.habitId === habit.id && l.date === date)?.status;
     if (!current) setHabitStatusOnDate(habit, date, 'done');
     else if (current === 'done') setHabitStatusOnDate(habit, date, 'skipped');
@@ -496,6 +605,9 @@ export default function App() {
             </div>
           </div>
           <div className="sidebar-actions">
+            <button type="button" onClick={() => setShowPlanImport(true)}>
+              <Icon name="spark" size={15} /> Import plan
+            </button>
             <button type="button" onClick={() => exportData(data)}>
               <Icon name="download" size={15} /> Export backup
             </button>
@@ -607,6 +719,7 @@ export default function App() {
               onDismissOnboarding={dismissOnboarding}
               onApplyTemplate={applyStarterTemplate}
               onToggleHabit={toggleHabit}
+              onDecrementHabit={decrementHabitToday}
               onToggleSkipHabit={toggleSkipHabit}
               onToggleTask={toggleTask}
               onRestoreTask={restoreTask}
@@ -618,6 +731,9 @@ export default function App() {
               onOpenGoals={() => setView('goals')}
               onEditGoal={id => openModal('goal', id)}
               onAddGoal={() => openModal('goal')}
+              onOpenImportPlan={() => setShowPlanImport(true)}
+              lastImportRecord={activeLastImport}
+              onUndoImport={handleUndoPlanImport}
             />
           )}
 
@@ -632,6 +748,8 @@ export default function App() {
                 onEdit={id => openModal('goal', id)}
                 onDelete={(id, title) => requestDelete('goal', id, title)}
                 onManageAreas={() => setModal('areas')}
+                onOpenImportPlan={() => setShowPlanImport(true)}
+                onToggleCriterion={toggleGoalCriterion}
               />
             )}
             {view === 'projects' && (
@@ -866,6 +984,21 @@ export default function App() {
         )}
 
         {conflict && <ConflictModal conflict={conflict} onResolve={resolveConflict} />}
+
+        {showPlanImport && (
+          <PlanImportModal
+            today={today}
+            user={user}
+            lastImportRecord={activeLastImport}
+            onClose={() => setShowPlanImport(false)}
+            onOpenSettings={() => {
+              setShowPlanImport(false);
+              setModal('settings');
+            }}
+            onApproveImport={handleApprovePlanImport}
+            onUndoLastImport={handleUndoPlanImport}
+          />
+        )}
       </Suspense>
 
       {toast && <div className="toast" role="status"><CheckCircle2 size={16} />{toast}</div>}

@@ -8,6 +8,7 @@ import type {
   LifeArea,
   Priority,
   Project,
+  ProjectStatus,
   Status,
   SyncMeta,
   TaskStatus,
@@ -153,6 +154,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> => !!value &
 const isString = (value: unknown): value is string => typeof value === 'string';
 const isNullableString = (value: unknown): value is string | null => value === null || isString(value);
 const isStatus = (value: unknown): value is Status => value === 'active' || value === 'completed' || value === 'archived';
+const isProjectStatus = (value: unknown): value is ProjectStatus => isStatus(value) || value === 'planned';
 const isTaskStatus = (value: unknown): value is TaskStatus => value === 'todo' || value === 'done' || value === 'skipped';
 const isPriority = (value: unknown): value is Priority => value === 'high' || value === 'medium' || value === 'low';
 
@@ -181,7 +183,7 @@ function isProject(value: unknown): value is AppData['projects'][number] {
     isString(value.title) &&
     isString(value.description) &&
     isString(value.dueDate) &&
-    isStatus(value.status) &&
+    isProjectStatus(value.status) &&
     isString(value.createdAt)
   );
 }
@@ -336,20 +338,28 @@ export function sanitizeAppData(data: AppData): AppData {
       name: clampStr(habit.name, 160),
       createdAt: clampStr(habit.createdAt, 40),
     }));
-  const habitIds = new Set(habits.map(h => h.id));
+  const habitById = new Map(habits.map(h => [h.id, h]));
 
   const seenLogs = new Set<string>();
+  const seenWeeklyIds = new Set<string>();
   const habitLogs: HabitLog[] = [];
   for (const log of data.habitLogs) {
-    if (!habitIds.has(log.habitId)) continue;
+    const habit = habitById.get(log.habitId);
+    if (!habit) continue;
     const dateKey = clampStr(log.date, 20);
     if (!DATE_KEY_RE.test(dateKey)) continue;
-    const key = `${log.habitId}:${dateKey}`;
-    if (seenLogs.has(key)) continue;
-    seenLogs.add(key);
+    const logId = clampStr(log.id, 128);
+    if (habit.cadence === 'weekly_count' && log.status === 'done') {
+      if (!logId || seenWeeklyIds.has(logId)) continue;
+      seenWeeklyIds.add(logId);
+    } else {
+      const key = `${log.habitId}:${dateKey}`;
+      if (seenLogs.has(key)) continue;
+      seenLogs.add(key);
+    }
     habitLogs.push({
       ...log,
-      id: clampStr(log.id, 128),
+      id: logId,
       habitId: clampStr(log.habitId, 128),
       date: dateKey,
     });
@@ -799,11 +809,12 @@ export function threeWayMergeWorkspaceDetailed(
   const rawProjects = mergeKeyedCollection(base.projects, local.projects, remote.projects, x => x.id, preferLocalOnConflict);
   const tasks = mergeKeyedCollection(base.tasks, local.tasks, remote.tasks, x => x.id, preferLocalOnConflict);
   const habits = mergeKeyedCollection(base.habits, local.habits, remote.habits, x => x.id, preferLocalOnConflict);
+  const weeklyHabitIds = new Set(habits.filter(h => h.cadence === 'weekly_count').map(h => h.id));
   const habitLogs = mergeKeyedCollection(
     base.habitLogs,
     local.habitLogs,
     remote.habitLogs,
-    x => `${x.habitId}:${x.date}`,
+    x => (weeklyHabitIds.has(x.habitId) && x.status === 'done' ? `id:${x.id}` : `${x.habitId}:${x.date}`),
     preferLocalOnConflict,
   );
   const dailyPlans = mergeKeyedCollection(base.dailyPlans, local.dailyPlans, remote.dailyPlans, x => x.date, preferLocalOnConflict);
@@ -1043,16 +1054,23 @@ export function mergeWorkspaceDataDetailed(
     }
   }
 
+  const weeklyHabitIdSet = new Set(habits.filter(h => h.cadence === 'weekly_count').map(h => h.id));
   const habitLogs = [...cloud.habitLogs];
-  const logIndexByKey = new Map(habitLogs.map((l, idx) => [`${l.habitId}:${l.date}`, idx]));
+  const logIndexByKey = new Map(
+    habitLogs.map((l, idx) => [
+      weeklyHabitIdSet.has(l.habitId) && l.status === 'done' ? `id:${l.id}` : `${l.habitId}:${l.date}`,
+      idx,
+    ]),
+  );
   for (const log of local.habitLogs) {
     const mappedHabitId = habitIdMap.get(log.habitId) ?? log.habitId;
-    const key = `${mappedHabitId}:${log.date}`;
+    const isWeeklyDone = weeklyHabitIdSet.has(mappedHabitId) && log.status === 'done';
+    const key = isWeeklyDone ? `id:${log.id}` : `${mappedHabitId}:${log.date}`;
     const existingIdx = logIndexByKey.get(key);
     if (existingIdx === undefined) {
       habitLogs.push({ ...log, habitId: mappedHabitId });
       logIndexByKey.set(key, habitLogs.length - 1);
-    } else if (habitLogs[existingIdx].status === 'skipped' && log.status === 'done') {
+    } else if (!isWeeklyDone && habitLogs[existingIdx].status === 'skipped' && log.status === 'done') {
       // Preserve actual completion ('done') over 'skipped' on same-day conflict
       habitLogs[existingIdx] = { ...habitLogs[existingIdx], status: 'done' };
     }

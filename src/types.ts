@@ -1,5 +1,6 @@
 export type ID = string;
 export type Status = 'active' | 'completed' | 'archived';
+export type ProjectStatus = Status | 'planned';
 export type TaskStatus = 'todo' | 'done' | 'skipped';
 export type Priority = 'high' | 'medium' | 'low';
 export type SyncStatus = 'local' | 'hydrating' | 'syncing' | 'synced' | 'offline' | 'error' | 'conflict' | 'deleting';
@@ -10,6 +11,24 @@ export type AccountDeletionPhase =
   | 'deleting-auth'
   | 'partial-failure'
   | 'completed';
+
+export type WeekdayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+export type HabitCadence = 'daily' | 'weekly_count' | 'specific_days';
+
+export interface SuccessCriterion {
+  id: ID;
+  text: string;
+  done?: boolean;
+  importId?: string;
+  sourceQuote?: string;
+}
+
+export interface PlanPrinciple {
+  id: ID;
+  text: string;
+  importId?: string;
+  sourceQuote?: string;
+}
 
 export interface LifeArea {
   id: ID;
@@ -26,6 +45,11 @@ export interface Goal {
   targetDate: string;
   status: Status;
   createdAt: string;
+  pillarWeightPct?: number;
+  successCriteria?: SuccessCriterion[];
+  principles?: PlanPrinciple[];
+  importId?: string;
+  sourceQuote?: string;
 }
 
 export interface Project {
@@ -34,8 +58,14 @@ export interface Project {
   title: string;
   description: string;
   dueDate: string;
-  status: Status;
+  status: ProjectStatus;
   createdAt: string;
+  startDate?: string;
+  theme?: string;
+  exitCondition?: string;
+  isPhase?: boolean;
+  importId?: string;
+  sourceQuote?: string;
 }
 
 export interface Task {
@@ -47,6 +77,9 @@ export interface Task {
   status: TaskStatus;
   createdAt: string;
   completedAt: string | null;
+  targetQuantity?: number;
+  importId?: string;
+  sourceQuote?: string;
 }
 
 export interface Habit {
@@ -55,6 +88,14 @@ export interface Habit {
   frequency: 'daily' | 'weekdays' | 'weekends';
   active: boolean;
   createdAt: string;
+  cadence?: HabitCadence;
+  targetCount?: number;
+  days?: WeekdayKey[];
+  timeBlock?: { start: string; end: string };
+  minimumVersion?: string;
+  goalId?: ID | null;
+  importId?: string;
+  sourceQuote?: string;
 }
 
 export interface HabitLog {
@@ -89,6 +130,82 @@ export interface AppData {
   dailyPlans: DailyPlan[];
   dailyReviews: DailyReview[];
   updatedAt?: string;
+}
+
+export interface ExtractionGoal {
+  title: string;
+  pillar_weight_pct?: number;
+  description?: string;
+  source_quote: string;
+}
+
+export interface ExtractionPhase {
+  title: string;
+  start: string;
+  end: string;
+  theme?: string;
+  exit_condition?: string;
+  source_quote: string;
+}
+
+export interface ExtractionHabit {
+  title: string;
+  goal_ref?: string;
+  cadence: HabitCadence;
+  target_count?: number;
+  days?: WeekdayKey[];
+  time_block?: { start: string; end: string };
+  minimum_version?: string;
+  source_quote: string;
+}
+
+export interface ExtractionTask {
+  title: string;
+  goal_ref?: string;
+  phase_ref?: string;
+  due?: string;
+  target_quantity?: number;
+  source_quote: string;
+}
+
+export interface ExtractionSuccessCriterion {
+  goal_ref?: string;
+  text: string;
+  source_quote: string;
+}
+
+export interface ExtractionPrinciple {
+  text: string;
+  source_quote: string;
+}
+
+export interface ExtractionClarification {
+  question: string;
+  related_quote: string;
+}
+
+export interface Extraction {
+  goals: ExtractionGoal[];
+  phases: ExtractionPhase[];
+  habits: ExtractionHabit[];
+  tasks: ExtractionTask[];
+  success_criteria: ExtractionSuccessCriterion[];
+  principles: ExtractionPrinciple[];
+  clarifications: ExtractionClarification[];
+}
+
+export interface PlanImportRecord {
+  importId: string;
+  importedAt: string;
+  counts: {
+    goals: number;
+    phases: number;
+    habits: number;
+    tasks: number;
+    successCriteria: number;
+    principles: number;
+    deduped: number;
+  };
 }
 
 export interface WorkspaceMetaV4 {
@@ -167,3 +284,4 @@ export interface PaymentRequest {
   reviewedBy?: string;
   adminNote?: string;
 }
+

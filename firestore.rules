@@ -120,7 +120,7 @@ service cloud.firestore {
         && data.title is string && data.title.size() >= 1 && data.title.size() <= 240
         && data.description is string && data.description.size() <= 2000
         && isOptionalDate(data.dueDate)
-        && data.status in ['active', 'completed', 'archived']
+        && data.status in ['active', 'planned', 'completed', 'archived']
         && isValidTimestampStr(data.createdAt);
     }
 
@@ -265,9 +265,22 @@ service cloud.firestore {
         && isValidId(userId)
         && (
           (
-            existing().schemaVersion == 3
+            (existing().schemaVersion == 3 || existing().schemaVersion == 2)
             && isValidV3Workspace(incoming())
-            && incoming().diff(existing()).affectedKeys().hasOnly([
+            && incoming().diff(existing()).addedKeys().hasOnly([
+              'schemaVersion',
+              'syncVersion',
+              'lifeAreas',
+              'goals',
+              'projects',
+              'tasks',
+              'habits',
+              'habitLogs',
+              'dailyPlans',
+              'dailyReviews',
+              'updatedAt'
+            ])
+            && incoming().diff(existing()).changedKeys().hasOnly([
               'schemaVersion',
               'syncVersion',
               'lifeAreas',

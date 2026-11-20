@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, Plus, Trash2 } from '../components/Icon';
 import { Button, cx, Empty, SectionTitle } from '../components/ui';
 import type { Habit, HabitLog } from '../types';
-import { getBestStreak, getStreak, shiftDateKey } from '../utils/habitUtils';
+import { getBestStreak, getStreak, getWeeklyHabitCount, shiftDateKey } from '../utils/habitUtils';
 import { getHabitConsistency } from '../utils/intelligence';
 
 interface HabitsViewProps {
@@ -75,14 +75,19 @@ export function HabitsView({
     });
   }, [daysInMonth, matrixMode, monthPrefix, today]);
 
-  const { monthDoneCount, logStatusMap } = useMemo(() => {
+  const { monthDoneCount, logStatusMap, dayDoneCountMap } = useMemo(() => {
     let doneCount = 0;
     const statusMap = new Map<string, 'done' | 'skipped'>();
+    const countMap = new Map<string, number>();
     for (const log of logs) {
-      if (log.status === 'done' && log.date.startsWith(monthPrefix)) doneCount += 1;
-      statusMap.set(`${log.habitId}:${log.date}`, log.status);
+      const key = `${log.habitId}:${log.date}`;
+      if (log.status === 'done') {
+        if (log.date.startsWith(monthPrefix)) doneCount += 1;
+        countMap.set(key, (countMap.get(key) ?? 0) + 1);
+      }
+      statusMap.set(key, log.status);
     }
-    return { monthDoneCount: doneCount, logStatusMap: statusMap };
+    return { monthDoneCount: doneCount, logStatusMap: statusMap, dayDoneCountMap: countMap };
   }, [logs, monthPrefix]);
 
   const activeHabitsList = useMemo(() => habits.filter(h => h.active), [habits]);
@@ -124,7 +129,7 @@ export function HabitsView({
       <SectionTitle eyebrow="consistency · repeatable actions" title="Habits">
         <Button variant="solid" onClick={onAdd}><Plus size={15} /> New habit</Button>
       </SectionTitle>
-      <div className="page-lede">Build a rhythm, not a perfect streak. Click cells to mark done, click again to mark skipped, or clear.</div>
+      <div className="page-lede">Build a rhythm, not a perfect streak. Click cells to mark done (or add completions for weekly targets), skipped, or clear.</div>
 
       <div className="habit-summary">
         <div><span>Active habits</span><b>{activeHabitsList.length}</b></div>
@@ -197,6 +202,13 @@ export function HabitsView({
               <tbody>
                 {habits.map(h => {
                   const stats = habitStatsMap.get(h.id) ?? { streak: 0, best: 0, rate: 0 };
+                  const weeklyCount = h.cadence === 'weekly_count' ? getWeeklyHabitCount(h.id, logs, today) : 0;
+                  const scheduleText =
+                    h.cadence === 'weekly_count' && h.targetCount
+                      ? `${weeklyCount}/${h.targetCount} this week`
+                      : h.cadence === 'specific_days' && h.days?.length
+                        ? h.days.join(', ')
+                        : h.frequency;
                   return (
                     <tr key={h.id}>
                       <td className="habit-name-cell">
@@ -205,7 +217,7 @@ export function HabitsView({
                           <div className="habit-name-meta">
                             <button type="button" onClick={() => onEdit(h.id)}>{h.name}</button>
                             <small className="habit-submeta">
-                              {h.frequency}{h.active ? '' : ' (paused)'} · {stats.streak}d (best {stats.best}d) · {stats.rate}%
+                              {scheduleText}{h.timeBlock ? ` (${h.timeBlock.start}–${h.timeBlock.end})` : ''}{h.active ? '' : ' (paused)'} · {stats.streak}d (best {stats.best}d) · {stats.rate}%
                             </small>
                           </div>
                           <button type="button" className="delete-mini" aria-label={`Delete habit ${h.name}`} onClick={() => onDelete(h.id, h.name)}>
@@ -214,18 +226,26 @@ export function HabitsView({
                         </div>
                       </td>
                       {displayedDates.map(col => {
-                        const logStatus = logStatusMap.get(`${h.id}:${col.date}`);
+                        const cellKey = `${h.id}:${col.date}`;
+                        const logStatus = logStatusMap.get(cellKey);
+                        const dayDoneCount = dayDoneCountMap.get(cellKey) ?? 0;
                         const future = col.date > today;
                         return (
                           <td key={col.date}>
                             <button
                               type="button"
                               disabled={future || !h.active}
-                              aria-label={`${h.name} ${col.date}: ${logStatus ?? 'not completed'}`}
-                              className={cx('matrix-cell', logStatus === 'done' && 'done', logStatus === 'skipped' && 'skipped', future && 'future')}
+                              aria-label={`${h.name} ${col.date}: ${dayDoneCount > 1 ? `${dayDoneCount} done` : logStatus ?? 'not completed'}`}
+                              className={cx('matrix-cell', (dayDoneCount > 0 || logStatus === 'done') && 'done', logStatus === 'skipped' && dayDoneCount === 0 && 'skipped', future && 'future')}
                               onClick={() => onToggle(h, col.date)}
                             >
-                              {logStatus === 'done' ? <Check size={11} /> : logStatus === 'skipped' ? '–' : null}
+                              {h.cadence === 'weekly_count' && dayDoneCount > 1 ? (
+                                <span className="matrix-count">{dayDoneCount}</span>
+                              ) : dayDoneCount > 0 || logStatus === 'done' ? (
+                                <Check size={11} />
+                              ) : logStatus === 'skipped' ? (
+                                '–'
+                              ) : null}
                             </button>
                           </td>
                         );

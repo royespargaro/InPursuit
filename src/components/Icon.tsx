@@ -15,12 +15,15 @@ import {
   Circle as LucideCircle,
   Clock3 as LucideClock3,
   Download as LucideDownload,
+  FileText as LucideFileText,
   Flag as LucideFlag,
   FolderKanban as LucideFolderKanban,
   LayoutDashboard as LucideLayoutDashboard,
   ListTodo as LucideListTodo,
   LoaderCircle as LucideLoaderCircle,
+  MessageSquare as LucideMessageSquare,
   Plus as LucidePlus,
+  RotateCcw as LucideRotateCcw,
   Search as LucideSearch,
   Settings2 as LucideSettings2,
   Sparkles as LucideSparkles,
@@ -37,7 +40,8 @@ export type IconName =
   | 'add' | 'check' | 'close' | 'arrow-up' | 'arrow-down' | 'arrow-up-right'
   | 'calendar' | 'download' | 'upload' | 'flag' | 'activity' | 'archive'
   | 'list' | 'search' | 'settings' | 'trash' | 'spark' | 'target' | 'clock'
-  | 'circle' | 'chevron-down' | 'chevron-left' | 'chevron-right' | 'spinner' | 'alert' | 'zap' | 'user';
+  | 'circle' | 'chevron-down' | 'chevron-left' | 'chevron-right' | 'spinner' | 'alert' | 'zap' | 'user'
+  | 'file-text' | 'undo' | 'message';
 
 type IconProps = { name: IconName; size?: number; className?: string };
 
@@ -74,6 +78,9 @@ const ICON_MAP = {
   alert: LucideAlertCircle,
   zap: LucideZap,
   user: LucideUser,
+  'file-text': LucideFileText,
+  undo: LucideRotateCcw,
+  message: LucideMessageSquare,
 } as const;
 
 export default function Icon({ name, size = 18, className = '' }: IconProps) {
@@ -97,11 +104,14 @@ export const ChevronRight = LucideChevronRight;
 export const Circle = LucideCircle;
 export const Clock3 = LucideClock3;
 export const Download = LucideDownload;
+export const FileText = LucideFileText;
 export const Flag = LucideFlag;
 export const FolderKanban = LucideFolderKanban;
 export const LayoutDashboard = LucideLayoutDashboard;
 export const ListTodo = LucideListTodo;
+export const MessageSquare = LucideMessageSquare;
 export const Plus = LucidePlus;
+export const RotateCcw = LucideRotateCcw;
 export const Search = LucideSearch;
 export const Settings2 = LucideSettings2;
 export const Sparkles = LucideSparkles;

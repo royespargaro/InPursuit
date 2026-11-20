@@ -54,6 +54,7 @@ export function buildV4DocumentsFromV3(source: AppData): V4WorkspaceBundle {
   const clean = sanitizeAppData(source);
   const updatedAt = (clean.updatedAt || new Date().toISOString()).slice(0, 40);
 
+  const weeklyHabitIds = new Set(clean.habits.filter(h => h.cadence === 'weekly_count').map(h => h.id));
   const monthMap = new Map<string, Record<string, HabitLog>>();
   for (const log of clean.habitLogs) {
     const month = log.date.slice(0, 7);
@@ -63,7 +64,10 @@ export function buildV4DocumentsFromV3(source: AppData): V4WorkspaceBundle {
       bucket = {};
       monthMap.set(month, bucket);
     }
-    const entryKey = `${log.habitId}_${log.date}`;
+    const entryKey =
+      weeklyHabitIds.has(log.habitId) && log.status === 'done'
+        ? `${log.habitId}_${log.date}_${log.id}`
+        : `${log.habitId}_${log.date}`;
     bucket[entryKey] = {
       id: log.id,
       habitId: log.habitId,

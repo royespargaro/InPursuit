@@ -2,12 +2,14 @@ import { useMemo, useState } from 'react';
 import { FilmHeader, type HeroGoalSummary } from '../components/FilmHeader';
 import { OnboardingCard, type StarterTemplateOption } from '../components/OnboardingCard';
 import {
-  Activity, ArrowDown, ArrowUp, ArrowUpRight, Check, Flag, FolderKanban, Plus, Target, X,
+  Activity, ArrowDown, ArrowUp, ArrowUpRight, Check, Flag, FolderKanban, Plus, RotateCcw, Sparkles, Target, X,
 } from '../components/Icon';
 import { Button, cx, Empty, prettyDate, Progress, shortDate } from '../components/ui';
-import type { AppData, Habit, Task } from '../types';
+import type { AppData, Habit, PlanImportRecord, Task } from '../types';
+import { getTodayHabitCount, getWeeklyHabitCount } from '../utils/habitUtils';
 import { getGoalProgress } from '../utils/intelligence';
 import { MAX_ACTIVE_PROJECTS } from '../utils/projectLimits';
+import { buildTodaySchedule } from '../utils/todayScheduler';
 
 type TaskTab = 'today' | 'upcoming' | 'nodate' | 'all' | 'skipped';
 
@@ -27,6 +29,7 @@ interface TodayViewProps {
   onDismissOnboarding: () => void;
   onApplyTemplate: (template: StarterTemplateOption) => void;
   onToggleHabit: (h: Habit) => void;
+  onDecrementHabit?: (h: Habit) => void;
   onToggleSkipHabit: (h: Habit) => void;
   onToggleTask: (t: Task) => void;
   onRestoreTask: (t: Task) => void;
@@ -38,7 +41,30 @@ interface TodayViewProps {
   onOpenGoals: () => void;
   onEditGoal: (id: string) => void;
   onAddGoal: () => void;
+  onOpenImportPlan?: () => void;
+  lastImportRecord?: PlanImportRecord | null;
+  onUndoImport?: () => void;
 }
+
+type QueueItem =
+  | {
+      kind: 'habit';
+      key: string;
+      done: boolean;
+      sortRank: number;
+      habit: Habit;
+      weeklyCount: number;
+      todayCount: number;
+    }
+  | {
+      kind: 'task';
+      key: string;
+      done: boolean;
+      sortRank: number;
+      task: Task;
+    };
+
+const TODAY_QUEUE_CAP = 5;
 
 export function TodayView({
   data,
@@ -56,6 +82,7 @@ export function TodayView({
   onDismissOnboarding,
   onApplyTemplate,
   onToggleHabit,
+  onDecrementHabit,
   onToggleSkipHabit,
   onToggleTask,
   onRestoreTask,
@@ -67,11 +94,22 @@ export function TodayView({
   onOpenGoals,
   onEditGoal,
   onAddGoal,
+  onOpenImportPlan,
+  lastImportRecord,
+  onUndoImport,
 }: TodayViewProps) {
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [taskSearch, setTaskSearch] = useState('');
   const [taskTab, setTaskTab] = useState<TaskTab>('today');
   const [showAllOverdue, setShowAllOverdue] = useState(false);
+  const [queueExpanded, setQueueExpanded] = useState(false);
+  const [roughDay, setRoughDay] = useState(false);
+
+  const schedule = useMemo(() => buildTodaySchedule(data, today), [data, today]);
+  const activePhaseIds = useMemo(
+    () => new Set(schedule.activePhaseProjects.map(p => p.id)),
+    [schedule.activePhaseProjects],
+  );
 
   const upcomingTasks = useMemo(
     () =>
@@ -101,7 +139,88 @@ export function TodayView({
     [data.tasks],
   );
 
-  // Combine todayTasks + priorityTasks cleanly without double-counting so Priority Wins & Daily Progress stay consistent
+  const weeklyHabitCounts = useMemo(
+    () => new Map(activeHabits.map(habit => [habit.id, getWeeklyHabitCount(habit.id, data.habitLogs, today)])),
+    [activeHabits, data.habitLogs, today],
+  );
+
+  const todayHabitCounts = useMemo(
+    () => new Map(activeHabits.map(habit => [habit.id, getTodayHabitCount(habit.id, data.habitLogs, today)])),
+    [activeHabits, data.habitLogs, today],
+  );
+
+  // Auto-generated Today execution queue combining overdue, due today, active-phase (undated + this week), and scheduled habits
+  const queueItems = useMemo<QueueItem[]>(() => {
+    const items: QueueItem[] = [];
+    const priorityRank = new Map(priorityIds.map((id, idx) => [id, idx]));
+
+    for (const task of schedule.scheduledTasks) {
+      const done = task.status === 'done';
+      const pIdx = priorityRank.get(task.id);
+      const isOverdue = task.dueDate !== '' && task.dueDate < today;
+      const isDueToday = task.dueDate === today;
+      const isThisWeek = task.dueDate >= schedule.weekStart && task.dueDate <= schedule.weekEnd;
+      const priorityOffset = task.priority === 'high' ? 0 : task.priority === 'medium' ? 2 : 4;
+      const baseRank =
+        pIdx !== undefined
+          ? pIdx
+          : isOverdue
+            ? 5 + priorityOffset
+            : isDueToday
+              ? 10 + priorityOffset
+              : isThisWeek
+                ? 22 + priorityOffset
+                : 32 + priorityOffset;
+
+      items.push({
+        kind: 'task',
+        key: `task:${task.id}`,
+        done,
+        sortRank: (done ? 100 : 0) + baseRank,
+        task,
+      });
+    }
+
+    for (const habit of activeHabits) {
+      if (skippedHabitIds.has(habit.id)) continue;
+      const done = completedHabitIds.has(habit.id);
+      const baseRank = habit.timeBlock?.start ? 16 : 26;
+      items.push({
+        kind: 'habit',
+        key: `habit:${habit.id}`,
+        done,
+        sortRank: (done ? 100 : 0) + baseRank,
+        habit,
+        weeklyCount: weeklyHabitCounts.get(habit.id) ?? 0,
+        todayCount: todayHabitCounts.get(habit.id) ?? 0,
+      });
+    }
+
+    return items.sort((a, b) => a.sortRank - b.sortRank);
+  }, [
+    activeHabits,
+    completedHabitIds,
+    priorityIds,
+    schedule.scheduledTasks,
+    schedule.weekEnd,
+    schedule.weekStart,
+    skippedHabitIds,
+    today,
+    todayHabitCounts,
+    weeklyHabitCounts,
+  ]);
+
+  const visibleQueueItems = queueExpanded ? queueItems : queueItems.slice(0, TODAY_QUEUE_CAP);
+  const hiddenQueueCount = Math.max(0, queueItems.length - TODAY_QUEUE_CAP);
+
+  const suggestedPriorityTasks = useMemo(() => {
+    const existingSet = new Set(priorityIds);
+    return schedule.suggestedPriorityIds
+      .filter(id => !existingSet.has(id))
+      .map(id => data.tasks.find(t => t.id === id))
+      .filter((t): t is Task => Boolean(t));
+  }, [data.tasks, priorityIds, schedule.suggestedPriorityIds]);
+
   const dailyTaskPool = useMemo(() => {
     const map = new Map<string, Task>();
     for (const t of todayTasks) map.set(t.id, t);
@@ -149,6 +268,11 @@ export function TodayView({
     const [moved] = next.splice(index, 1);
     next.splice(target, 0, moved);
     onPriorities(next);
+  };
+
+  const applySuggestedPriorities = () => {
+    const merged = [...new Set([...priorityIds, ...schedule.suggestedPriorityIds])].slice(0, 3);
+    onPriorities(merged);
   };
 
   const heroGoals: HeroGoalSummary[] = useMemo(
@@ -200,6 +324,18 @@ export function TodayView({
         />
       )}
 
+      {lastImportRecord && onUndoImport && (
+        <div className="import-undo-bar" role="status">
+          <span>
+            Imported {lastImportRecord.counts.goals} goals · {lastImportRecord.counts.phases} phases · {lastImportRecord.counts.habits} habits · {lastImportRecord.counts.tasks} tasks
+            {lastImportRecord.counts.deduped > 0 ? ` (${lastImportRecord.counts.deduped} deduped)` : ''}
+          </span>
+          <button type="button" className="sync-retry-btn" onClick={onUndoImport}>
+            <RotateCcw size={13} /> Undo import
+          </button>
+        </div>
+      )}
+
       <div className="stat-grid">
         <div className="stat-card">
           <div className="stat-top"><span>Daily progress</span><Activity size={16} /></div>
@@ -220,6 +356,150 @@ export function TodayView({
           <div className="stat-quiet"><span />Max {MAX_ACTIVE_PROJECTS} active for focus</div>
         </div>
       </div>
+
+      <section className="panel today-queue-panel" aria-label="Today's execution queue">
+        <div className="panel-head">
+          <div>
+            <div className="eyebrow">auto-scheduled · {schedule.weekStart} to {schedule.weekEnd}</div>
+            <h2>Today&apos;s focus queue</h2>
+          </div>
+          <div className="project-title-actions">
+            <button
+              type="button"
+              className={cx('rough-day-btn', roughDay && 'active')}
+              aria-pressed={roughDay}
+              onClick={() => setRoughDay(v => !v)}
+            >
+              Rough day
+            </button>
+            {onOpenImportPlan && (
+              <Button variant="outline" onClick={onOpenImportPlan}>
+                <Sparkles size={14} /> Import plan
+              </Button>
+            )}
+            <span className="count-pill">{visibleQueueItems.length}/{queueItems.length}</span>
+          </div>
+        </div>
+        {visibleQueueItems.length > 0 ? (
+          <div className="today-queue-list">
+            {visibleQueueItems.map(item => {
+              if (item.kind === 'habit') {
+                const { habit, weeklyCount, todayCount, done } = item;
+                const isWeeklyCount = habit.cadence === 'weekly_count';
+                const roughLabel = habit.minimumVersion?.trim() || habit.name;
+                const metaParts: string[] = ['Habit'];
+                if (!roughDay) {
+                  if (isWeeklyCount && habit.targetCount) {
+                    metaParts.push(`${weeklyCount}/${habit.targetCount} this week`);
+                  } else if (habit.cadence === 'specific_days' && habit.days?.length) {
+                    metaParts.push(habit.days.join(', '));
+                  } else {
+                    metaParts.push(habit.frequency);
+                  }
+                  if (habit.timeBlock) metaParts.push(`${habit.timeBlock.start}–${habit.timeBlock.end}`);
+                  if (habit.minimumVersion) metaParts.push(`Min: ${habit.minimumVersion}`);
+                }
+
+                return (
+                  <div className={cx('task-row', done && !isWeeklyCount && 'is-done')} key={item.key}>
+                    <button
+                      type="button"
+                      aria-label={done && !isWeeklyCount ? `Uncheck ${habit.name}` : `Check ${habit.name}`}
+                      className={cx('check-control', done && 'checked')}
+                      onClick={() => onToggleHabit(habit)}
+                    >
+                      {done && <Check size={14} />}
+                    </button>
+                    <div className="task-title-button">
+                      <b>{roughDay ? roughLabel : habit.name}</b>
+                      {!roughDay && <small>{metaParts.join(' · ')}</small>}
+                    </div>
+                    {isWeeklyCount && (
+                      <div className="weekly-habit-actions">
+                        {todayCount > 0 && onDecrementHabit && (
+                          <button
+                            type="button"
+                            className="habit-mini-btn"
+                            aria-label={`Remove one log for ${habit.name} today`}
+                            onClick={() => onDecrementHabit(habit)}
+                          >
+                            -1
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="habit-mini-btn"
+                          aria-label={`Log ${habit.name} (+1)`}
+                          onClick={() => onToggleHabit(habit)}
+                        >
+                          +1
+                        </button>
+                        {habit.targetCount && (
+                          <span className="weekly-counter">
+                            {weeklyCount}/{habit.targetCount}
+                            {todayCount > 0 ? ` (${todayCount} today)` : ''}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              const { task, done } = item;
+              const isOverdue = task.status === 'todo' && task.dueDate !== '' && task.dueDate < today;
+              const isActivePhase = Boolean(task.projectId && activePhaseIds.has(task.projectId));
+              const scheduleNote = isOverdue
+                ? `Overdue · ${shortDate(task.dueDate)}`
+                : task.dueDate === today
+                  ? 'Due today'
+                  : isActivePhase && task.dueDate
+                    ? `Active phase · ${shortDate(task.dueDate)}`
+                    : isActivePhase
+                      ? 'Active phase · Undated'
+                      : task.dueDate
+                        ? shortDate(task.dueDate)
+                        : 'Undated';
+
+              const metaParts = [projectName(task.projectId), scheduleNote, `${task.priority} priority`];
+              if (task.targetQuantity) metaParts.push(`Target ${task.targetQuantity}`);
+
+              return (
+                <div className={cx('task-row', done && 'is-done')} key={item.key}>
+                  <button
+                    type="button"
+                    aria-label={done ? `Uncheck ${task.title}` : `Check ${task.title}`}
+                    className={cx('check-control', done && 'checked')}
+                    onClick={() => onToggleTask(task)}
+                  >
+                    {done && <Check size={14} />}
+                  </button>
+                  <button type="button" className="task-title-button" onClick={() => onEditTask(task.id)}>
+                    <b>{task.title}</b>
+                    <small>{metaParts.join(' · ')}</small>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <Empty
+            title="Nothing scheduled for today yet."
+            body="Tasks from your active phase, overdue work, and habits scheduled today appear here automatically."
+            action={onOpenImportPlan ? <Button variant="outline" onClick={onOpenImportPlan}><Sparkles size={14} /> Import a plan</Button> : undefined}
+          />
+        )}
+        {hiddenQueueCount > 0 && (
+          <button
+            type="button"
+            className="clear-priorities"
+            aria-expanded={queueExpanded}
+            onClick={() => setQueueExpanded(v => !v)}
+          >
+            {queueExpanded ? `Collapse to top ${TODAY_QUEUE_CAP}` : `Show ${hiddenQueueCount} more today items`}
+          </button>
+        )}
+      </section>
 
       <div className="today-columns">
         <section className="panel priorities-panel">
@@ -290,6 +570,32 @@ export function TodayView({
               <span>Pick up to three tasks that would make today count.</span>
             </div>
           )}
+
+          {priorityIds.length < 3 && suggestedPriorityTasks.length > 0 && (
+            <div className="priority-suggestions" aria-label="Suggested top 3 priorities">
+              <div className="priority-suggestions-head">
+                <span className="eyebrow">suggested from overdue · today · active phase</span>
+                <button type="button" className="text-action" onClick={applySuggestedPriorities}>
+                  {priorityIds.length === 0 ? 'Apply 3 priorities' : 'Fill top 3'}
+                </button>
+              </div>
+              <div className="priority-suggestion-list">
+                {suggestedPriorityTasks.slice(0, 3 - priorityIds.length).map(task => (
+                  <button
+                    key={task.id}
+                    type="button"
+                    className="picker-item"
+                    onClick={() => onPriorities([...priorityIds, task.id].slice(0, 3))}
+                  >
+                    <Plus size={13} />
+                    <span>{task.title}</span>
+                    <small>{task.dueDate ? shortDate(task.dueDate) : 'Active phase'}</small>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="panel-foot">
             <Button variant="outline" onClick={() => setShowPriorityPicker(v => !v)}>
               <Plus size={15} />{showPriorityPicker ? 'Done selecting' : 'Set priorities'}
@@ -331,9 +637,9 @@ export function TodayView({
           )}
         </section>
 
-        <section className="panel habits-panel">
+        <section className="panel habits-panel" aria-label="Habits">
           <div className="panel-head">
-            <div><div className="eyebrow">show up daily</div><h2>Habits</h2></div>
+            <div><div className="eyebrow">{roughDay ? 'rough day · minimum versions' : 'show up daily'}</div><h2>Habits</h2></div>
             <span className="count-pill">{doneHabits}/{scheduledHabitsCount}</span>
           </div>
           {activeHabits.length ? (
@@ -341,20 +647,57 @@ export function TodayView({
               {activeHabits.map(habit => {
                 const done = completedHabitIds.has(habit.id);
                 const skipped = skippedHabitIds.has(habit.id);
+                const isWeeklyCount = habit.cadence === 'weekly_count';
+                const weeklyCount = weeklyHabitCounts.get(habit.id) ?? 0;
+                const todayCount = todayHabitCounts.get(habit.id) ?? 0;
+                const displayLabel = roughDay ? (habit.minimumVersion?.trim() || habit.name) : habit.name;
+                const statusLabel =
+                  isWeeklyCount && habit.targetCount
+                    ? `${weeklyCount}/${habit.targetCount}${todayCount > 0 ? ` (+${todayCount})` : ''}`
+                    : done
+                      ? 'done'
+                      : skipped
+                        ? 'skipped'
+                        : 'open';
                 return (
-                  <div key={habit.id} className={cx('habit-check-row-wrap', done && 'is-done', skipped && 'is-skipped')}>
+                  <div
+                    key={habit.id}
+                    className={cx('habit-check-row-wrap', done && !isWeeklyCount && 'is-done', skipped && 'is-skipped')}
+                  >
                     <button
                       type="button"
                       onClick={() => onToggleHabit(habit)}
-                      className={cx('habit-check-row', done && 'is-done')}
+                      className={cx('habit-check-row', done && !isWeeklyCount && 'is-done')}
                       aria-pressed={done}
                     >
                       <span className={cx('habit-check', done && 'checked', skipped && 'skipped')}>
                         {done ? <Check size={13} /> : skipped ? '–' : null}
                       </span>
-                      <span>{habit.name}</span>
-                      <small>{done ? 'done' : skipped ? 'skipped' : 'open'}</small>
+                      <span>{displayLabel}</span>
+                      {!roughDay && <small>{statusLabel}</small>}
                     </button>
+                    {isWeeklyCount && (
+                      <div className="weekly-habit-actions">
+                        {todayCount > 0 && onDecrementHabit && (
+                          <button
+                            type="button"
+                            className="habit-mini-btn"
+                            aria-label={`Undo one ${habit.name} log today`}
+                            onClick={() => onDecrementHabit(habit)}
+                          >
+                            -1
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="habit-mini-btn"
+                          aria-label={`Add completion for ${habit.name}`}
+                          onClick={() => onToggleHabit(habit)}
+                        >
+                          +1
+                        </button>
+                      </div>
+                    )}
                     {!done && (
                       <button
                         type="button"

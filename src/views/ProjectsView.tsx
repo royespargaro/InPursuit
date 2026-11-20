@@ -28,10 +28,11 @@ export function ProjectsView({
   onToggleTask,
   onEditTask,
 }: ProjectsViewProps) {
-  const [filter, setFilter] = useState<'active' | 'all'>('active');
+  const [filter, setFilter] = useState<'active' | 'planned' | 'all'>('active');
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
-  const visible = projects.filter(p => filter === 'all' || p.status === 'active');
+  const visible = projects.filter(p => (filter === 'all' ? true : p.status === filter));
   const activeCount = projects.filter(p => p.status === 'active').length;
+  const plannedCount = projects.filter(p => p.status === 'planned').length;
   const neglectedMap = new Map(getNeglectedProjects(projects, tasks).map(n => [n.project.id, n]));
 
   return (
@@ -43,9 +44,12 @@ export function ProjectsView({
         </div>
       </SectionTitle>
       <div className="page-toolbar">
-        <p className="page-lede">Projects turn goals into milestones you can actually complete. Limit active work to {MAX_ACTIVE_PROJECTS}.</p>
+        <p className="page-lede">Projects turn goals into milestones you can actually complete. Limit active work to {MAX_ACTIVE_PROJECTS}; future phases stay planned.</p>
         <div className="segmented">
           <button type="button" className={filter === 'active' ? 'selected' : ''} onClick={() => setFilter('active')}>Active</button>
+          <button type="button" className={filter === 'planned' ? 'selected' : ''} onClick={() => setFilter('planned')}>
+            Planned{plannedCount > 0 ? ` (${plannedCount})` : ''}
+          </button>
           <button type="button" className={filter === 'all' ? 'selected' : ''} onClick={() => setFilter('all')}>All</button>
         </div>
       </div>
@@ -68,6 +72,7 @@ export function ProjectsView({
                     <div className="project-meta">
                       <span className={cx('status-label', project.status)}>{project.status}</span>
                       {goal && <span>↗ {goal.title}</span>}
+                      {project.theme && <span>Theme: {project.theme}</span>}
                       {neglected && (
                         <span className="attention-tag">
                           {neglected.reason === 'no-tasks' ? 'No tasks yet' : `Quiet ${neglected.daysIdle}d`}
@@ -76,6 +81,9 @@ export function ProjectsView({
                     </div>
                     <h3>{project.title}</h3>
                     <p>{project.description || 'No project description yet.'}</p>
+                    {project.exitCondition && (
+                      <p className="phase-meta-line">Exit: {project.exitCondition}</p>
+                    )}
                   </div>
                   <div className="project-actions">
                     <button type="button" className="icon-btn" aria-label={`Edit project ${project.title}`} onClick={() => onEdit(project.id)}>
@@ -93,7 +101,14 @@ export function ProjectsView({
                 </div>
 
                 <div className="project-foot">
-                  <span><CalendarDays size={13} /> {project.dueDate ? `Due ${shortDate(project.dueDate)}` : 'No deadline'}</span>
+                  <span>
+                    <CalendarDays size={13} />{' '}
+                    {project.startDate && project.dueDate
+                      ? `${shortDate(project.startDate)} → ${shortDate(project.dueDate)}`
+                      : project.dueDate
+                        ? `Due ${shortDate(project.dueDate)}`
+                        : 'No deadline'}
+                  </span>
                   <div className="project-foot-actions">
                     <button type="button" onClick={() => setExpandedProjectId(isExpanded ? null : project.id)}>
                       {isExpanded ? 'Hide tasks' : `Tasks (${projectTasks.length})`}
@@ -135,8 +150,12 @@ export function ProjectsView({
         </div>
       ) : (
         <Empty
-          title="Start with a project."
-          body="Give a goal a concrete shape. A project should have a finish line."
+          title={filter === 'planned' ? 'No planned projects or phases.' : 'Start with a project.'}
+          body={
+            filter === 'planned'
+              ? 'Phases imported beyond the 3 active limit or starting in the future appear here as planned.'
+              : 'Give a goal a concrete shape. A project should have a finish line.'
+          }
           action={<Button variant="solid" onClick={onAdd}><Plus size={15} /> Create a project</Button>}
         />
       )}
