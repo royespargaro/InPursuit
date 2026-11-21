@@ -1,0 +1,298 @@
+/* =====================================================================
+   Responsive + Today checklist styles (loaded after index.css and skin.css)
+   Theme tokens, colors and fonts are unchanged; this only adjusts spacing,
+   tap targets and the simplified Today layout.
+   ===================================================================== */
+
+
+/* ---------- Hero (FilmHeader): keep text clear of the rounded corners ---------- */
+.fh-hud { padding: 20px 32px; }
+.fh-lower { padding: 0 32px 24px; }
+.fh-horizon-bar { padding: 12px 32px 22px; }
+.fh-horizon-title em,
+.fh-horizon-meta { font-size: 11px; }
+
+@container (min-width: 520px) and (max-width: 859px) {
+  .fh-root { border-radius: 36px; }
+  .fh-hud { padding: 18px 28px; }
+  .fh-lower { padding: 0 28px 20px; }
+  .fh-horizon-bar { padding: 12px 28px 20px; }
+}
+
+@container (max-width: 519px) {
+  .fh-root { border-radius: 28px; }
+  .fh-hud { padding: 18px 22px; }
+  .fh-lower { padding: 84px 22px 20px; }
+  .fh-copy::before { inset: -110px -22px -20px; }
+  .fh-horizon-bar { padding: 12px 22px 18px; }
+  /* Show at most two goals on phones so the checklist stays near the top. */
+  .fh-horizon-cell:nth-child(n + 3) { display: none; }
+  .fh-title { font-size: clamp(40px, 13cqw, 64px); overflow-wrap: anywhere; }
+}
+
+/* ---------- Today: single checklist ---------- */
+.today-panel .progress,
+.today-panel > .progress-track {
+  margin-top: 4px;
+}
+
+.today-section {
+  margin-top: 22px;
+}
+
+.today-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+  min-height: 32px;
+}
+
+.today-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 14px;
+}
+
+.today-section-count {
+  font: 11px 'JetBrains Mono', monospace;
+  color: var(--muted);
+}
+
+.today-list {
+  display: block;
+}
+
+.today-panel .priority-empty {
+  min-height: 0;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  text-align: left;
+  font-size: 13px;
+}
+
+.today-panel .priority-empty svg {
+  margin: 0;
+  flex: none;
+}
+
+.today-banner {
+  margin-top: 14px;
+  padding: 11px 14px;
+  border: 1px solid rgba(212, 255, 58, 0.4);
+  background: rgba(212, 255, 58, 0.08);
+  color: #e9ffa6;
+  font-size: 13px;
+}
+
+.today-panel-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.today-overdue-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.today-overdue-wrap .task-row {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 0;
+}
+
+.today-overdue-wrap .move-today-btn {
+  flex: none;
+}
+
+.task-row.is-skipped {
+  opacity: 0.55;
+}
+
+.habit-goal-meta {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+/* Larger invisible tap area for the small round checkbox on every screen. */
+.check-control {
+  position: relative;
+}
+
+.check-control::after {
+  content: '';
+  position: absolute;
+  inset: -13px;
+}
+
+/* ---------- Phones ---------- */
+@media (max-width: 767px) {
+  html,
+  body {
+    min-height: 100dvh;
+  }
+
+  body {
+    overflow-x: clip;
+  }
+
+  .app-shell {
+    min-height: 100dvh;
+  }
+
+  .content-wrap {
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+
+  .panel {
+    padding: 16px;
+  }
+
+  .task-row,
+  .priority-row,
+  .habit-check-row {
+    padding: 12px 4px;
+    gap: 12px;
+    min-height: 48px;
+  }
+
+  .task-title-button {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .task-title-button b,
+  .task-title-button small {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .task-title-button small {
+    margin-top: 2px;
+    line-height: 1.35;
+    font-size: 11.5px;
+  }
+
+  .weekly-habit-actions,
+  .priority-reorder,
+  .habit-skip-btn,
+  .move-today-btn {
+    flex: none;
+  }
+
+  .weekly-habit-actions {
+    gap: 8px;
+  }
+
+  .habit-mini-btn {
+    min-width: 38px;
+    height: 34px;
+  }
+
+  .habit-skip-btn,
+  .move-today-btn,
+  .rough-day-btn {
+    min-height: 34px;
+    padding: 0 12px;
+  }
+
+  .text-action {
+    padding: 8px 2px;
+  }
+
+  .count-pill {
+    padding: 5px 10px;
+  }
+
+  .habit-summary > div {
+    padding: 14px 12px;
+  }
+
+  .panel-head {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .today-panel-foot {
+    padding-top: 10px;
+  }
+
+  /* Habit matrix scrolls inside its own container, never the page. */
+  .matrix-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .habit-name-cell {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: #000;
+    padding-left: 4px;
+    padding-right: 10px;
+  }
+
+  /* iOS Safari zooms into inputs below 16px; keep them at 16px. */
+  input,
+  textarea,
+  select,
+  .search-input {
+    font-size: 16px;
+  }
+
+  /* Modals become bottom sheets. */
+  .modal-backdrop {
+    place-items: end center;
+    padding: 0;
+  }
+
+  .modal,
+  .plan-import-modal {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92dvh;
+    padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+  }
+
+  .modal-actions {
+    position: sticky;
+    bottom: calc(-18px - env(safe-area-inset-bottom));
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+    background: #08090c;
+  }
+}
+
+/* Narrow phones (iPhone SE / 360px Android) */
+@media (max-width: 380px) {
+  .content-wrap {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+
+  .panel {
+    padding: 14px;
+  }
+
+  .today-section-actions {
+    gap: 2px 10px;
+  }
+}
