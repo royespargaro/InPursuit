@@ -191,7 +191,10 @@ describe('UI workflow & regression tests', () => {
   });
 
   it('TodayView supports upcoming/undated/skipped tabs, priority reordering, expandable overdue tasks, and onboarding skip', () => {
-    const data = baseData();
+    const data = {
+      ...baseData(),
+      dailyPlans: [{ date: '2026-11-14', priorityTaskIds: ['t-future', 't-nodate'] }],
+    };
     const onPriorities = vi.fn();
     const onRestoreTask = vi.fn();
     const onDismissOnboarding = vi.fn();
@@ -200,15 +203,6 @@ describe('UI workflow & regression tests', () => {
       <TodayView
         data={data}
         today="2026-11-14"
-        todayTasks={[]}
-        overdueTasks={data.tasks.filter(t => t.dueDate < '2026-11-14' && t.dueDate !== '' && t.status === 'todo')}
-        activeHabits={data.habits}
-        completedHabitIds={new Set()}
-        skippedHabitIds={new Set()}
-        doneHabits={0}
-        scheduledHabitsCount={0}
-        priorityTasks={[data.tasks[0], data.tasks[1]]}
-        priorityIds={['t-future', 't-nodate']}
         showOnboarding={true}
         onDismissOnboarding={onDismissOnboarding}
         onApplyTemplate={() => {}}
@@ -227,9 +221,14 @@ describe('UI workflow & regression tests', () => {
       />,
     );
 
-    // Reorder priority item 2 up to position 1
+    // Reorder priority item 2 up to position 1 (edit mode reveals the arrows)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
     fireEvent.click(screen.getByRole('button', { name: 'Move Undated Task higher' }));
     expect(onPriorities).toHaveBeenCalledWith(['t-nodate', 't-future']);
+
+    // The full task manager is collapsed until requested
+    expect(screen.queryByRole('tab', { name: /Upcoming/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Browse all tasks' }));
 
     // Switch to Upcoming tab
     fireEvent.click(screen.getByRole('tab', { name: /Upcoming/ }));
@@ -244,9 +243,8 @@ describe('UI workflow & regression tests', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
     expect(onRestoreTask).toHaveBeenCalledWith(expect.objectContaining({ id: 't-skipped' }));
 
-    // Expand overdue tasks beyond 6
-    expect(screen.queryByText('Overdue 8')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Show all 8 overdue tasks' }));
+    // Overdue work lives in "Also today": capped at 5, expandable
+    fireEvent.click(screen.getByRole('button', { name: /Show \d+ more today items/ }));
     expect(screen.getByText('Overdue 8')).toBeTruthy();
 
     // Skip onboarding
