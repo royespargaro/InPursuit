@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import './film-header.css';
 
 export interface HeroGoalSummary {
@@ -30,7 +31,7 @@ export const FilmHeader = ({
   eyebrow,
   title,
   subtitle,
-  scene = 'daily overview',
+  scene,
   goals = [],
   onReview,
   onAddTask,
@@ -38,6 +39,8 @@ export const FilmHeader = ({
   onOpenGoal,
   onAddGoal,
 }: FilmHeaderProps) => {
+  const { l } = useLanguage();
+  const effectiveScene = scene ?? l('daily overview', 'ringkasan harian');
   const rootRef = useRef<HTMLDivElement>(null);
   const tcRef = useRef<HTMLSpanElement>(null);
 
@@ -122,7 +125,7 @@ export const FilmHeader = ({
           <span>1/60</span>
           <span ref={tcRef}>00:00:00:00</span>
         </div>
-        <div className="fh-scene">{scene}</div>
+        <div className="fh-scene">{effectiveScene}</div>
       </div>
 
       <div className="fh-orb" aria-hidden="true">
@@ -143,19 +146,19 @@ export const FilmHeader = ({
           <h1 className="fh-title">{title}<span>.</span></h1>
           <p className="fh-text">{subtitle}</p>
           <div className="fh-btns">
-            <button type="button" className="fh-btn fh-btn-solid" onClick={onReview}>Daily review <b>→</b></button>
-            <button type="button" className="fh-btn fh-btn-outline" onClick={onAddTask}>Add task</button>
+            <button type="button" className="fh-btn fh-btn-solid" onClick={onReview}>{l('Daily review', 'Evaluasi harian')} <b>→</b></button>
+            <button type="button" className="fh-btn fh-btn-outline" onClick={onAddTask}>{l('Add task', 'Tambah tugas')}</button>
           </div>
         </div>
       </div>
 
-      <aside className="fh-horizon-bar" aria-label="Active goals progress">
+      <aside className="fh-horizon-bar" aria-label={l('Active goals progress', 'Progres tujuan aktif')}>
         {goals.length > 0 ? (
           <>
             <div className="fh-horizon-rail">
-              <span>goals · {goals.length} active</span>
+              <span>{l(`goals · ${goals.length} active`, `tujuan · ${goals.length} aktif`)}</span>
               <button type="button" className="fh-goal-link" onClick={onOpenGoals}>
-                {goals.length > 3 ? `All ${goals.length} goals →` : 'Open goals →'}
+                {goals.length > 3 ? l(`All ${goals.length} goals →`, `Semua ${goals.length} tujuan →`) : l('Open goals →', 'Buka tujuan →')}
               </button>
             </div>
             <div className="fh-horizon-grid">
@@ -180,7 +183,7 @@ export const FilmHeader = ({
                   </div>
                   <div className="fh-horizon-meta">
                     <span>{goal.areaName}</span>
-                    <span>{goal.completedTasks}/{goal.totalTasks} tasks</span>
+                    <span>{goal.completedTasks}/{goal.totalTasks} {l('tasks', 'tugas')}</span>
                   </div>
                 </button>
               ))}
@@ -188,9 +191,9 @@ export const FilmHeader = ({
           </>
         ) : (
           <div className="fh-horizon-empty">
-            <span>No active goals synced yet</span>
+            <span>{l('No active goals synced yet', 'Belum ada tujuan aktif tersinkron')}</span>
             <button type="button" className="fh-goal-link" onClick={onAddGoal ?? onOpenGoals}>
-              Set first goal →
+              {l('Set first goal →', 'Tetapkan tujuan pertama →')}
             </button>
           </div>
         )}

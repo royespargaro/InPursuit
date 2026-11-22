@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { AlertCircle, ArrowRight, CheckCircle2, LoaderCircle } from 'lucide-react';
 import { useHabits } from '../context/HabitContext';
+import { useLanguage } from '../context/LanguageContext';
 import { getReadableAuthError } from '../utils/authErrors';
 import alpineLandscape from '../assets/images/alpine_meadow_sky_1794511898838.jpg';
+import { LanguageToggle } from './LanguageToggle';
 import { LegalModal } from './LegalModal';
 import './sign-in.css';
 
@@ -51,12 +53,20 @@ function GoogleMark() {
 
 export function SignInPage({ onContinueLocal }: SignInPageProps) {
   const { signIn, authNotice, accountNotice, clearAccountNotice } = useHabits();
+  const { l } = useLanguage();
   const [googleBusy, setGoogleBusy] = useState(false);
   const [authError, setAuthError] = useState('');
   const [legalDoc, setLegalDoc] = useState<'privacy' | 'terms' | null>(null);
 
   const hour = new Date().getHours();
-  const timeGreeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const timeGreeting =
+    hour < 12
+      ? l('Good morning', 'Selamat pagi')
+      : hour < 15
+        ? l('Good afternoon', 'Selamat siang')
+        : hour < 18
+          ? l('Good afternoon', 'Selamat sore')
+          : l('Good evening', 'Selamat malam');
 
   const handleGoogleSignIn = async () => {
     setAuthError('');
@@ -78,9 +88,12 @@ export function SignInPage({ onContinueLocal }: SignInPageProps) {
           <span className="carriage-brand-name">InPursuit</span>
         </a>
 
-        <button type="button" className="carriage-top-link" onClick={onContinueLocal}>
-          Local workspace
-        </button>
+        <div className="carriage-top-actions">
+          <LanguageToggle />
+          <button type="button" className="carriage-top-link" onClick={onContinueLocal}>
+            {l('Local workspace', 'Ruang kerja lokal')}
+          </button>
+        </div>
       </header>
 
       <main className="carriage-stage">
@@ -105,11 +118,14 @@ export function SignInPage({ onContinueLocal }: SignInPageProps) {
               <div className="signin-badge">{timeGreeting}</div>
 
               <h1 id="signin-heading" className="signin-heading">
-                Direction, then action.
+                {l('Direction, then action.', 'Arah jelas, lalu aksi.')}
               </h1>
 
               <p className="signin-subtitle">
-                Sign in with Google to keep your goals, projects, habits, and daily reviews synced across devices.
+                {l(
+                  'Sign in with Google to keep your goals, projects, habits, and daily reviews synced across devices.',
+                  'Masuk dengan Google agar tujuan, proyek, kebiasaan, dan evaluasi harian Anda tersinkron di semua perangkat.',
+                )}
               </p>
 
               <button
@@ -121,12 +137,12 @@ export function SignInPage({ onContinueLocal }: SignInPageProps) {
                 {googleBusy ? (
                   <>
                     <LoaderCircle size={16} className="signin-spin" aria-hidden="true" />
-                    <span>Connecting to Google…</span>
+                    <span>{l('Connecting to Google…', 'Menghubungkan ke Google…')}</span>
                   </>
                 ) : (
                   <>
                     <GoogleMark />
-                    <span>Continue with Google</span>
+                    <span>{l('Continue with Google', 'Lanjutkan dengan Google')}</span>
                     <ArrowRight size={15} className="signin-arrow" aria-hidden="true" />
                   </>
                 )}
@@ -137,7 +153,7 @@ export function SignInPage({ onContinueLocal }: SignInPageProps) {
                   <CheckCircle2 size={15} aria-hidden="true" />
                   <span>{accountNotice}</span>
                   <button type="button" className="signin-notice-link" onClick={clearAccountNotice}>
-                    Dismiss
+                    {l('Dismiss', 'Tutup')}
                   </button>
                 </div>
               )}
@@ -149,8 +165,8 @@ export function SignInPage({ onContinueLocal }: SignInPageProps) {
                 </div>
               )}
 
-              <div className="signin-divider" role="separator" aria-label="or">
-                <span>or</span>
+              <div className="signin-divider" role="separator" aria-label={l('or', 'atau')}>
+                <span>{l('or', 'atau')}</span>
               </div>
 
               <button
@@ -159,14 +175,17 @@ export function SignInPage({ onContinueLocal }: SignInPageProps) {
                 disabled={googleBusy}
                 onClick={onContinueLocal}
               >
-                <span>Continue locally on this device</span>
+                <span>{l('Continue locally on this device', 'Lanjutkan secara lokal di perangkat ini')}</span>
               </button>
 
               <p className="signin-footer">
-                Local workspaces stay in this browser and can be backed up or synced anytime.{' '}
-                <button type="button" className="text-link" onClick={() => setLegalDoc('privacy')}>Privacy</button>
+                {l(
+                  'Local workspaces stay in this browser and can be backed up or synced anytime.',
+                  'Ruang kerja lokal tersimpan di browser ini dan dapat dicadangkan atau disinkronkan kapan saja.',
+                )}{' '}
+                <button type="button" className="text-link" onClick={() => setLegalDoc('privacy')}>{l('Privacy', 'Privasi')}</button>
                 {' · '}
-                <button type="button" className="text-link" onClick={() => setLegalDoc('terms')}>Terms</button>
+                <button type="button" className="text-link" onClick={() => setLegalDoc('terms')}>{l('Terms', 'Ketentuan')}</button>
               </p>
             </div>
           </section>

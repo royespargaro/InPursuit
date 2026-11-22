@@ -1,14 +1,18 @@
 import { useRef, type ReactNode } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { useModalFocus } from '../hooks/useModalFocus';
 import { Sparkles, X } from './Icon';
 
 export const cx = (...parts: Array<string | false | null | undefined>) => parts.filter(Boolean).join(' ');
 
-export const prettyDate = (value: string, options: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'long' }) =>
-  new Date(`${value}T12:00:00`).toLocaleDateString('en-GB', options);
+export const prettyDate = (
+  value: string,
+  options: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'long' },
+  locale = 'en-GB',
+) => new Date(`${value}T12:00:00`).toLocaleDateString(locale, options);
 
-export const shortDate = (value: string) =>
-  new Date(`${value}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+export const shortDate = (value: string, locale = 'en-GB') =>
+  new Date(`${value}T12:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'short' });
 
 export function Button({ children, onClick, variant = 'ghost', className = '', title, type = 'button', disabled = false }: {
   children: ReactNode;
@@ -57,6 +61,7 @@ export function Modal({ title, eyebrow, onClose, children, className = '' }: {
   className?: string;
 }) {
   const modalRef = useRef<HTMLDivElement>(null);
+  const { l } = useLanguage();
   useModalFocus(modalRef, onClose);
 
   return (
@@ -75,7 +80,7 @@ export function Modal({ title, eyebrow, onClose, children, className = '' }: {
             {eyebrow && <div className="eyebrow">{eyebrow}</div>}
             <h2>{title}</h2>
           </div>
-          <button type="button" className="icon-btn" aria-label="Close modal" onClick={onClose}>
+          <button type="button" className="icon-btn" aria-label={l('Close modal', 'Tutup jendela')} onClick={onClose}>
             <X size={18} />
           </button>
         </div>

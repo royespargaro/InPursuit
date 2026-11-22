@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { LogOut } from 'lucide-react';
 import { useHabits } from '../context/HabitContext';
+import { useLanguage } from '../context/LanguageContext';
 import { useModalFocus } from '../hooks/useModalFocus';
 import {
   PRO_TIER_ANNUAL_IDR,
@@ -25,6 +26,7 @@ export const SettingsModal = ({
   onRestoreBackup,
   onShowOnboarding,
 }: SettingsModalProps) => {
+  const { language, locale, setLanguage, l } = useLanguage();
   const {
     user,
     signIn,
@@ -80,7 +82,7 @@ export const SettingsModal = ({
       onOpenSignIn();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not sign out right now.');
+      setError(err instanceof Error ? err.message : l('Could not sign out right now.', 'Tidak dapat keluar saat ini.'));
     } finally {
       setBusy(false);
     }
@@ -88,7 +90,12 @@ export const SettingsModal = ({
 
   const handleDeleteAccount = async () => {
     if (deletePhrase.trim().toUpperCase() !== 'DELETE') {
-      setError('Type DELETE to permanently remove your cloud account and workspace.');
+      setError(
+        l(
+          'Type DELETE to permanently remove your cloud account and workspace.',
+          'Ketik DELETE untuk menghapus akun cloud dan ruang kerja Anda secara permanen.',
+        ),
+      );
       return;
     }
     setError('');
@@ -98,7 +105,7 @@ export const SettingsModal = ({
       onOpenSignIn();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Account deletion failed. Please try again.');
+      setError(err instanceof Error ? err.message : l('Account deletion failed. Please try again.', 'Penghapusan akun gagal. Silakan coba lagi.'));
     } finally {
       setBusy(false);
     }
@@ -110,7 +117,7 @@ export const SettingsModal = ({
     try {
       await retrySync();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not retry synchronization.');
+      setError(err instanceof Error ? err.message : l('Could not retry synchronization.', 'Tidak dapat mencoba ulang sinkronisasi.'));
     } finally {
       setBusy(false);
     }
@@ -122,31 +129,50 @@ export const SettingsModal = ({
     try {
       await exportRecoveryBackup();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not export recovery backup.');
+      setError(err instanceof Error ? err.message : l('Could not export recovery backup.', 'Tidak dapat mengekspor cadangan pemulihan.'));
     } finally {
       setBusy(false);
     }
   };
 
   const syncSummary = () => {
-    if (!user) return 'Local-only mode. Sign in with Google to synchronize across devices.';
+    if (!user) {
+      return l(
+        'Local-only mode. Sign in with Google to synchronize across devices.',
+        'Mode lokal saja. Masuk dengan Google untuk sinkronisasi antarperangkat.',
+      );
+    }
     if (incompatibleSchema !== null) {
-      return `Cloud workspace uses schema v${incompatibleSchema}. Sync writes are locked to protect your data—export a recovery backup below.`;
+      return l(
+        `Cloud workspace uses schema v${incompatibleSchema}. Sync writes are locked to protect your data—export a recovery backup below.`,
+        `Ruang kerja cloud menggunakan skema v${incompatibleSchema}. Penulisan sinkronisasi dikunci untuk melindungi data Anda—ekspor cadangan pemulihan di bawah.`,
+      );
     }
     if (syncStatus === 'synced') {
       return lastSyncedAt
-        ? `Cloud sync active · last confirmed ${new Date(lastSyncedAt).toLocaleString()}`
-        : 'Cloud sync active.';
+        ? l(
+            `Cloud sync active · last confirmed ${new Date(lastSyncedAt).toLocaleString()}`,
+            `Sinkronisasi cloud aktif · terakhir dikonfirmasi ${new Date(lastSyncedAt).toLocaleString(locale)}`,
+          )
+        : l('Cloud sync active.', 'Sinkronisasi cloud aktif.');
     }
-    if (syncStatus === 'syncing' || syncStatus === 'hydrating') return 'Synchronizing changes with Firestore…';
+    if (syncStatus === 'syncing' || syncStatus === 'hydrating') {
+      return l('Synchronizing changes with Firestore…', 'Menyinkronkan perubahan ke Firestore…');
+    }
     if (syncStatus === 'offline') {
       return pendingSync
-        ? 'Currently offline. Recent changes are stored on this device and will upload automatically when reconnected.'
-        : 'Currently offline. Using cached workspace on this device.';
+        ? l(
+            'Currently offline. Recent changes are stored on this device and will upload automatically when reconnected.',
+            'Sedang luring. Perubahan terbaru tersimpan di perangkat ini dan akan otomatis diunggah saat terhubung kembali.',
+          )
+        : l(
+            'Currently offline. Using cached workspace on this device.',
+            'Sedang luring. Menggunakan ruang kerja yang tersimpan di perangkat ini.',
+          );
     }
-    if (syncStatus === 'deleting') return 'Deleting your cloud account and workspace data…';
-    if (syncStatus === 'conflict') return 'A workspace conflict needs your confirmation.';
-    return syncError || 'Cloud synchronization failed. Your changes remain safe on this device.';
+    if (syncStatus === 'deleting') return l('Deleting your cloud account and workspace data…', 'Menghapus akun cloud dan data ruang kerja Anda…');
+    if (syncStatus === 'conflict') return l('A workspace conflict needs your confirmation.', 'Terdapat konflik ruang kerja yang memerlukan konfirmasi Anda.');
+    return syncError || l('Cloud synchronization failed. Your changes remain safe on this device.', 'Sinkronisasi cloud gagal. Perubahan Anda tetap aman di perangkat ini.');
   };
 
   return (
@@ -163,10 +189,10 @@ export const SettingsModal = ({
         >
           <div className="modal-head">
             <div>
-              <div className="eyebrow">workspace · account</div>
-              <h2 id="settings-title">Settings</h2>
+              <div className="eyebrow">{l('workspace · account', 'ruang kerja · akun')}</div>
+              <h2 id="settings-title">{l('Settings', 'Pengaturan')}</h2>
             </div>
-            <button className="icon-btn" type="button" aria-label="Close settings" disabled={busy} onClick={onClose}>
+            <button className="icon-btn" type="button" aria-label={l('Close settings', 'Tutup pengaturan')} disabled={busy} onClick={onClose}>
               <X size={18} />
             </button>
           </div>
@@ -178,7 +204,7 @@ export const SettingsModal = ({
                   <img
                     className="settings-avatar-img"
                     src={avatarPhotoUrl}
-                    alt={user?.displayName ?? user?.email ?? 'Account profile'}
+                    alt={user?.displayName ?? user?.email ?? l('Account profile', 'Profil akun')}
                     referrerPolicy="no-referrer"
                     onError={() => setFailedPhotoUrl(avatarPhotoUrl)}
                   />
@@ -187,44 +213,72 @@ export const SettingsModal = ({
                 )}
               </div>
               <div className="settings-card-copy">
-                <p className="settings-card-title">{user ? (user.displayName || 'Signed in') : 'Local workspace'}</p>
-                <p className="settings-card-sub">{user ? (user.email ?? 'Connected account') : 'Saved in this browser only'}</p>
+                <p className="settings-card-title">{user ? (user.displayName || l('Signed in', 'Sudah masuk')) : l('Local workspace', 'Ruang kerja lokal')}</p>
+                <p className="settings-card-sub">{user ? (user.email ?? l('Connected account', 'Akun terhubung')) : l('Saved in this browser only', 'Tersimpan di browser ini saja')}</p>
               </div>
-              <span className="tier-badge">{entitlement.isPro ? 'PRO' : 'FREE'}</span>
+              <span className="tier-badge">{entitlement.isPro ? 'PRO' : l('FREE', 'GRATIS')}</span>
+            </div>
+
+            <div className="settings-backup-box">
+              <div className="eyebrow">{l('language · bahasa', 'bahasa · language')}</div>
+              <p className="settings-note">
+                {l('Choose your preferred interface language.', 'Pilih bahasa antarmuka yang Anda inginkan.')}
+              </p>
+              <div className="segmented" role="group" aria-label={l('Language preference', 'Preferensi bahasa')}>
+                <button
+                  type="button"
+                  className={language === 'en' ? 'selected' : ''}
+                  aria-pressed={language === 'en'}
+                  onClick={() => setLanguage('en')}
+                >
+                  English
+                </button>
+                <button
+                  type="button"
+                  className={language === 'id' ? 'selected' : ''}
+                  aria-pressed={language === 'id'}
+                  onClick={() => setLanguage('id')}
+                >
+                  Bahasa Indonesia
+                </button>
+              </div>
             </div>
 
             <div className="settings-sync-box">
-              <div className="eyebrow">synchronization</div>
+              <div className="eyebrow">{l('synchronization', 'sinkronisasi')}</div>
               <p className="settings-note">{syncSummary()}</p>
               {user && incompatibleSchema !== null && (
                 <button type="button" className="text-action" disabled={busy} onClick={() => void handleExportRecovery()}>
-                  Export v{incompatibleSchema} recovery backup
+                  {l(`Export v${incompatibleSchema} recovery backup`, `Ekspor cadangan pemulihan v${incompatibleSchema}`)}
                 </button>
               )}
               {user && incompatibleSchema === null && (syncStatus === 'error' || (syncStatus === 'offline' && pendingSync)) && (
                 <button type="button" className="text-action" disabled={busy} onClick={() => void handleRetrySync()}>
-                  Retry sync now
+                  {l('Retry sync now', 'Coba sinkronisasi sekarang')}
                 </button>
               )}
             </div>
 
             <div className="settings-backup-box">
-              <div className="eyebrow">plan &amp; tier</div>
+              <div className="eyebrow">{l('plan & tier', 'paket & tingkatan')}</div>
               <p className="settings-note">
-                Current tier: <strong>{entitlement.planLabel}</strong>
-                {entitlement.expiresAt ? ` · expires ${new Date(entitlement.expiresAt).toLocaleDateString()}` : ''}.
-                Your workspace and JSON backups are always yours on any tier.
+                {l('Current tier:', 'Paket saat ini:')} <strong>{entitlement.planLabel}</strong>
+                {entitlement.expiresAt ? l(` · expires ${new Date(entitlement.expiresAt).toLocaleDateString()}`, ` · berakhir ${new Date(entitlement.expiresAt).toLocaleDateString(locale)}`) : ''}.
+                {' '}
+                {l('Your workspace and JSON backups are always yours on any tier.', 'Ruang kerja dan cadangan JSON selalu menjadi milik Anda di paket apa pun.')}
               </p>
               {!entitlement.isPro && (
                 <button type="button" className="text-action" onClick={() => setShowPlanOverview(v => !v)}>
-                  {showPlanOverview ? 'Hide plan roadmap' : 'View proposed Pro plans'}
+                  {showPlanOverview ? l('Hide plan roadmap', 'Sembunyikan rencana paket') : l('View proposed Pro plans', 'Lihat rencana paket Pro')}
                 </button>
               )}
               {showPlanOverview && !entitlement.isPro && (
                 <div className="upgrade-preview-box">
                   <p className="settings-note">
-                    Planned tiers: Free (Rp0), Monthly Pro (Rp{PRO_TIER_MONTHLY_IDR.toLocaleString('id-ID')}/mo), Annual Pro (Rp{PRO_TIER_ANNUAL_IDR.toLocaleString('id-ID')}/yr).
-                    Self-serve checkout and payment verification are not enabled yet—all current features and portable backups remain unlocked on Free.
+                    {l(
+                      `Planned tiers: Free (Rp0), Monthly Pro (Rp${PRO_TIER_MONTHLY_IDR.toLocaleString('id-ID')}/mo), Annual Pro (Rp${PRO_TIER_ANNUAL_IDR.toLocaleString('id-ID')}/yr). Self-serve checkout and payment verification are not enabled yet—all current features and portable backups remain unlocked on Free.`,
+                      `Rencana paket: Gratis (Rp0), Pro Bulanan (Rp${PRO_TIER_MONTHLY_IDR.toLocaleString('id-ID')}/bln), Pro Tahunan (Rp${PRO_TIER_ANNUAL_IDR.toLocaleString('id-ID')}/thn). Pembayaran mandiri belum diaktifkan—seluruh fitur saat ini dan ekspor cadangan tetap terbuka pada paket Gratis.`,
+                    )}
                   </p>
                 </div>
               )}
@@ -232,14 +286,17 @@ export const SettingsModal = ({
 
             {(onExportBackup || onRestoreBackup || onShowOnboarding) && (
               <div className="settings-backup-box">
-                <div className="eyebrow">portable snapshots &amp; guide</div>
+                <div className="eyebrow">{l('portable snapshots & guide', 'cadangan portabel & panduan')}</div>
                 <p className="settings-note">
-                  Export or restore versioned JSON backups of your goals, projects, habits, and reviews.
+                  {l(
+                    'Export or restore versioned JSON backups of your goals, projects, habits, and reviews.',
+                    'Ekspor atau pulihkan cadangan JSON berversi untuk tujuan, proyek, kebiasaan, dan evaluasi Anda.',
+                  )}
                 </p>
                 <div className="settings-backup-actions">
                   {onExportBackup && (
                     <button type="button" className="ui-btn ui-btn-outline" onClick={onExportBackup}>
-                      Export backup
+                      {l('Export backup', 'Ekspor cadangan')}
                     </button>
                   )}
                   {onRestoreBackup && (
@@ -251,7 +308,7 @@ export const SettingsModal = ({
                         onRestoreBackup();
                       }}
                     >
-                      Restore backup
+                      {l('Restore backup', 'Pulihkan cadangan')}
                     </button>
                   )}
                   {onShowOnboarding && (
@@ -263,7 +320,7 @@ export const SettingsModal = ({
                         onClose();
                       }}
                     >
-                      Show onboarding guide
+                      {l('Show onboarding guide', 'Tampilkan panduan awal')}
                     </button>
                   )}
                 </div>
@@ -272,9 +329,12 @@ export const SettingsModal = ({
 
             {confirmPendingSignOut && (
               <div className="settings-danger-box" role="alert">
-                <div className="eyebrow">unsynced changes detected</div>
+                <div className="eyebrow">{l('unsynced changes detected', 'perubahan belum tersinkron')}</div>
                 <p className="settings-note">
-                  Recent edits on this device have not finished syncing to the cloud yet. Export a backup or retry sync before signing out.
+                  {l(
+                    'Recent edits on this device have not finished syncing to the cloud yet. Export a backup or retry sync before signing out.',
+                    'Perubahan terbaru di perangkat ini belum selesai disinkronkan ke cloud. Ekspor cadangan atau coba sinkronisasi ulang sebelum keluar.',
+                  )}
                 </p>
                 <div className="settings-backup-actions">
                   <button
@@ -286,7 +346,7 @@ export const SettingsModal = ({
                       setConfirmPendingSignOut(false);
                     }}
                   >
-                    Retry sync first
+                    {l('Retry sync first', 'Coba sinkronisasi dulu')}
                   </button>
                   <button
                     type="button"
@@ -294,7 +354,7 @@ export const SettingsModal = ({
                     disabled={busy}
                     onClick={() => void handleSignOut(true)}
                   >
-                    Sign out anyway
+                    {l('Sign out anyway', 'Tetap keluar')}
                   </button>
                 </div>
               </div>
@@ -302,26 +362,29 @@ export const SettingsModal = ({
 
             {user && (
               <div className="settings-danger-box">
-                <div className="eyebrow">account deletion</div>
+                <div className="eyebrow">{l('account deletion', 'penghapusan akun')}</div>
                 <p className="settings-note">
-                  Permanently delete your cloud workspace and account credentials. Export a JSON backup first if you want a copy.
+                  {l(
+                    'Permanently delete your cloud workspace and account credentials. Export a JSON backup first if you want a copy.',
+                    'Hapus ruang kerja cloud dan kredensial akun Anda secara permanen. Ekspor cadangan JSON terlebih dahulu jika Anda ingin menyimpan salinannya.',
+                  )}
                 </p>
                 {!showDeleteConfirm ? (
                   <button type="button" className="text-action danger-text" onClick={() => setShowDeleteConfirm(true)}>
-                    Delete cloud account &amp; data…
+                    {l('Delete cloud account & data…', 'Hapus akun & data cloud…')}
                   </button>
                 ) : (
                   <div className="delete-account-confirm">
                     <input
                       className="search-input"
                       type="text"
-                      placeholder="Type DELETE to confirm"
+                      placeholder={l('Type DELETE to confirm', 'Ketik DELETE untuk konfirmasi')}
                       value={deletePhrase}
                       onChange={e => setDeletePhrase(e.target.value)}
                     />
                     <div className="settings-backup-actions">
                       <button type="button" className="ui-btn ui-btn-outline" disabled={busy} onClick={() => setShowDeleteConfirm(false)}>
-                        Cancel
+                        {l('Cancel', 'Batal')}
                       </button>
                       <button
                         type="button"
@@ -331,13 +394,13 @@ export const SettingsModal = ({
                       >
                         {busy
                           ? deletionPhase === 'reauthenticating'
-                            ? 'Confirming identity…'
+                            ? l('Confirming identity…', 'Mengonfirmasi identitas…')
                             : deletionPhase === 'deleting-firestore'
-                              ? 'Deleting cloud data…'
-                              : 'Removing account…'
+                              ? l('Deleting cloud data…', 'Menghapus data cloud…')
+                              : l('Removing account…', 'Menghapus akun…')
                           : deletionPhase === 'partial-failure'
-                            ? 'Retry permanent deletion'
-                            : 'Permanently delete'}
+                            ? l('Retry permanent deletion', 'Coba ulang penghapusan permanen')
+                            : l('Permanently delete', 'Hapus permanen')}
                       </button>
                     </div>
                   </div>
@@ -346,9 +409,9 @@ export const SettingsModal = ({
             )}
 
             <div className="legal-links-row">
-              <button type="button" className="text-link" onClick={() => setLegalDoc('privacy')}>Privacy Policy</button>
+              <button type="button" className="text-link" onClick={() => setLegalDoc('privacy')}>{l('Privacy Policy', 'Kebijakan Privasi')}</button>
               <span aria-hidden="true">·</span>
-              <button type="button" className="text-link" onClick={() => setLegalDoc('terms')}>Terms of Service</button>
+              <button type="button" className="text-link" onClick={() => setLegalDoc('terms')}>{l('Terms of Service', 'Ketentuan Layanan')}</button>
             </div>
 
             {(error || (user && syncError)) && <p className="settings-error" role="alert">{error || syncError}</p>}
@@ -363,19 +426,19 @@ export const SettingsModal = ({
                     onClose();
                   }}
                 >
-                  Sign-in screen
+                  {l('Sign-in screen', 'Halaman masuk')}
                 </button>
               )}
               <button className="ui-btn ui-btn-outline" type="button" onClick={onClose}>
-                Close
+                {l('Close', 'Tutup')}
               </button>
               {user ? (
                 <button className="ui-btn ui-btn-danger" type="button" disabled={busy} onClick={() => void handleSignOut(false)}>
-                  <LogOut size={15} /> {busy ? 'Signing out…' : 'Sign out'}
+                  <LogOut size={15} /> {busy ? l('Signing out…', 'Keluar…') : l('Sign out', 'Keluar')}
                 </button>
               ) : (
                 <button className="ui-btn ui-btn-solid" type="button" disabled={busy} onClick={handleSignIn}>
-                  <Sparkles size={15} /> {busy ? 'Connecting…' : 'Sign in with Google'}
+                  <Sparkles size={15} /> {busy ? l('Connecting…', 'Menghubungkan…') : l('Sign in with Google', 'Masuk dengan Google')}
                 </button>
               )}
             </div>

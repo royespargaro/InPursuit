@@ -945,4 +945,99 @@ describe('batch workspace merge, planned phases, multi-log weekly_count, schedul
     expect('completedQuantity' in inboxTask).toBe(false);
     expect('targetQuantity' in inboxTask).toBe(false);
   });
+
+  it('parses Bahasa Indonesia relative dates, weekly frequencies, and weekdays deterministically', () => {
+    const raw: Extraction = {
+      goals: [],
+      phases: [
+        {
+          title: 'Fase 1: Fondasi',
+          start: 'Hari 1–30',
+          end: 'Hari 1–30',
+          source_quote: 'Fase 1: Fondasi (Hari 1–30)',
+        },
+        {
+          title: 'Fase 2: Akselerasi',
+          start: 'Minggu ke-2',
+          end: 'Minggu ke-2',
+          source_quote: 'Minggu ke-2 sprint produk',
+        },
+        {
+          title: 'Fase 3: Ekspansi',
+          start: '30 hari pertama',
+          end: '30 hari pertama',
+          source_quote: '30 hari pertama fokus riset',
+        },
+      ],
+      habits: [
+        {
+          title: 'Latihan kekuatan',
+          cadence: 'daily', // intentionally wrong from model
+          source_quote: 'Latihan kekuatan 4x seminggu',
+        },
+        {
+          title: 'Lari interval',
+          cadence: 'daily',
+          source_quote: 'Lari interval 3 kali per minggu',
+        },
+        {
+          title: 'Evaluasi keuangan',
+          cadence: 'daily',
+          source_quote: 'Evaluasi keuangan sekali seminggu',
+        },
+        {
+          title: 'Membaca buku',
+          cadence: 'daily',
+          source_quote: 'Membaca buku seminggu 5 kali',
+        },
+        {
+          title: 'Latihan inti',
+          cadence: 'specific_days',
+          source_quote: 'Latihan inti setiap Senin, Rabu, dan Jumat',
+        },
+        {
+          title: 'Jalan santai',
+          cadence: 'specific_days',
+          source_quote: 'Jalan santai setiap Sabtu & Minggu',
+        },
+        {
+          title: 'Persiapan mingguan',
+          cadence: 'specific_days',
+          source_quote: 'Persiapan mingguan setiap Hari Minggu',
+        },
+        {
+          title: 'Fokus Senin',
+          cadence: 'specific_days',
+          source_quote: 'Fokus Senin pada minggu 1',
+        },
+      ],
+      tasks: [
+        { title: 'Cek kesehatan', due: 'besok', source_quote: 'Cek kesehatan besok' },
+        { title: 'Kirim proposal', due: 'lusa', source_quote: 'Kirim proposal lusa' },
+        { title: 'Evaluasi tengah fase', due: 'Hari ke-15', source_quote: 'Evaluasi pada Hari ke-15' },
+      ],
+      success_criteria: [],
+      principles: [],
+      clarifications: [],
+    };
+
+    const normalized = normalizeWeeklyCountHabits(raw);
+    expect(normalized.habits[0]).toMatchObject({ cadence: 'weekly_count', target_count: 4 });
+    expect(normalized.habits[1]).toMatchObject({ cadence: 'weekly_count', target_count: 3 });
+    expect(normalized.habits[2]).toMatchObject({ cadence: 'weekly_count', target_count: 1 });
+    expect(normalized.habits[3]).toMatchObject({ cadence: 'weekly_count', target_count: 5 });
+    expect(normalized.habits[4].days).toEqual(['mon', 'wed', 'fri']);
+    expect(normalized.habits[5].days).toEqual(['sat', 'sun']);
+    expect(normalized.habits[6].days).toEqual(['sun']);
+    // "minggu 1" is a week reference, not Sunday
+    expect(normalized.habits[7].days).toEqual(['mon']);
+
+    const resolved = resolveRelativeDatesInCode(normalized, '2026-11-20');
+    expect(resolved.phases[0]).toMatchObject({ start: '2026-11-20', end: '2026-12-19' });
+    expect(resolved.phases[1]).toMatchObject({ start: '2026-11-27', end: '2026-12-03' });
+    expect(resolved.phases[2]).toMatchObject({ start: '2026-11-20', end: '2026-12-19' });
+    expect(resolved.tasks[0].due).toBe('2026-11-21');
+    expect(resolved.tasks[1].due).toBe('2026-11-22');
+    expect(resolved.tasks[2].due).toBe('2026-12-04');
+  });
 });

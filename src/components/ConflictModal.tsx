@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ConflictState } from '../context/HabitContext';
+import { useLanguage } from '../context/LanguageContext';
 import { useModalFocus } from '../hooks/useModalFocus';
 import { MAX_ACTIVE_PROJECTS } from '../utils/projectLimits';
 import { Sparkles } from './Icon';
@@ -13,6 +14,7 @@ interface ConflictModalProps {
 }
 
 export function ConflictModal({ conflict, onResolve }: ConflictModalProps) {
+  const { l } = useLanguage();
   const candidates = conflict.activeProjectCandidates ?? [];
   const hasProjectPicker = candidates.length > MAX_ACTIVE_PROJECTS;
 
@@ -49,7 +51,7 @@ export function ConflictModal({ conflict, onResolve }: ConflictModalProps) {
       const selected = hasProjectPicker && strategy === 'merge' ? selectedProjectIds : undefined;
       await onResolve(strategy, selected);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not resolve conflict right now. Please try again.');
+      setError(err instanceof Error ? err.message : l('Could not resolve conflict right now. Please try again.', 'Belum bisa menyelesaikan konflik saat ini. Silakan coba lagi.'));
     } finally {
       setBusy(false);
     }
@@ -71,12 +73,14 @@ export function ConflictModal({ conflict, onResolve }: ConflictModalProps) {
         <div className="modal-head">
           <div>
             <div className="eyebrow">
-              {isActiveProjectLimit ? 'active project limit reached' : 'sync conflict detected'}
+              {isActiveProjectLimit
+                ? l('active project limit reached', 'batas proyek aktif tercapai')
+                : l('sync conflict detected', 'konflik sinkronisasi terdeteksi')}
             </div>
             <h2 id="conflict-title">
               {isActiveProjectLimit
-                ? `Choose up to ${MAX_ACTIVE_PROJECTS} active projects`
-                : 'Choose how to combine your workspaces'}
+                ? l(`Choose up to ${MAX_ACTIVE_PROJECTS} active projects`, `Pilih maksimal ${MAX_ACTIVE_PROJECTS} proyek aktif`)
+                : l('Choose how to combine your workspaces', 'Pilih cara menggabungkan ruang kerja Anda')}
             </h2>
           </div>
           <span className="focus-icon">
@@ -86,29 +90,38 @@ export function ConflictModal({ conflict, onResolve }: ConflictModalProps) {
 
         <p className="confirm-body">
           {isActiveProjectLimit
-            ? `Combining your device and cloud changes gives ${candidates.length} active projects. Pick up to ${MAX_ACTIVE_PROJECTS} to stay active; the rest will be safely archived with all tasks preserved.`
+            ? l(
+                `Combining your device and cloud changes gives ${candidates.length} active projects. Pick up to ${MAX_ACTIVE_PROJECTS} to stay active; the rest will be safely archived with all tasks preserved.`,
+                `Menggabungkan perubahan perangkat dan cloud menghasilkan ${candidates.length} proyek aktif. Pilih maksimal ${MAX_ACTIVE_PROJECTS} agar tetap aktif; sisanya akan diarsipkan dengan aman tanpa kehilangan tugas.`,
+              )
             : isOfflineDivergence
-              ? 'This device has unsynced offline edits, and your cloud account also received newer changes. Nothing has been overwritten yet.'
-              : 'You created local changes before signing in, and your cloud account already has saved data. Nothing has been overwritten yet.'}
+              ? l(
+                  'This device has unsynced offline edits, and your cloud account also received newer changes. Nothing has been overwritten yet.',
+                  'Perangkat ini memiliki perubahan luring yang belum tersinkron, sementara akun cloud juga menerima perubahan baru. Belum ada data yang tertimpa.',
+                )
+              : l(
+                  'You created local changes before signing in, and your cloud account already has saved data. Nothing has been overwritten yet.',
+                  'Anda membuat perubahan lokal sebelum masuk, sementara akun cloud sudah memiliki data tersimpan. Belum ada data yang tertimpa.',
+                )}
         </p>
 
         <div className="conflict-grid">
           <div className="conflict-card">
-            <div className="eyebrow">this device</div>
+            <div className="eyebrow">{l('this device', 'perangkat ini')}</div>
             <ul>
-              <li>{conflict.localSummary.goals} goals</li>
-              <li>{conflict.localSummary.projects} projects</li>
-              <li>{conflict.localSummary.tasks} tasks</li>
-              <li>{conflict.localSummary.habits} habits · {conflict.localSummary.habitLogs} logs</li>
+              <li>{conflict.localSummary.goals} {l('goals', 'tujuan')}</li>
+              <li>{conflict.localSummary.projects} {l('projects', 'proyek')}</li>
+              <li>{conflict.localSummary.tasks} {l('tasks', 'tugas')}</li>
+              <li>{conflict.localSummary.habits} {l('habits', 'kebiasaan')} · {conflict.localSummary.habitLogs} {l('logs', 'catatan')}</li>
             </ul>
           </div>
           <div className="conflict-card">
-            <div className="eyebrow">cloud account</div>
+            <div className="eyebrow">{l('cloud account', 'akun cloud')}</div>
             <ul>
-              <li>{conflict.cloudSummary.goals} goals</li>
-              <li>{conflict.cloudSummary.projects} projects</li>
-              <li>{conflict.cloudSummary.tasks} tasks</li>
-              <li>{conflict.cloudSummary.habits} habits · {conflict.cloudSummary.habitLogs} logs</li>
+              <li>{conflict.cloudSummary.goals} {l('goals', 'tujuan')}</li>
+              <li>{conflict.cloudSummary.projects} {l('projects', 'proyek')}</li>
+              <li>{conflict.cloudSummary.tasks} {l('tasks', 'tugas')}</li>
+              <li>{conflict.cloudSummary.habits} {l('habits', 'kebiasaan')} · {conflict.cloudSummary.habitLogs} {l('logs', 'catatan')}</li>
             </ul>
           </div>
         </div>
@@ -116,9 +129,9 @@ export function ConflictModal({ conflict, onResolve }: ConflictModalProps) {
         {hasProjectPicker && (
           <div className="conflict-project-picker">
             <div className="conflict-picker-head">
-              <div className="eyebrow">active projects to keep</div>
+              <div className="eyebrow">{l('active projects to keep', 'proyek aktif yang dipertahankan')}</div>
               <span className="active-project-count">
-                {selectedProjectIds.length} / {MAX_ACTIVE_PROJECTS} selected
+                {selectedProjectIds.length} / {MAX_ACTIVE_PROJECTS} {l('selected', 'dipilih')}
               </span>
             </div>
             <div className="conflict-project-list">
@@ -154,13 +167,13 @@ export function ConflictModal({ conflict, onResolve }: ConflictModalProps) {
             disabled={busy || (hasProjectPicker && selectedProjectIds.length === 0)}
             onClick={() => void pick('merge')}
           >
-            {hasProjectPicker ? 'Merge with selected' : 'Merge both (Recommended)'}
+            {hasProjectPicker ? l('Merge with selected', 'Gabungkan dengan pilihan') : l('Merge both (Recommended)', 'Gabungkan keduanya (Disarankan)')}
           </button>
           <button type="button" className="ui-btn ui-btn-outline" disabled={busy} onClick={() => void pick('keep-cloud')}>
-            Keep cloud data
+            {l('Keep cloud data', 'Simpan data cloud')}
           </button>
           <button type="button" className="ui-btn ui-btn-danger" disabled={busy} onClick={() => void pick('use-local')}>
-            Replace cloud with local
+            {l('Replace cloud with local', 'Ganti cloud dengan lokal')}
           </button>
         </div>
       </div>

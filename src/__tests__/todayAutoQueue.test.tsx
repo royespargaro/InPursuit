@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { LanguageToggle } from '../components/LanguageToggle';
 import { PlanImportModal } from '../components/PlanImportModal';
+import { SettingsModal } from '../components/SettingsModal';
+import { HabitProvider } from '../context/HabitContext';
+import { LANGUAGE_STORAGE_KEY, LanguageProvider } from '../context/LanguageContext';
 import { ProjectsView } from '../views/ProjectsView';
 import { TodayView } from '../views/TodayView';
 import type { AppData, Extraction } from '../types';
@@ -817,5 +821,122 @@ describe('Today auto-generated queue, Rough day mode, weekly multi-log, and Impo
     expect(screen.getByText('12/30')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Increase progress for Apply to jobs (+1)' }));
     expect(onAdjustProjectTask).toHaveBeenCalledWith(expect.objectContaining({ id: 't-qty' }), 1);
+  });
+
+  it('switches UI between English and Bahasa Indonesia via LanguageToggle and SettingsModal and persists preference', () => {
+    localStorage.removeItem(LANGUAGE_STORAGE_KEY);
+    const today = '2026-11-20';
+    const data: AppData = {
+      schemaVersion: 3,
+      lifeAreas: [],
+      goals: [],
+      projects: [
+        {
+          id: 'p-plan-id',
+          goalId: null,
+          title: 'Fase Berikutnya',
+          description: '',
+          startDate: '2026-12-01',
+          dueDate: '2026-12-30',
+          status: 'planned',
+          createdAt: '2026-11-20T00:00:00.000Z',
+        },
+      ],
+      tasks: [
+        {
+          id: 't-bilingual',
+          projectId: null,
+          title: 'Siapkan presentasi',
+          dueDate: today,
+          priority: 'high',
+          status: 'todo',
+          createdAt: '2026-11-20T00:00:00.000Z',
+          completedAt: null,
+        },
+      ],
+      habits: [],
+      habitLogs: [],
+      dailyPlans: [],
+      dailyReviews: [],
+    };
+
+    const { unmount } = render(
+      <LanguageProvider>
+        <div>
+          <LanguageToggle />
+          <TodayView
+            data={data}
+            today={today}
+            todayTasks={data.tasks}
+            overdueTasks={[]}
+            activeHabits={[]}
+            completedHabitIds={new Set()}
+            skippedHabitIds={new Set()}
+            doneHabits={0}
+            scheduledHabitsCount={0}
+            priorityTasks={[]}
+            priorityIds={[]}
+            showOnboarding={false}
+            onDismissOnboarding={() => {}}
+            onApplyTemplate={() => {}}
+            onToggleHabit={() => {}}
+            onToggleSkipHabit={() => {}}
+            onToggleTask={() => {}}
+            onRestoreTask={() => {}}
+            onMoveToToday={() => {}}
+            onPriorities={() => {}}
+            onAddTask={() => {}}
+            onEditTask={() => {}}
+            onReview={() => {}}
+            onOpenGoals={() => {}}
+            onEditGoal={() => {}}
+            onAddGoal={() => {}}
+          />
+          <ProjectsView
+            projects={data.projects}
+            goals={[]}
+            tasks={[]}
+            onAdd={() => {}}
+            onEdit={() => {}}
+            onDelete={() => {}}
+            onAddTask={() => {}}
+            onToggleTask={() => {}}
+            onStartPhase={() => {}}
+            onEditTask={() => {}}
+          />
+        </div>
+      </LanguageProvider>,
+    );
+
+    expect(screen.getByText("Today's focus queue")).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Rough day/i })).toBeTruthy();
+
+    // Switch to Bahasa Indonesia using the topbar LanguageToggle
+    fireEvent.click(screen.getByRole('button', { name: 'Bahasa Indonesia' }));
+    expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('id');
+    expect(screen.getByText('Antrean fokus hari ini')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Hari berat/i })).toBeTruthy();
+    expect(screen.getByText(/prioritas tinggi/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /Direncanakan \(1\)/ }));
+    expect(screen.getByRole('button', { name: 'Mulai fase' })).toBeTruthy();
+    unmount();
+
+    // Verify SettingsModal also switches live to Bahasa Indonesia and persists preference back to EN
+    localStorage.removeItem(LANGUAGE_STORAGE_KEY);
+    render(
+      <LanguageProvider>
+        <HabitProvider>
+          <SettingsModal onClose={() => {}} onOpenSignIn={() => {}} />
+        </HabitProvider>
+      </LanguageProvider>,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Bahasa Indonesia' }));
+    expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('id');
+    expect(screen.getByRole('heading', { name: 'Pengaturan' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Tutup' })).toBeTruthy();
+    localStorage.removeItem(LANGUAGE_STORAGE_KEY);
   });
 });

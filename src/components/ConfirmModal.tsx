@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { useModalFocus } from '../hooks/useModalFocus';
 import { AlertCircle, X } from './Icon';
 
@@ -17,7 +18,7 @@ interface ConfirmModalProps {
 
 export function ConfirmModal({
   title,
-  eyebrow = 'confirm action',
+  eyebrow,
   body,
   details,
   confirmLabel,
@@ -27,6 +28,7 @@ export function ConfirmModal({
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
+  const { l } = useLanguage();
   const modalRef = useRef<HTMLDivElement>(null);
   useModalFocus(modalRef, onCancel);
 
@@ -43,10 +45,10 @@ export function ConfirmModal({
       >
         <div className="modal-head">
           <div>
-            <div className="eyebrow">{eyebrow}</div>
+            <div className="eyebrow">{eyebrow ?? l('confirm action', 'konfirmasi tindakan')}</div>
             <h2 id="confirm-title">{title}</h2>
           </div>
-          <button className="icon-btn" type="button" aria-label="Close dialog" onClick={onCancel}>
+          <button className="icon-btn" type="button" aria-label={l('Close dialog', 'Tutup dialog')} onClick={onCancel}>
             <X size={18} />
           </button>
         </div>
@@ -66,7 +68,7 @@ export function ConfirmModal({
 
         <div className="modal-actions">
           <button className="ui-btn ui-btn-outline" type="button" onClick={onCancel}>
-            Cancel
+            {l('Cancel', 'Batal')}
           </button>
           {secondaryLabel && onSecondary && (
             <button className="ui-btn ui-btn-solid" type="button" onClick={onSecondary}>

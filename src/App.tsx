@@ -1,10 +1,12 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, User } from './components/Icon';
 import Icon from './components/Icon';
+import { LanguageToggle } from './components/LanguageToggle';
 import type { StarterTemplateOption } from './components/OnboardingCard';
 import { SyncIndicator } from './components/SyncIndicator';
 import { cx, prettyDate } from './components/ui';
 import { useHabits } from './context/HabitContext';
+import { useLanguage } from './context/LanguageContext';
 import {
   createId,
   exportData,
@@ -81,6 +83,7 @@ function writeOnboardingDismissed(scope: string, dismissed: boolean) {
 }
 
 export default function App() {
+  const { locale, l } = useLanguage();
   const {
     data,
     updateData,
@@ -247,8 +250,12 @@ export default function App() {
       setLastImportRecord(createdRecord);
       const counts = (createdRecord as PlanImportRecord).counts;
       notify(
-        `Imported ${counts.goals} goals, ${counts.phases} phases, ${counts.habits} habits, ${counts.tasks} tasks` +
-          (counts.deduped > 0 ? ` (${counts.deduped} deduped)` : ''),
+        l(
+          `Imported ${counts.goals} goals, ${counts.phases} phases, ${counts.habits} habits, ${counts.tasks} tasks` +
+            (counts.deduped > 0 ? ` (${counts.deduped} deduped)` : ''),
+          `Berhasil mengimpor ${counts.goals} tujuan, ${counts.phases} fase, ${counts.habits} kebiasaan, ${counts.tasks} tugas` +
+            (counts.deduped > 0 ? ` (${counts.deduped} duplikat dilewati)` : ''),
+        ),
       );
     }
     dismissOnboarding();
@@ -261,7 +268,7 @@ export default function App() {
     updateData(current => undoImportedPlan(current, importId));
     writeLastImportRecord(onboardingScope, null);
     setLastImportRecord(null);
-    notify('Last plan import undone');
+    notify(l('Last plan import undone', 'Impor rencana terakhir dibatalkan'));
   };
 
   const toggleGoalCriterion = (goalId: string, criterionId: string) => {
@@ -341,8 +348,14 @@ export default function App() {
     dismissOnboarding();
     notify(
       canActivate
-        ? `Added "${template.label}" starter workspace`
-        : `Added template (project saved archived since ${MAX_ACTIVE_PROJECTS} projects are already active)`,
+        ? l(
+            `Added "${template.label}" starter workspace`,
+            `Menambahkan ruang kerja awal "${template.label}"`,
+          )
+        : l(
+            `Added template (project saved archived since ${MAX_ACTIVE_PROJECTS} projects are already active)`,
+            `Templat ditambahkan (proyek diarsipkan karena sudah ada ${MAX_ACTIVE_PROJECTS} proyek aktif)`,
+          ),
     );
   };
 
@@ -476,7 +489,12 @@ export default function App() {
 
   const startPhase = (projectId: string) => {
     if (!canActivateProject(data.projects, projectId)) {
-      notify(`Active project limit reached (${MAX_ACTIVE_PROJECTS}). Complete or archive a project first.`);
+      notify(
+        l(
+          `Active project limit reached (${MAX_ACTIVE_PROJECTS}). Complete or archive a project first.`,
+          `Batas proyek aktif tercapai (${MAX_ACTIVE_PROJECTS}). Selesaikan atau arsipkan proyek terlebih dahulu.`,
+        ),
+      );
       return;
     }
     let startedTitle = '';
@@ -496,7 +514,7 @@ export default function App() {
       };
     });
     if (startedTitle) {
-      notify(`Started phase "${startedTitle}"`);
+      notify(l(`Started phase "${startedTitle}"`, `Memulai fase "${startedTitle}"`));
     }
   };
 
@@ -505,7 +523,7 @@ export default function App() {
       ...current,
       tasks: current.tasks.map(t => (t.id === task.id ? { ...t, status: 'todo', completedAt: null } : t)),
     }));
-    notify('Task restored to active list');
+    notify(l('Task restored to active list', 'Tugas dikembalikan ke daftar aktif'));
   };
 
   const moveTaskToToday = (taskId: string) => {
@@ -513,7 +531,7 @@ export default function App() {
       ...current,
       tasks: current.tasks.map(t => (t.id === taskId ? { ...t, dueDate: today } : t)),
     }));
-    notify('Moved task to today');
+    notify(l('Moved task to today', 'Tugas dipindahkan ke hari ini'));
   };
 
   const setPriorities = (ids: string[]) =>
@@ -585,10 +603,16 @@ export default function App() {
     setDeleteTarget(null);
     notify(
       target.kind === 'lifeArea'
-        ? 'Life area deleted'
+        ? l('Life area deleted', 'Area hidup dihapus')
         : target.kind === 'review'
-          ? 'Review deleted'
-          : `${target.kind[0].toUpperCase() + target.kind.slice(1)} deleted`,
+          ? l('Review deleted', 'Evaluasi dihapus')
+          : target.kind === 'task'
+            ? l('Task deleted', 'Tugas dihapus')
+            : target.kind === 'goal'
+              ? l('Goal deleted', 'Tujuan dihapus')
+              : target.kind === 'project'
+                ? l('Project deleted', 'Proyek dihapus')
+                : l('Habit deleted', 'Kebiasaan dihapus'),
     );
   };
 
@@ -598,7 +622,7 @@ export default function App() {
       const parsed = inspectBackupText(await file.text());
       setPendingRestore(parsed);
     } catch (error) {
-      notify(error instanceof Error ? error.message : 'Backup file could not be read');
+      notify(error instanceof Error ? error.message : l('Backup file could not be read', 'File cadangan tidak dapat dibaca'));
     } finally {
       if (importRef.current) importRef.current.value = '';
     }
@@ -608,21 +632,24 @@ export default function App() {
     if (!pendingRestore) return;
     const archivedNote =
       pendingRestore.archivedExcessProjects > 0
-        ? ` (${pendingRestore.archivedExcessProjects} excess active projects archived to keep focus limit ${MAX_ACTIVE_PROJECTS})`
+        ? l(
+            ` (${pendingRestore.archivedExcessProjects} excess active projects archived to keep focus limit ${MAX_ACTIVE_PROJECTS})`,
+            ` (${pendingRestore.archivedExcessProjects} kelebihan proyek aktif diarsipkan demi batas fokus ${MAX_ACTIVE_PROJECTS})`,
+          )
         : '';
     saveData(pendingRestore.data);
     setPendingRestore(null);
-    notify(`Backup restored successfully${archivedNote}`);
+    notify(l(`Backup restored successfully${archivedNote}`, `Cadangan berhasil dipulihkan${archivedNote}`));
   };
 
   const nav = [
-    { id: 'today' as const, label: 'Today', icon: 'today' as const },
-    { id: 'goals' as const, label: 'Goals', icon: 'goals' as const, count: activeGoals.length },
-    { id: 'projects' as const, label: 'Projects', icon: 'projects' as const, count: activeProjects.length },
-    { id: 'habits' as const, label: 'Habits', icon: 'habits' as const },
-    { id: 'review' as const, label: 'Review', icon: 'review' as const },
+    { id: 'today' as const, label: l('Today', 'Hari Ini'), icon: 'today' as const },
+    { id: 'goals' as const, label: l('Goals', 'Tujuan'), icon: 'goals' as const, count: activeGoals.length },
+    { id: 'projects' as const, label: l('Projects', 'Proyek'), icon: 'projects' as const, count: activeProjects.length },
+    { id: 'habits' as const, label: l('Habits', 'Kebiasaan'), icon: 'habits' as const },
+    { id: 'review' as const, label: l('Review', 'Evaluasi'), icon: 'review' as const },
   ];
-  const currentTitle = nav.find(n => n.id === view)?.label ?? 'Today';
+  const currentTitle = nav.find(n => n.id === view)?.label ?? l('Today', 'Hari Ini');
 
   if (!authReady) {
     return (
@@ -658,12 +685,12 @@ export default function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <a className="brand" href="#" aria-label="InPursuit home" onClick={e => { e.preventDefault(); setView('today'); }}>
+        <a className="brand" href="#" aria-label={l('InPursuit home', 'Beranda InPursuit')} onClick={e => { e.preventDefault(); setView('today'); }}>
           <img className="brand-mark" src="/inpursuit-mark.svg" alt="" />
           <img className="brand-wordmark" src="/inpursuit-wordmark.svg" alt="InPursuit" />
         </a>
-        <div className="side-label">workspace</div>
-        <nav className="side-nav" aria-label="Workspace views">
+        <div className="side-label">{l('workspace', 'ruang kerja')}</div>
+        <nav className="side-nav" aria-label={l('Workspace views', 'Menu ruang kerja')}>
           {nav.map(item => (
             <button
               key={item.id}
@@ -682,19 +709,19 @@ export default function App() {
           <div className="focus-card">
             <div className="focus-icon"><Icon name="zap" size={15} /></div>
             <div>
-              <strong>Make it happen.</strong>
-              <p>Small actions. Real evidence.</p>
+              <strong>{l('Make it happen.', 'Wujudkan nyata.')}</strong>
+              <p>{l('Small actions. Real evidence.', 'Langkah kecil. Bukti nyata.')}</p>
             </div>
           </div>
           <div className="sidebar-actions">
             <button type="button" onClick={() => setShowPlanImport(true)}>
-              <Icon name="spark" size={15} /> Import plan
+              <Icon name="spark" size={15} /> {l('Import plan', 'Impor rencana')}
             </button>
             <button type="button" onClick={() => exportData(data)}>
-              <Icon name="download" size={15} /> Export backup
+              <Icon name="download" size={15} /> {l('Export backup', 'Ekspor cadangan')}
             </button>
             <button type="button" onClick={() => importRef.current?.click()}>
-              <Icon name="upload" size={15} /> Restore backup
+              <Icon name="upload" size={15} /> {l('Restore backup', 'Pulihkan cadangan')}
             </button>
           </div>
           <SyncIndicator
@@ -714,29 +741,33 @@ export default function App() {
             <img className="brand-wordmark" src="/inpursuit-wordmark.svg" alt="InPursuit" />
           </div>
           <div className="breadcrumbs">
-            workspace <Icon name="chevron-right" size={13} /> <strong>{currentTitle}</strong>
+            {l('workspace', 'ruang kerja')} <Icon name="chevron-right" size={13} /> <strong>{currentTitle}</strong>
           </div>
           <div className="topbar-right">
+            <LanguageToggle />
             {!user && (
               <button
                 type="button"
                 className="local-badge-btn"
                 onClick={() => setModal('settings')}
-                title="Local device storage only — sign in via Settings for cloud sync"
+                title={l(
+                  'Local device storage only — sign in via Settings for cloud sync',
+                  'Penyimpanan lokal perangkat saja — masuk lewat Pengaturan untuk sinkronisasi cloud',
+                )}
               >
-                Local only
+                {l('Local only', 'Lokal saja')}
               </button>
             )}
             <span className="date-chip">
               <Icon name="calendar" size={14} />
-              {prettyDate(today, { day: 'numeric', month: 'short', year: 'numeric' })}
+              {prettyDate(today, { day: 'numeric', month: 'short', year: 'numeric' }, locale)}
             </span>
-            <button className="avatar" type="button" onClick={() => setModal('settings')} aria-label="Open settings">
+            <button className="avatar" type="button" onClick={() => setModal('settings')} aria-label={l('Open settings', 'Buka pengaturan')}>
               {avatarPhotoUrl ? (
                 <img
                   className="avatar-img"
                   src={avatarPhotoUrl}
-                  alt={user?.displayName ?? user?.email ?? 'Account profile'}
+                  alt={user?.displayName ?? user?.email ?? l('Account profile', 'Profil akun')}
                   referrerPolicy="no-referrer"
                   onError={() => setFailedPhotoUrl(avatarPhotoUrl)}
                 />
@@ -752,9 +783,12 @@ export default function App() {
           {user && incompatibleSchema !== null && (
             <div className="schema-recovery-banner" role="alert">
               <div>
-                <strong>Cloud workspace locked (schema v{incompatibleSchema})</strong>
+                <strong>{l(`Cloud workspace locked (schema v${incompatibleSchema})`, `Ruang kerja cloud terkunci (skema v${incompatibleSchema})`)}</strong>
                 <p>
-                  This account has already been upgraded past v3. Editing and cloud writes are disabled to protect your data—export a recovery backup to inspect or preserve everything.
+                  {l(
+                    'This account has already been upgraded past v3. Editing and cloud writes are disabled to protect your data—export a recovery backup to inspect or preserve everything.',
+                    'Akun ini telah diperbarui melampaui v3. Penyuntingan dan penulisan cloud dinonaktifkan untuk melindungi data Anda—ekspor cadangan pemulihan untuk memeriksa atau menyimpan semuanya.',
+                  )}
                 </p>
               </div>
               <button
@@ -762,11 +796,11 @@ export default function App() {
                 className="sync-retry-btn"
                 onClick={() => {
                   void exportRecoveryBackup()
-                    .then(() => notify('Recovery backup exported'))
-                    .catch(err => notify(err instanceof Error ? err.message : 'Recovery export failed'));
+                    .then(() => notify(l('Recovery backup exported', 'Cadangan pemulihan diekspor')))
+                    .catch(err => notify(err instanceof Error ? err.message : l('Recovery export failed', 'Ekspor pemulihan gagal')));
                 }}
               >
-                Export recovery backup
+                {l('Export recovery backup', 'Ekspor cadangan pemulihan')}
               </button>
             </div>
           )}
@@ -775,11 +809,11 @@ export default function App() {
             <div className="mobile-sync-banner" role="status">
               <span>
                 {syncStatus === 'error'
-                  ? 'Cloud sync failed · changes saved on this device'
-                  : 'Offline · changes queued for upload'}
+                  ? l('Cloud sync failed · changes saved on this device', 'Sinkronisasi cloud gagal · perubahan tersimpan di perangkat ini')
+                  : l('Offline · changes queued for upload', 'Luring · perubahan menunggu diunggah')}
               </span>
               <button type="button" className="sync-retry-btn" onClick={() => void retrySync()}>
-                Retry
+                {l('Retry', 'Coba lagi')}
               </button>
             </div>
           )}
@@ -871,14 +905,14 @@ export default function App() {
                 data={data}
                 today={today}
                 onWrite={(targetDate?: string) => openModal('review', undefined, targetDate ?? today)}
-                onDeleteReview={date => setDeleteTarget({ kind: 'review', id: date, title: prettyDate(date) })}
+                onDeleteReview={date => setDeleteTarget({ kind: 'review', id: date, title: prettyDate(date, undefined, locale) })}
               />
             )}
           </Suspense>
         </div>
       </main>
 
-      <nav className="mobile-nav" aria-label="Primary navigation">
+      <nav className="mobile-nav" aria-label={l('Primary navigation', 'Navigasi utama')}>
         {nav.map(item => (
           <button
             key={item.id}
@@ -923,13 +957,18 @@ export default function App() {
             }}
             onDeleteReview={date => {
               closeModal();
-              setDeleteTarget({ kind: 'review', id: date, title: prettyDate(date) });
+              setDeleteTarget({ kind: 'review', id: date, title: prettyDate(date, undefined, locale) });
             }}
             onSave={(kind, value) => {
               if (kind === 'project') {
                 const project = value as Project;
                 if (project.status === 'active' && !canActivateProject(data.projects, project.id)) {
-                  notify(`Active project limit reached (${MAX_ACTIVE_PROJECTS}). Complete or archive a project first.`);
+                  notify(
+                    l(
+                      `Active project limit reached (${MAX_ACTIVE_PROJECTS}). Complete or archive a project first.`,
+                      `Batas proyek aktif tercapai (${MAX_ACTIVE_PROJECTS}). Selesaikan atau arsipkan proyek terlebih dahulu.`,
+                    ),
+                  );
                   return;
                 }
               }
@@ -968,7 +1007,7 @@ export default function App() {
                 return { ...current, dailyReviews: [...current.dailyReviews.filter(x => x.date !== item.date), item] };
               });
               closeModal();
-              notify('Saved');
+              notify(l('Saved', 'Tersimpan'));
             }}
           />
         )}
@@ -983,14 +1022,14 @@ export default function App() {
                 ...current,
                 lifeAreas: [...current.lifeAreas, { id: uid(), name, description, createdAt: new Date().toISOString() }],
               }));
-              notify('Life area created');
+              notify(l('Life area created', 'Area hidup dibuat'));
             }}
             onUpdateArea={(areaId, name, description) => {
               updateData(current => ({
                 ...current,
                 lifeAreas: current.lifeAreas.map(a => (a.id === areaId ? { ...a, name, description } : a)),
               }));
-              notify('Life area updated');
+              notify(l('Life area updated', 'Area hidup diperbarui'));
             }}
             onRequestDeleteArea={(area: LifeArea, linkedGoals: number) => {
               setDeleteTarget({ kind: 'lifeArea', id: area.id, title: area.name, linkedGoals });
@@ -1018,23 +1057,45 @@ export default function App() {
 
         {deleteTarget && (
           <ConfirmModal
-            eyebrow={deleteTarget.kind === 'lifeArea' ? 'delete life area' : `delete ${deleteTarget.kind}`}
-            title={`Delete "${deleteTarget.title}"?`}
+            eyebrow={
+              deleteTarget.kind === 'lifeArea'
+                ? l('delete life area', 'hapus area hidup')
+                : deleteTarget.kind === 'review'
+                  ? l('delete review', 'hapus evaluasi')
+                  : deleteTarget.kind === 'goal'
+                    ? l('delete goal', 'hapus tujuan')
+                    : deleteTarget.kind === 'project'
+                      ? l('delete project', 'hapus proyek')
+                      : deleteTarget.kind === 'habit'
+                        ? l('delete habit', 'hapus kebiasaan')
+                        : l('delete task', 'hapus tugas')
+            }
+            title={l(`Delete "${deleteTarget.title}"?`, `Hapus "${deleteTarget.title}"?`)}
             body={
               deleteTarget.kind === 'goal'
-                ? 'Linked projects will be unlinked (kept intact). This cannot be undone.'
+                ? l('Linked projects will be unlinked (kept intact). This cannot be undone.', 'Proyek terkait akan dilepas tautannya (tetap disimpan). Tindakan ini tidak dapat dibatalkan.')
                 : deleteTarget.kind === 'project'
-                  ? 'Linked tasks will become personal/unassigned tasks. This cannot be undone.'
+                  ? l('Linked tasks will become personal/unassigned tasks. This cannot be undone.', 'Tugas terkait akan menjadi tugas pribadi/tanpa proyek. Tindakan ini tidak dapat dibatalkan.')
                   : deleteTarget.kind === 'habit'
-                    ? 'All historical completion logs for this habit will also be removed.'
+                    ? l('All historical completion logs for this habit will also be removed.', 'Semua riwayat catatan penyelesaian kebiasaan ini juga akan dihapus.')
                     : deleteTarget.kind === 'lifeArea'
-                      ? `${deleteTarget.linkedGoals} linked goal(s) will remain active as Unassigned. This cannot be undone.`
+                      ? l(`${deleteTarget.linkedGoals} linked goal(s) will remain active as Unassigned. This cannot be undone.`, `${deleteTarget.linkedGoals} tujuan terkait akan tetap aktif tanpa kategori area. Tindakan ini tidak dapat dibatalkan.`)
                       : deleteTarget.kind === 'review'
-                        ? 'This daily reflection entry will be permanently deleted.'
-                        : 'This task will be removed from your workspace and any daily plans.'
+                        ? l('This daily reflection entry will be permanently deleted.', 'Catatan refleksi harian ini akan dihapus secara permanen.')
+                        : l('This task will be removed from your workspace and any daily plans.', 'Tugas ini akan dihapus dari ruang kerja dan rencana harian Anda.')
             }
             confirmLabel={
-              deleteTarget.kind === 'lifeArea' ? 'Delete area' : `Delete ${deleteTarget.kind}`
+              deleteTarget.kind === 'lifeArea'
+                ? l('Delete area', 'Hapus area')
+                : deleteTarget.kind === 'review'
+                  ? l('Delete review', 'Hapus evaluasi')
+                  : deleteTarget.kind === 'goal'
+                    ? l('Delete goal', 'Hapus tujuan')
+                    : deleteTarget.kind === 'project'
+                      ? l('Delete project', 'Hapus proyek')
+                      : deleteTarget.kind === 'habit'
+                        ? l('Delete habit', 'Hapus kebiasaan')
+                        : l('Delete task', 'Hapus tugas')
             }
             tone="danger"
             onConfirm={confirmDelete}
@@ -1044,24 +1105,46 @@ export default function App() {
 
         {pendingRestore && (
           <ConfirmModal
-            eyebrow="restore backup"
-            title="Replace current workspace with backup?"
+            eyebrow={l('restore backup', 'pulihkan cadangan')}
+            title={l('Replace current workspace with backup?', 'Ganti ruang kerja saat ini dengan cadangan?')}
             body={
               pendingRestore.exportedAt
-                ? `Backup exported on ${new Date(pendingRestore.exportedAt).toLocaleString()}. Continuing will replace your current workspace.`
-                : 'Continuing will replace your current workspace with this backup file.'
+                ? l(
+                    `Backup exported on ${new Date(pendingRestore.exportedAt).toLocaleString()}. Continuing will replace your current workspace.`,
+                    `Cadangan diekspor pada ${new Date(pendingRestore.exportedAt).toLocaleString('id-ID')}. Melanjutkan akan menggantikan ruang kerja saat ini.`,
+                  )
+                : l(
+                    'Continuing will replace your current workspace with this backup file.',
+                    'Melanjutkan akan menggantikan ruang kerja saat ini dengan file cadangan ini.',
+                  )
             }
             details={[
-              `${pendingRestore.summary.goals} goals · ${pendingRestore.summary.projects} projects · ${pendingRestore.summary.tasks} tasks`,
-              `${pendingRestore.summary.habits} habits · ${pendingRestore.summary.habitLogs} logs · ${pendingRestore.summary.dailyReviews} reviews`,
+              l(
+                `${pendingRestore.summary.goals} goals · ${pendingRestore.summary.projects} projects · ${pendingRestore.summary.tasks} tasks`,
+                `${pendingRestore.summary.goals} tujuan · ${pendingRestore.summary.projects} proyek · ${pendingRestore.summary.tasks} tugas`,
+              ),
+              l(
+                `${pendingRestore.summary.habits} habits · ${pendingRestore.summary.habitLogs} logs · ${pendingRestore.summary.dailyReviews} reviews`,
+                `${pendingRestore.summary.habits} kebiasaan · ${pendingRestore.summary.habitLogs} catatan · ${pendingRestore.summary.dailyReviews} evaluasi`,
+              ),
               ...(pendingRestore.rekeyedDuplicateIds > 0
-                ? [`${pendingRestore.rekeyedDuplicateIds} colliding record ID(s) will be reassigned fresh IDs so nothing is lost.`]
+                ? [
+                    l(
+                      `${pendingRestore.rekeyedDuplicateIds} colliding record ID(s) will be reassigned fresh IDs so nothing is lost.`,
+                      `${pendingRestore.rekeyedDuplicateIds} ID data yang bentrok akan diberi ID baru agar tidak ada yang hilang.`,
+                    ),
+                  ]
                 : []),
               ...(pendingRestore.archivedExcessProjects > 0
-                ? [`${pendingRestore.archivedExcessProjects} excess active project(s) will be archived to keep the ${MAX_ACTIVE_PROJECTS}-project focus limit.`]
+                ? [
+                    l(
+                      `${pendingRestore.archivedExcessProjects} excess active project(s) will be archived to keep the ${MAX_ACTIVE_PROJECTS}-project focus limit.`,
+                      `${pendingRestore.archivedExcessProjects} kelebihan proyek aktif akan diarsipkan untuk menjaga batas fokus ${MAX_ACTIVE_PROJECTS} proyek.`,
+                    ),
+                  ]
                 : []),
             ]}
-            confirmLabel="Restore backup"
+            confirmLabel={l('Restore backup', 'Pulihkan cadangan')}
             tone="solid"
             onConfirm={confirmRestoreBackup}
             onCancel={() => setPendingRestore(null)}

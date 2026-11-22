@@ -1,3 +1,4 @@
+import { useLanguage, type AppLanguage } from '../context/LanguageContext';
 import { ArrowUpRight, Check, Sparkles, X } from './Icon';
 import { Button } from './ui';
 
@@ -49,6 +50,46 @@ export const STARTER_TEMPLATES: readonly StarterTemplateOption[] = [
   },
 ] as const;
 
+const INDONESIAN_STARTER_TEMPLATES: readonly StarterTemplateOption[] = [
+  {
+    id: 'focus',
+    label: 'Fokus Pribadi',
+    summary: 'Rutinitas kesehatan + satu sprint konkret 2 minggu.',
+    areaName: 'Kesehatan',
+    goalTitle: 'Bangun energi harian yang stabil',
+    goalOutcome: 'Tidur 7+ jam dan selesaikan pekerjaan utama sebelum siang.',
+    projectTitle: 'Reset energi dua minggu',
+    projectDescription: 'Membangun jangkar rutinitas pagi dan malam yang konsisten.',
+    tasks: ['Tetapkan jam tidur & bangun tetap', 'Susun 3 prioritas besok sebelum tidur', 'Jalan cepat 30 menit'],
+  },
+  {
+    id: 'study',
+    label: 'Belajar & Keahlian',
+    summary: 'Target belajar terstruktur dengan latihan harian.',
+    areaName: 'Pendidikan',
+    goalTitle: 'Kuasai satu keahlian praktis inti',
+    goalOutcome: 'Selesaikan proyek akhir dan dokumentasikan hasil belajar.',
+    projectTitle: 'Sprint belajar 4 minggu',
+    projectDescription: 'Pelajari materi inti dan hasilkan satu karya nyata.',
+    tasks: ['Tentukan kurikulum & garis akhir', 'Jadwalkan blok belajar fokus 45 menit', 'Tulis ringkasan catatan belajar'],
+  },
+  {
+    id: 'builder',
+    label: 'Pembangun Mandiri',
+    summary: 'Rilis target nyata tanpa perencanaan berlebihan.',
+    areaName: 'Bisnis',
+    goalTitle: 'Luncurkan rilisan yang terfokus',
+    goalOutcome: 'Jangkau pengguna nyata dan kumpulkan masukan jujur.',
+    projectTitle: 'Target rilis v1',
+    projectDescription: 'Batasi cakupan dengan ketat, jalankan Top-3 harian, dan evaluasi mingguan.',
+    tasks: ['Tulis ruang lingkup rilis dalam 3 kalimat', 'Selesaikan tugas penghambat utama hari ini', 'Bagikan progres ke 3 rekan'],
+  },
+] as const;
+
+export function getStarterTemplates(language: AppLanguage): readonly StarterTemplateOption[] {
+  return language === 'id' ? INDONESIAN_STARTER_TEMPLATES : STARTER_TEMPLATES;
+}
+
 interface OnboardingCardProps {
   onDismiss: () => void;
   onApplyTemplate: (template: StarterTemplateOption) => void;
@@ -56,38 +97,44 @@ interface OnboardingCardProps {
 }
 
 export function OnboardingCard({ onDismiss, onApplyTemplate, onCreateGoal }: OnboardingCardProps) {
+  const { language, l } = useLanguage();
+  const templates = getStarterTemplates(language);
+
   return (
-    <section className="panel onboarding-card" aria-label="Getting started with InPursuit">
+    <section className="panel onboarding-card" aria-label={l('Getting started with InPursuit', 'Memulai dengan InPursuit')}>
       <div className="panel-head">
         <div>
-          <div className="eyebrow">how inpursuit works</div>
-          <h2>Turn ambition into daily execution</h2>
+          <div className="eyebrow">{l('how inpursuit works', 'cara kerja inpursuit')}</div>
+          <h2>{l('Turn ambition into daily execution', 'Ubah ambisi menjadi eksekusi harian')}</h2>
         </div>
-        <button type="button" className="icon-btn" aria-label="Dismiss onboarding guide" onClick={onDismiss}>
+        <button type="button" className="icon-btn" aria-label={l('Dismiss onboarding guide', 'Tutup panduan awal')} onClick={onDismiss}>
           <X size={16} />
         </button>
       </div>
 
       <p className="onboarding-lede">
-        Start with outcomes, break them into up to three active projects, then pick today&apos;s Top-3 tasks and review honestly.
+        {l(
+          "Start with outcomes, break them into up to three active projects, then pick today's Top-3 tasks and review honestly.",
+          'Mulai dari hasil yang ingin dicapai, pecah menjadi maksimal tiga proyek aktif, lalu pilih 3 prioritas hari ini dan evaluasi dengan jujur.',
+        )}
       </p>
 
-      <div className="onboarding-loop" aria-label="Core execution workflow">
-        <span>Life Areas</span>
+      <div className="onboarding-loop" aria-label={l('Core execution workflow', 'Alur eksekusi inti')}>
+        <span>{l('Life Areas', 'Area Hidup')}</span>
         <ArrowUpRight size={12} aria-hidden="true" />
-        <span>Goals</span>
+        <span>{l('Goals', 'Tujuan')}</span>
         <ArrowUpRight size={12} aria-hidden="true" />
-        <span>Projects (max 3)</span>
+        <span>{l('Projects (max 3)', 'Proyek (maks 3)')}</span>
         <ArrowUpRight size={12} aria-hidden="true" />
-        <span>Tasks</span>
+        <span>{l('Tasks', 'Tugas')}</span>
         <ArrowUpRight size={12} aria-hidden="true" />
-        <strong>Today Top-3</strong>
+        <strong>{l('Today Top-3', '3 Prioritas Hari Ini')}</strong>
         <ArrowUpRight size={12} aria-hidden="true" />
-        <span>Habits &amp; Review</span>
+        <span>{l('Habits & Review', 'Kebiasaan & Evaluasi')}</span>
       </div>
 
       <div className="onboarding-templates">
-        {STARTER_TEMPLATES.map(template => (
+        {templates.map(template => (
           <button
             key={template.id}
             type="button"
@@ -105,10 +152,10 @@ export function OnboardingCard({ onDismiss, onApplyTemplate, onCreateGoal }: Onb
 
       <div className="panel-foot onboarding-foot">
         <Button variant="outline" onClick={onCreateGoal}>
-          <Check size={14} /> Create my own goal
+          <Check size={14} /> {l('Create my own goal', 'Buat tujuan sendiri')}
         </Button>
         <button type="button" className="text-action" onClick={onDismiss}>
-          Skip guide
+          {l('Skip guide', 'Lewati panduan')}
         </button>
       </div>
     </section>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ArrowUpRight, CalendarDays, Check, FolderKanban, Plus, Settings2, Trash2 } from '../components/Icon';
 import { Button, cx, Empty, Progress, SectionTitle, shortDate } from '../components/ui';
+import { useLanguage } from '../context/LanguageContext';
 import type { Goal, Project, Task } from '../types';
 import { getNeglectedProjects } from '../utils/intelligence';
 import { MAX_ACTIVE_PROJECTS } from '../utils/projectLimits';
@@ -32,29 +33,40 @@ export function ProjectsView({
   onStartPhase,
   onEditTask,
 }: ProjectsViewProps) {
+  const { locale, l } = useLanguage();
   const [filter, setFilter] = useState<'active' | 'planned' | 'all'>('active');
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
   const visible = projects.filter(p => (filter === 'all' ? true : p.status === filter));
   const activeCount = projects.filter(p => p.status === 'active').length;
   const plannedCount = projects.filter(p => p.status === 'planned').length;
   const neglectedMap = new Map(getNeglectedProjects(projects, tasks).map(n => [n.project.id, n]));
+  const statusLabel = (status: Project['status']) =>
+    status === 'active'
+      ? l('active', 'aktif')
+      : status === 'planned'
+        ? l('planned', 'direncanakan')
+        : status === 'completed'
+          ? l('completed', 'selesai')
+          : l('archived', 'diarsipkan');
+  const priorityLabel = (priority: Task['priority']) =>
+    priority === 'high' ? l('high', 'tinggi') : priority === 'medium' ? l('medium', 'sedang') : l('low', 'rendah');
 
   return (
     <div className="view-stack">
-      <SectionTitle eyebrow="strategy · deliverables" title="Projects">
+      <SectionTitle eyebrow={l('strategy · deliverables', 'strategi · target nyata')} title={l('Projects', 'Proyek')}>
         <div className="project-title-actions">
-          <span className="active-project-count">{activeCount}/{MAX_ACTIVE_PROJECTS} active</span>
-          <Button variant="solid" onClick={onAdd}><Plus size={15} /> New project</Button>
+          <span className="active-project-count">{activeCount}/{MAX_ACTIVE_PROJECTS} {l('active', 'aktif')}</span>
+          <Button variant="solid" onClick={onAdd}><Plus size={15} /> {l('New project', 'Proyek baru')}</Button>
         </div>
       </SectionTitle>
       <div className="page-toolbar">
-        <p className="page-lede">Projects turn goals into milestones you can actually complete. Limit active work to {MAX_ACTIVE_PROJECTS}; future phases stay planned.</p>
+        <p className="page-lede">{l(`Projects turn goals into milestones you can actually complete. Limit active work to ${MAX_ACTIVE_PROJECTS}; future phases stay planned.`, `Proyek mengubah tujuan menjadi tonggak yang benar-benar bisa diselesaikan. Batasi proyek aktif hingga ${MAX_ACTIVE_PROJECTS}; fase berikutnya tetap berstatus direncanakan.`)}</p>
         <div className="segmented">
-          <button type="button" className={filter === 'active' ? 'selected' : ''} onClick={() => setFilter('active')}>Active</button>
+          <button type="button" className={filter === 'active' ? 'selected' : ''} onClick={() => setFilter('active')}>{l('Active', 'Aktif')}</button>
           <button type="button" className={filter === 'planned' ? 'selected' : ''} onClick={() => setFilter('planned')}>
-            Planned{plannedCount > 0 ? ` (${plannedCount})` : ''}
+            {l('Planned', 'Direncanakan')}{plannedCount > 0 ? ` (${plannedCount})` : ''}
           </button>
-          <button type="button" className={filter === 'all' ? 'selected' : ''} onClick={() => setFilter('all')}>All</button>
+          <button type="button" className={filter === 'all' ? 'selected' : ''} onClick={() => setFilter('all')}>{l('All', 'Semua')}</button>
         </div>
       </div>
 
@@ -74,33 +86,33 @@ export function ProjectsView({
                   <div className="project-symbol"><FolderKanban size={18} /></div>
                   <div className="project-copy">
                     <div className="project-meta">
-                      <span className={cx('status-label', project.status)}>{project.status}</span>
+                      <span className={cx('status-label', project.status)}>{statusLabel(project.status)}</span>
                       {goal && <span>↗ {goal.title}</span>}
-                      {project.theme && <span>Theme: {project.theme}</span>}
+                      {project.theme && <span>{l('Theme', 'Tema')}: {project.theme}</span>}
                       {neglected && (
                         <span className="attention-tag">
-                          {neglected.reason === 'no-tasks' ? 'No tasks yet' : `Quiet ${neglected.daysIdle}d`}
+                          {neglected.reason === 'no-tasks' ? l('No tasks yet', 'Belum ada tugas') : l(`Quiet ${neglected.daysIdle}d`, `Tenang ${neglected.daysIdle}h`)}
                         </span>
                       )}
                     </div>
                     <h3>{project.title}</h3>
-                    <p>{project.description || 'No project description yet.'}</p>
+                    <p>{project.description || l('No project description yet.', 'Belum ada deskripsi proyek.')}</p>
                     {project.exitCondition && (
-                      <p className="phase-meta-line">Exit: {project.exitCondition}</p>
+                      <p className="phase-meta-line">{l('Exit', 'Syarat selesai')}: {project.exitCondition}</p>
                     )}
                   </div>
                   <div className="project-actions">
-                    <button type="button" className="icon-btn" aria-label={`Edit project ${project.title}`} onClick={() => onEdit(project.id)}>
+                    <button type="button" className="icon-btn" aria-label={l(`Edit project ${project.title}`, `Ubah proyek ${project.title}`)} onClick={() => onEdit(project.id)}>
                       <Settings2 size={16} />
                     </button>
-                    <button type="button" className="icon-btn" aria-label={`Delete project ${project.title}`} onClick={() => onDelete(project.id, project.title)}>
+                    <button type="button" className="icon-btn" aria-label={l(`Delete project ${project.title}`, `Hapus proyek ${project.title}`)} onClick={() => onDelete(project.id, project.title)}>
                       <Trash2 size={15} />
                     </button>
                   </div>
                 </div>
 
                 <div className="project-progress">
-                  <div><span>{done} of {projectTasks.length} tasks completed</span><b>{progress}%</b></div>
+                  <div><span>{l(`${done} of ${projectTasks.length} tasks completed`, `${done} dari ${projectTasks.length} tugas selesai`)}</span><b>{progress}%</b></div>
                   <Progress value={progress} />
                 </div>
 
@@ -108,10 +120,10 @@ export function ProjectsView({
                   <span>
                     <CalendarDays size={13} />{' '}
                     {project.startDate && project.dueDate
-                      ? `${shortDate(project.startDate)} → ${shortDate(project.dueDate)}`
+                      ? `${shortDate(project.startDate, locale)} → ${shortDate(project.dueDate, locale)}`
                       : project.dueDate
-                        ? `Due ${shortDate(project.dueDate)}`
-                        : 'No deadline'}
+                        ? `${l('Due', 'Tenggat')} ${shortDate(project.dueDate, locale)}`
+                        : l('No deadline', 'Tanpa tenggat')}
                   </span>
                   <div className="project-foot-actions">
                     {project.status === 'planned' && onStartPhase && (
@@ -121,18 +133,18 @@ export function ProjectsView({
                         disabled={activeCount >= MAX_ACTIVE_PROJECTS}
                         title={
                           activeCount >= MAX_ACTIVE_PROJECTS
-                            ? `Active project limit reached (${MAX_ACTIVE_PROJECTS}). Complete or archive a project first.`
-                            : 'Activate this phase now'
+                            ? l(`Active project limit reached (${MAX_ACTIVE_PROJECTS}). Complete or archive a project first.`, `Batas proyek aktif (${MAX_ACTIVE_PROJECTS}) tercapai. Selesaikan atau arsipkan proyek lain terlebih dahulu.`)
+                            : l('Activate this phase now', 'Aktifkan fase ini sekarang')
                         }
                         onClick={() => onStartPhase(project.id)}
                       >
-                        Start phase
+                        {l('Start phase', 'Mulai fase')}
                       </button>
                     )}
                     <button type="button" onClick={() => setExpandedProjectId(isExpanded ? null : project.id)}>
-                      {isExpanded ? 'Hide tasks' : `Tasks (${projectTasks.length})`}
+                      {isExpanded ? l('Hide tasks', 'Sembunyikan tugas') : `${l('Tasks', 'Tugas')} (${projectTasks.length})`}
                     </button>
-                    <button type="button" onClick={() => onAddTask(project.id)}><Plus size={14} /> Add task</button>
+                    <button type="button" onClick={() => onAddTask(project.id)}><Plus size={14} /> {l('Add task', 'Tambah tugas')}</button>
                   </div>
                 </div>
 
@@ -148,7 +160,7 @@ export function ProjectsView({
                           <div className={cx('task-row', task.status === 'done' && 'is-done')} key={task.id}>
                             <button
                               type="button"
-                              aria-label={task.status === 'done' ? `Reopen ${task.title}` : `Complete ${task.title}`}
+                              aria-label={task.status === 'done' ? l(`Reopen ${task.title}`, `Buka kembali ${task.title}`) : l(`Complete ${task.title}`, `Selesaikan ${task.title}`)}
                               className={cx('check-control', task.status === 'done' && 'checked')}
                               onClick={() => onToggleTask(task)}
                             >
@@ -156,15 +168,15 @@ export function ProjectsView({
                             </button>
                             <button type="button" className="task-title-button" onClick={() => onEditTask(task.id)}>
                               <b>{task.title}</b>
-                              <small>{task.dueDate ? `Due ${shortDate(task.dueDate)}` : 'No date'} · {task.priority}</small>
+                              <small>{task.dueDate ? `${l('Due', 'Tenggat')} ${shortDate(task.dueDate, locale)}` : l('No date', 'Tanpa tanggal')} · {priorityLabel(task.priority)}</small>
                             </button>
                             {hasTargetQty && (
-                              <div className="weekly-habit-actions" aria-label={`${task.title} quantity progress`}>
+                              <div className="weekly-habit-actions" aria-label={l(`${task.title} quantity progress`, `Progres target ${task.title}`)}>
                                 <button
                                   type="button"
                                   className="habit-mini-btn"
                                   disabled={completedQty <= 0}
-                                  aria-label={`Decrease progress for ${task.title} (-1)`}
+                                  aria-label={l(`Decrease progress for ${task.title} (-1)`, `Kurangi progres ${task.title} (-1)`)}
                                   onClick={() => onAdjustTaskQuantity?.(task, -1)}
                                 >
                                   -1
@@ -174,21 +186,21 @@ export function ProjectsView({
                                   type="button"
                                   className="habit-mini-btn"
                                   disabled={completedQty >= task.targetQuantity!}
-                                  aria-label={`Increase progress for ${task.title} (+1)`}
+                                  aria-label={l(`Increase progress for ${task.title} (+1)`, `Tambah progres ${task.title} (+1)`)}
                                   onClick={() => onAdjustTaskQuantity?.(task, 1)}
                                 >
                                   +1
                                 </button>
                               </div>
                             )}
-                            <button type="button" className="icon-btn subtle" aria-label={`Edit ${task.title}`} onClick={() => onEditTask(task.id)}>
+                            <button type="button" className="icon-btn subtle" aria-label={l(`Edit ${task.title}`, `Ubah ${task.title}`)} onClick={() => onEditTask(task.id)}>
                               <ArrowUpRight size={14} />
                             </button>
                           </div>
                         );
                       })
                     ) : (
-                      <p className="project-drawer-empty">No tasks linked yet. Add a concrete next action.</p>
+                      <p className="project-drawer-empty">{l('No tasks linked yet. Add a concrete next action.', 'Belum ada tugas terhubung. Tambahkan langkah konkret berikutnya.')}</p>
                     )}
                   </div>
                 )}
@@ -198,13 +210,13 @@ export function ProjectsView({
         </div>
       ) : (
         <Empty
-          title={filter === 'planned' ? 'No planned projects or phases.' : 'Start with a project.'}
+          title={filter === 'planned' ? l('No planned projects or phases.', 'Belum ada proyek atau fase yang direncanakan.') : l('Start with a project.', 'Mulai dengan sebuah proyek.')}
           body={
             filter === 'planned'
-              ? 'Phases imported beyond the 3 active limit or starting in the future appear here as planned.'
-              : 'Give a goal a concrete shape. A project should have a finish line.'
+              ? l('Phases imported beyond the 3 active limit or starting in the future appear here as planned.', 'Fase yang diimpor di luar batas 3 proyek aktif atau dimulai di masa depan akan muncul di sini.')
+              : l('Give a goal a concrete shape. A project should have a finish line.', 'Beri wujud nyata pada tujuan Anda. Proyek harus memiliki garis finis yang jelas.')
           }
-          action={<Button variant="solid" onClick={onAdd}><Plus size={15} /> Create a project</Button>}
+          action={<Button variant="solid" onClick={onAdd}><Plus size={15} /> {l('Create a project', 'Buat proyek')}</Button>}
         />
       )}
     </div>

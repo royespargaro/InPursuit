@@ -1,5 +1,6 @@
 import { ArrowUpRight, CalendarDays, Check, CheckCircle2, Plus, Settings2, Sparkles, Trash2 } from '../components/Icon';
 import { Button, cx, Empty, Progress, SectionTitle, shortDate } from '../components/ui';
+import { useLanguage } from '../context/LanguageContext';
 import type { Goal, LifeArea, Project, Task } from '../types';
 import { getGoalProgress } from '../utils/intelligence';
 
@@ -28,21 +29,28 @@ export function GoalsView({
   onOpenImportPlan,
   onToggleCriterion,
 }: GoalsViewProps) {
+  const { locale, l } = useLanguage();
   const active = goals.filter(g => g.status === 'active');
   const inactive = goals.filter(g => g.status !== 'active');
+  const goalStatusLabel = (status: Goal['status']) =>
+    status === 'completed'
+      ? l('completed', 'selesai')
+      : status === 'archived'
+        ? l('archived', 'diarsipkan')
+        : l('active', 'aktif');
 
   return (
     <div className="view-stack">
-      <SectionTitle eyebrow="direction · outcomes" title="Goals">
+      <SectionTitle eyebrow={l('direction · outcomes', 'arah · hasil')} title={l('Goals', 'Tujuan')}>
         <div className="project-title-actions">
           {onOpenImportPlan && (
-            <Button variant="outline" onClick={onOpenImportPlan}><Sparkles size={14} /> Import plan</Button>
+            <Button variant="outline" onClick={onOpenImportPlan}><Sparkles size={14} /> {l('Import plan', 'Impor rencana')}</Button>
           )}
-          <Button variant="outline" onClick={onManageAreas}>Manage areas</Button>
-          <Button variant="solid" onClick={onAdd}><Plus size={15} /> New goal</Button>
+          <Button variant="outline" onClick={onManageAreas}>{l('Manage areas', 'Kelola area')}</Button>
+          <Button variant="solid" onClick={onAdd}><Plus size={15} /> {l('New goal', 'Tujuan baru')}</Button>
         </div>
       </SectionTitle>
-      <div className="page-lede">A goal defines the result. Projects and tasks define the work that gets you there.</div>
+      <div className="page-lede">{l('A goal defines the result. Projects and tasks define the work that gets you there.', 'Tujuan menetapkan hasil akhir. Proyek dan tugas menentukan langkah nyata menuju ke sana.')}</div>
 
       {active.length ? (
         <div className="goal-grid">
@@ -53,24 +61,24 @@ export function GoalsView({
               <article className="goal-card" key={goal.id}>
                 <div className="card-topline">
                   <span className="tag-label">
-                    {lifeArea?.name ?? 'UNASSIGNED AREA'}
+                    {lifeArea?.name ?? l('UNASSIGNED AREA', 'AREA BELUM DITETAPKAN')}
                     {typeof goal.pillarWeightPct === 'number' ? ` · ${goal.pillarWeightPct}%` : ''}
                   </span>
                   <div className="project-actions">
-                    <button type="button" className="icon-btn" title="Edit goal" aria-label={`Edit goal ${goal.title}`} onClick={() => onEdit(goal.id)}>
+                    <button type="button" className="icon-btn" title={l('Edit goal', 'Ubah tujuan')} aria-label={l(`Edit goal ${goal.title}`, `Ubah tujuan ${goal.title}`)} onClick={() => onEdit(goal.id)}>
                       <Settings2 size={15} />
                     </button>
-                    <button type="button" className="icon-btn" title="Delete goal" aria-label={`Delete goal ${goal.title}`} onClick={() => onDelete(goal.id, goal.title)}>
+                    <button type="button" className="icon-btn" title={l('Delete goal', 'Hapus tujuan')} aria-label={l(`Delete goal ${goal.title}`, `Hapus tujuan ${goal.title}`)} onClick={() => onDelete(goal.id, goal.title)}>
                       <Trash2 size={15} />
                     </button>
                   </div>
                 </div>
                 <h3>{goal.title}</h3>
-                <p>{goal.outcome || 'Define what success looks like.'}</p>
-                <div className="goal-date"><CalendarDays size={14} /> Target · {goal.targetDate ? shortDate(goal.targetDate) : 'No deadline'}</div>
+                <p>{goal.outcome || l('Define what success looks like.', 'Definisikan wujud keberhasilan tujuan ini.')}</p>
+                <div className="goal-date"><CalendarDays size={14} /> {l('Target', 'Target')} · {goal.targetDate ? shortDate(goal.targetDate, locale) : l('No deadline', 'Tanpa tenggat')}</div>
                 {goal.successCriteria && goal.successCriteria.length > 0 && (
-                  <div className="goal-extra-list" aria-label={`Success criteria for ${goal.title}`}>
-                    <div className="eyebrow">success criteria</div>
+                  <div className="goal-extra-list" aria-label={l(`Success criteria for ${goal.title}`, `Kriteria keberhasilan untuk ${goal.title}`)}>
+                    <div className="eyebrow">{l('success criteria', 'kriteria keberhasilan')}</div>
                     {goal.successCriteria.map(criterion => (
                       <button
                         key={criterion.id}
@@ -87,8 +95,8 @@ export function GoalsView({
                   </div>
                 )}
                 {goal.principles && goal.principles.length > 0 && (
-                  <div className="goal-extra-list" aria-label={`Principles for ${goal.title}`}>
-                    <div className="eyebrow">principles</div>
+                  <div className="goal-extra-list" aria-label={l(`Principles for ${goal.title}`, `Prinsip untuk ${goal.title}`)}>
+                    <div className="eyebrow">{l('principles', 'prinsip')}</div>
                     {goal.principles.map(principle => (
                       <div key={principle.id} className="goal-principle-row">
                         {principle.text}
@@ -97,15 +105,18 @@ export function GoalsView({
                   </div>
                 )}
                 <div className="goal-progress-head">
-                  <span>Execution progress</span>
+                  <span>{l('Execution progress', 'Progres eksekusi')}</span>
                   <b>{metrics.percent}%</b>
                 </div>
                 <Progress value={metrics.percent} />
                 <div className="goal-card-foot">
                   <span>
-                    {metrics.linkedProjects} projects · {metrics.completedTasks}/{metrics.totalTasks} tasks done
+                    {l(
+                      `${metrics.linkedProjects} projects · ${metrics.completedTasks}/${metrics.totalTasks} tasks done`,
+                      `${metrics.linkedProjects} proyek · ${metrics.completedTasks}/${metrics.totalTasks} tugas selesai`,
+                    )}
                   </span>
-                  <button type="button" onClick={() => onEdit(goal.id)}>Edit goal <ArrowUpRight size={13} /></button>
+                  <button type="button" onClick={() => onEdit(goal.id)}>{l('Edit goal', 'Ubah tujuan')} <ArrowUpRight size={13} /></button>
                 </div>
               </article>
             );
@@ -113,22 +124,22 @@ export function GoalsView({
         </div>
       ) : (
         <Empty
-          title="Give your effort a direction."
-          body="Create one meaningful outcome. You can connect projects and tasks to it as you go."
-          action={<Button variant="solid" onClick={onAdd}><Plus size={15} /> Create a goal</Button>}
+          title={l('Give your effort a direction.', 'Beri arah pada usaha Anda.')}
+          body={l('Create one meaningful outcome. You can connect projects and tasks to it as you go.', 'Buat satu hasil bermakna. Anda bisa menghubungkan proyek dan tugas ke dalamnya sambil berjalan.')}
+          action={<Button variant="solid" onClick={onAdd}><Plus size={15} /> {l('Create a goal', 'Buat tujuan')}</Button>}
         />
       )}
 
       {inactive.length > 0 && (
         <div className="archive-list">
-          <div className="eyebrow">completed / archived</div>
+          <div className="eyebrow">{l('completed / archived', 'selesai / diarsipkan')}</div>
           {inactive.map(g => (
             <div key={g.id} className="archive-row">
               <CheckCircle2 size={15} />
               <span>{g.title}</span>
-              <small className="archive-status">{g.status}</small>
-              <button type="button" onClick={() => onEdit(g.id)}>Edit</button>
-              <button type="button" aria-label={`Delete ${g.title}`} onClick={() => onDelete(g.id, g.title)}>Delete</button>
+              <small className="archive-status">{goalStatusLabel(g.status)}</small>
+              <button type="button" onClick={() => onEdit(g.id)}>{l('Edit', 'Ubah')}</button>
+              <button type="button" aria-label={l(`Delete ${g.title}`, `Hapus ${g.title}`)} onClick={() => onDelete(g.id, g.title)}>{l('Delete', 'Hapus')}</button>
             </div>
           ))}
         </div>

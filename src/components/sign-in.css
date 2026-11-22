@@ -64,6 +64,31 @@
   letter-spacing: -0.03em;
 }
 
+.carriage-top-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.carriage-topbar .lang-toggle {
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.carriage-topbar .lang-toggle button {
+  color: rgba(244, 247, 255, 0.85);
+}
+
+.carriage-topbar .lang-toggle button:hover {
+  color: #ffffff;
+}
+
+.carriage-topbar .lang-toggle button.active {
+  background: #ffffff;
+  color: #0f1822;
+}
+
 .carriage-top-link {
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 999px;

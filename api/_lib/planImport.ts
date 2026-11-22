@@ -316,34 +316,34 @@ function buildSystemPrompt(anchorDate: string): string {
     '2. Every extracted item MUST include an exact verbatim `source_quote` copied directly from the input text (and clarifications MUST include an exact verbatim `related_quote`). Each quote MUST be the shortest unique verbatim snippet, max 12 words — never copy long sentences or paragraphs, and never paraphrase or alter words.',
     '3. NEVER invent dates, numbers, metrics, priorities, habits, tasks, or goals.',
     '4. Put anything ambiguous, underspecified, or missing key execution details (like unclear cadence, missing target date, ambiguous metric) into `clarifications`.',
-    '5. Return ISO calendar dates (`YYYY-MM-DD`) when explicit calendar dates appear in the text. If the text uses relative phrases such as "Days 1–30", "Day 15", "Week 2", or "Months 1-2", preserve the exact relative phrase in `start`/`end`/`due` (or leave empty string `""` for missing phase boundaries) instead of doing mental calendar arithmetic.',
-    '6. Treat frequencies written as "X per week", "X times a week", "X days/week", or "Xx/week" strictly as `cadence: "weekly_count"` with `target_count: X` — NEVER as `"daily"`. Use `"specific_days"` only when explicit days of the week (e.g., Mon/Wed/Fri) are stated.',
-    '7. Keep titles concise and faithful to the text. Set `pillar_weight_pct` only if percentage weights are explicitly stated. Set goal `life_area` only when a life area/domain (e.g. Health, Career, Business, Wealth, Education) is explicitly mentioned. Set task `priority` ("high", "medium", or "low") only when urgency/priority is explicitly indicated in the text.',
+    '5. Return ISO calendar dates (`YYYY-MM-DD`) when explicit calendar dates appear in the text. If the text uses relative phrases in English or Indonesian such as "Days 1–30", "Hari 1–30", "Day 15", "Hari ke-15", "Week 2", "Minggu 2", "Months 1-2", or "Bulan 1-2", preserve the exact relative phrase in `start`/`end`/`due` (or leave empty string `""` for missing phase boundaries) instead of doing mental calendar arithmetic.',
+    '6. Treat frequencies written as "X per week", "X times a week", "X days/week", "Xx/week", "X kali seminggu", "Xx seminggu", or "X hari per minggu" strictly as `cadence: "weekly_count"` with `target_count: X` — NEVER as `"daily"`. Use `"specific_days"` only when explicit days of the week (e.g., Mon/Wed/Fri or Senin/Rabu/Jumat) are stated, mapping days strictly to `"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun"`.',
+    '7. Keep human-readable titles, descriptions, themes, exit conditions, life areas, minimum versions, and clarification questions in the SAME language as the user input text (English, Bahasa Indonesia, or mixed as written). Set `pillar_weight_pct` only if percentage weights are explicitly stated. Set goal `life_area` only when a life area/domain (e.g. Health/Kesehatan, Career/Karier, Business/Bisnis, Finance/Keuangan, Education/Pendidikan) is explicitly mentioned. Set task `priority` ("high", "medium", or "low") only when urgency/priority is explicitly indicated in the text.',
   ].join('\n');
 }
 
 function buildVerificationPrompt(anchorDate: string): string {
   return [
-    'You are auditing a structured plan extraction against the original free-text plan.',
+    'You are auditing a structured plan extraction against the original free-text plan (which may be in English, Bahasa Indonesia, or mixed).',
     `Current date: ${anchorDate}. Timezone: ${PLAN_TIMEZONE}.`,
     'Compare the original text and the Pass-1 JSON extraction carefully:',
     '1. List ONLY items explicitly present in the original text that are missing from Pass-1 under `missing`. Keep every `source_quote` / `related_quote` as the shortest unique verbatim snippet from the original text, max 12 words.',
-    '2. List ONLY items in Pass-1 that have wrong fields (e.g. a "X per week" habit marked "daily", wrong target_count, missing time_block/minimum_version/exit_condition explicitly stated in the text) under `updates` with the shortest unique verbatim `source_quote` (max 12 words).',
+    '2. List ONLY items in Pass-1 that have wrong fields (e.g. a "X per week" / "X kali seminggu" habit marked "daily", wrong target_count, missing time_block/minimum_version/exit_condition explicitly stated in the text) under `updates` with the shortest unique verbatim `source_quote` (max 12 words).',
     '3. List ONLY hallucinated or unsupported items that are NOT explicitly in the original text under `removals`.',
-    '4. If Pass-1 is already complete and accurate, return empty arrays for every field. Never invent dates, numbers, or items.',
+    '4. Keep extracted human text in the same language as the original plan text and schema enums (`daily`, `weekly_count`, `specific_days`, `high`/`medium`/`low`, `mon`..`sun`) in English. If Pass-1 is already complete and accurate, return empty arrays for every field. Never invent dates, numbers, or items.',
   ].join('\n');
 }
 
 function buildRefinePrompt(anchorDate: string): string {
   return [
-    'You are updating an existing structured plan draft based on the original plan, user clarification answers, and a user refinement instruction.',
+    'You are updating an existing structured plan draft based on the original plan, user clarification answers, and a user refinement instruction (any of which may be in English, Bahasa Indonesia, or mixed).',
     `Current date: ${anchorDate}. Timezone: ${PLAN_TIMEZONE}.`,
     'Rules:',
-    '1. Apply the user instruction and clarification answers faithfully to the current draft.',
+    '1. Apply the user instruction and clarification answers faithfully to the current draft, preserving the language of the plan/instruction for human-readable text.',
     '2. Preserve valid untouched items from the current draft along with their exact `source_quote`.',
     '3. For newly added or modified items requested in the instruction/answers, use the shortest unique verbatim `source_quote` (max 12 words) copied from the instruction, clarification answer, or original plan text.',
     '4. Remove any clarified ambiguity from `clarifications` once resolved; keep unresolved ones.',
-    '5. Treat "X per week" / "X times a week" strictly as `cadence: "weekly_count"` with `target_count: X`, NOT `"daily"`. Return ISO dates (`YYYY-MM-DD`) for explicit dates and preserve relative phrases like "Day 15" cleanly.',
+    '5. Treat "X per week" / "X times a week" / "X kali seminggu" strictly as `cadence: "weekly_count"` with `target_count: X`, NOT `"daily"`. Keep schema enum values (`daily`, `weekly_count`, `specific_days`, `high`/`medium`/`low`, `mon`..`sun`) in English. Return ISO dates (`YYYY-MM-DD`) for explicit dates and preserve relative phrases like "Day 15" / "Hari ke-15" cleanly.',
   ].join('\n');
 }
 

@@ -5,11 +5,22 @@ import {
   Activity, ArrowDown, ArrowUp, ArrowUpRight, Check, Flag, FolderKanban, Plus, RotateCcw, Sparkles, Target, X,
 } from '../components/Icon';
 import { Button, cx, Empty, prettyDate, Progress, shortDate } from '../components/ui';
+import { useLanguage } from '../context/LanguageContext';
 import type { AppData, Habit, PlanImportRecord, Task } from '../types';
 import { getTodayHabitCount, getWeeklyHabitCount } from '../utils/habitUtils';
 import { getGoalProgress } from '../utils/intelligence';
 import { MAX_ACTIVE_PROJECTS } from '../utils/projectLimits';
 import { buildTodaySchedule } from '../utils/todayScheduler';
+
+const DAY_LABELS_ID: Record<string, string> = {
+  mon: 'Sen',
+  tue: 'Sel',
+  wed: 'Rab',
+  thu: 'Kam',
+  fri: 'Jum',
+  sat: 'Sab',
+  sun: 'Min',
+};
 
 type TaskTab = 'today' | 'upcoming' | 'nodate' | 'all' | 'skipped';
 
@@ -100,6 +111,7 @@ export function TodayView({
   lastImportRecord,
   onUndoImport,
 }: TodayViewProps) {
+  const { locale, l } = useLanguage();
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [taskSearch, setTaskSearch] = useState('');
   const [taskTab, setTaskTab] = useState<TaskTab>('today');
@@ -260,8 +272,21 @@ export function TodayView({
   );
 
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-  const projectName = (id: string | null) => data.projects.find(p => p.id === id)?.title ?? 'Personal';
+  const greeting =
+    hour < 12
+      ? l('Good morning', 'Selamat pagi')
+      : hour < 15
+        ? l('Good afternoon', 'Selamat siang')
+        : hour < 18
+          ? l('Good afternoon', 'Selamat sore')
+          : l('Good evening', 'Selamat malam');
+  const projectName = (id: string | null) => data.projects.find(p => p.id === id)?.title ?? l('Personal', 'Pribadi');
+  const priorityLabel = (priority: Task['priority']) =>
+    priority === 'high' ? l('high', 'tinggi') : priority === 'medium' ? l('medium', 'sedang') : l('low', 'rendah');
+  const formatFrequency = (freq: string) =>
+    freq === 'daily' ? l('daily', 'harian') : freq === 'weekly' ? l('weekly', 'mingguan') : freq;
+  const formatDays = (days: string[]) =>
+    days.map(d => (locale === 'id-ID' ? (DAY_LABELS_ID[d] ?? d) : d)).join(', ');
 
   const movePriority = (index: number, delta: -1 | 1) => {
     const target = index + delta;
@@ -289,7 +314,7 @@ export function TodayView({
         })
         .map(goal => {
           const progress = getGoalProgress(goal, data.projects, data.tasks);
-          const areaName = data.lifeAreas.find(a => a.id === goal.lifeAreaId)?.name ?? 'Direction';
+          const areaName = data.lifeAreas.find(a => a.id === goal.lifeAreaId)?.name ?? l('Direction', 'Arah');
           return {
             id: goal.id,
             title: goal.title,
@@ -300,16 +325,16 @@ export function TodayView({
             targetDate: goal.targetDate,
           };
         }),
-    [data.goals, data.lifeAreas, data.projects, data.tasks],
+    [data.goals, data.lifeAreas, data.projects, data.tasks, l],
   );
 
   return (
     <div className="view-stack">
       <FilmHeader
-        eyebrow={prettyDate(today)}
+        eyebrow={prettyDate(today, undefined, locale)}
         title={greeting.toLowerCase()}
-        subtitle="Choose what matters. Then do the work."
-        scene={`daily overview · take ${today}`}
+        subtitle={l('Choose what matters. Then do the work.', 'Pilih yang paling penting. Lalu kerjakan.')}
+        scene={l(`daily overview · take ${today}`, `ringkasan harian · ${today}`)}
         goals={heroGoals}
         onReview={onReview}
         onAddTask={onAddTask}
@@ -329,41 +354,43 @@ export function TodayView({
       {lastImportRecord && onUndoImport && (
         <div className="import-undo-bar" role="status">
           <span>
-            Imported {lastImportRecord.counts.goals} goals · {lastImportRecord.counts.phases} phases · {lastImportRecord.counts.habits} habits · {lastImportRecord.counts.tasks} tasks
-            {lastImportRecord.counts.deduped > 0 ? ` (${lastImportRecord.counts.deduped} deduped)` : ''}
+            {l(
+              `Imported ${lastImportRecord.counts.goals} goals · ${lastImportRecord.counts.phases} phases · ${lastImportRecord.counts.habits} habits · ${lastImportRecord.counts.tasks} tasks${lastImportRecord.counts.deduped > 0 ? ` (${lastImportRecord.counts.deduped} deduped)` : ''}`,
+              `Diimpor ${lastImportRecord.counts.goals} tujuan · ${lastImportRecord.counts.phases} fase · ${lastImportRecord.counts.habits} kebiasaan · ${lastImportRecord.counts.tasks} tugas${lastImportRecord.counts.deduped > 0 ? ` (${lastImportRecord.counts.deduped} dideduplikasi)` : ''}`,
+            )}
           </span>
           <button type="button" className="sync-retry-btn" onClick={onUndoImport}>
-            <RotateCcw size={13} /> Undo import
+            <RotateCcw size={13} /> {l('Undo import', 'Batalkan impor')}
           </button>
         </div>
       )}
 
       <div className="stat-grid">
         <div className="stat-card">
-          <div className="stat-top"><span>Daily progress</span><Activity size={16} /></div>
+          <div className="stat-top"><span>{l('Daily progress', 'Progres harian')}</span><Activity size={16} /></div>
           <div className="stat-value">{completion}<small>%</small></div>
           <Progress value={completion} />
-          <div className="stat-foot">{doneActions} of {totalActions} actions completed</div>
+          <div className="stat-foot">{l(`${doneActions} of ${totalActions} actions completed`, `${doneActions} dari ${totalActions} aksi selesai`)}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-top"><span>Priority wins</span><Flag size={16} /></div>
+          <div className="stat-top"><span>{l('Priority wins', 'Kemenangan prioritas')}</span><Flag size={16} /></div>
           <div className="stat-value">{priorityTasks.filter(t => t.status === 'done').length}<small>/{priorityTasks.length}</small></div>
-          <div className="stat-foot">Your three most important outcomes</div>
+          <div className="stat-foot">{l('Your three most important outcomes', 'Tiga hasil terpenting Anda hari ini')}</div>
           <div className="stat-mini"><span style={{ width: `${priorityTasks.length ? (priorityTasks.filter(t => t.status === 'done').length / priorityTasks.length) * 100 : 0}%` }} /></div>
         </div>
         <div className="stat-card">
-          <div className="stat-top"><span>Active projects</span><FolderKanban size={16} /></div>
+          <div className="stat-top"><span>{l('Active projects', 'Proyek aktif')}</span><FolderKanban size={16} /></div>
           <div className="stat-value">{data.projects.filter(p => p.status === 'active').length.toString().padStart(2, '0')}</div>
-          <div className="stat-foot">{data.tasks.filter(t => t.status === 'todo').length} open tasks across your projects</div>
-          <div className="stat-quiet"><span />Max {MAX_ACTIVE_PROJECTS} active for focus</div>
+          <div className="stat-foot">{l(`${data.tasks.filter(t => t.status === 'todo').length} open tasks across your projects`, `${data.tasks.filter(t => t.status === 'todo').length} tugas terbuka di semua proyek`)}</div>
+          <div className="stat-quiet"><span />{l(`Max ${MAX_ACTIVE_PROJECTS} active for focus`, `Maks ${MAX_ACTIVE_PROJECTS} aktif agar fokus`)}</div>
         </div>
       </div>
 
-      <section className="panel today-queue-panel" aria-label="Today's execution queue">
+      <section className="panel today-queue-panel" aria-label={l("Today's execution queue", 'Antrean eksekusi hari ini')}>
         <div className="panel-head">
           <div>
-            <div className="eyebrow">auto-scheduled · {schedule.weekStart} to {schedule.weekEnd}</div>
-            <h2>Today&apos;s focus queue</h2>
+            <div className="eyebrow">{l(`auto-scheduled · ${schedule.weekStart} to ${schedule.weekEnd}`, `terjadwal otomatis · ${schedule.weekStart} s.d. ${schedule.weekEnd}`)}</div>
+            <h2>{l("Today's focus queue", 'Antrean fokus hari ini')}</h2>
           </div>
           <div className="project-title-actions">
             <button
@@ -372,11 +399,11 @@ export function TodayView({
               aria-pressed={roughDay}
               onClick={() => setRoughDay(v => !v)}
             >
-              Rough day
+              {l('Rough day', 'Hari berat')}
             </button>
             {onOpenImportPlan && (
               <Button variant="outline" onClick={onOpenImportPlan}>
-                <Sparkles size={14} /> Import plan
+                <Sparkles size={14} /> {l('Import plan', 'Impor rencana')}
               </Button>
             )}
             <span className="count-pill">{visibleQueueItems.length}/{queueItems.length}</span>
@@ -389,14 +416,14 @@ export function TodayView({
                 const { habit, weeklyCount, todayCount, done } = item;
                 const isWeeklyCount = habit.cadence === 'weekly_count';
                 const roughLabel = habit.minimumVersion?.trim() || habit.name;
-                const metaParts: string[] = ['Habit'];
+                const metaParts: string[] = [l('Habit', 'Kebiasaan')];
                 if (!roughDay) {
                   if (isWeeklyCount && habit.targetCount) {
-                    metaParts.push(`${weeklyCount}/${habit.targetCount} this week`);
+                    metaParts.push(l(`${weeklyCount}/${habit.targetCount} this week`, `${weeklyCount}/${habit.targetCount} minggu ini`));
                   } else if (habit.cadence === 'specific_days' && habit.days?.length) {
-                    metaParts.push(habit.days.join(', '));
+                    metaParts.push(formatDays(habit.days));
                   } else {
-                    metaParts.push(habit.frequency);
+                    metaParts.push(formatFrequency(habit.frequency));
                   }
                   if (habit.timeBlock) metaParts.push(`${habit.timeBlock.start}–${habit.timeBlock.end}`);
                   if (habit.minimumVersion) metaParts.push(`Min: ${habit.minimumVersion}`);
@@ -406,7 +433,7 @@ export function TodayView({
                   <div className={cx('task-row', done && !isWeeklyCount && 'is-done')} key={item.key}>
                     <button
                       type="button"
-                      aria-label={done && !isWeeklyCount ? `Uncheck ${habit.name}` : `Check ${habit.name}`}
+                      aria-label={done && !isWeeklyCount ? l(`Uncheck ${habit.name}`, `Batalkan centang ${habit.name}`) : l(`Check ${habit.name}`, `Centang ${habit.name}`)}
                       className={cx('check-control', done && 'checked')}
                       onClick={() => onToggleHabit(habit)}
                     >
@@ -422,7 +449,7 @@ export function TodayView({
                           <button
                             type="button"
                             className="habit-mini-btn"
-                            aria-label={`Remove one log for ${habit.name} today`}
+                            aria-label={l(`Remove one log for ${habit.name} today`, `Kurangi satu catatan ${habit.name} hari ini`)}
                             onClick={() => onDecrementHabit(habit)}
                           >
                             -1
@@ -431,7 +458,7 @@ export function TodayView({
                         <button
                           type="button"
                           className="habit-mini-btn"
-                          aria-label={`Log ${habit.name} (+1)`}
+                          aria-label={l(`Log ${habit.name} (+1)`, `Catat ${habit.name} (+1)`)}
                           onClick={() => onToggleHabit(habit)}
                         >
                           +1
@@ -439,7 +466,7 @@ export function TodayView({
                         {habit.targetCount && (
                           <span className="weekly-counter">
                             {weeklyCount}/{habit.targetCount}
-                            {todayCount > 0 ? ` (${todayCount} today)` : ''}
+                            {todayCount > 0 ? ` (${todayCount} ${l('today', 'hari ini')})` : ''}
                           </span>
                         )}
                       </div>
@@ -452,29 +479,29 @@ export function TodayView({
               const isOverdue = task.status === 'todo' && task.dueDate !== '' && task.dueDate < today;
               const isActivePhase = Boolean(task.projectId && activePhaseIds.has(task.projectId));
               const scheduleNote = isOverdue
-                ? `Overdue · ${shortDate(task.dueDate)}`
+                ? `${l('Overdue', 'Terlambat')} · ${shortDate(task.dueDate, locale)}`
                 : task.dueDate === today
-                  ? 'Due today'
+                  ? l('Due today', 'Jatuh tempo hari ini')
                   : isActivePhase && task.dueDate
-                    ? `Active phase · ${shortDate(task.dueDate)}`
+                    ? `${l('Active phase', 'Fase aktif')} · ${shortDate(task.dueDate, locale)}`
                     : isActivePhase
-                      ? 'Active phase · Undated'
+                      ? l('Active phase · Undated', 'Fase aktif · Tanpa tanggal')
                       : task.dueDate
-                        ? shortDate(task.dueDate)
-                        : 'Undated';
+                        ? shortDate(task.dueDate, locale)
+                        : l('Undated', 'Tanpa tanggal');
 
               const hasTargetQty = typeof task.targetQuantity === 'number' && task.targetQuantity > 0;
               const completedQty = hasTargetQty
                 ? Math.max(0, task.completedQuantity ?? (task.status === 'done' ? task.targetQuantity! : 0))
                 : 0;
-              const metaParts = [projectName(task.projectId), scheduleNote, `${task.priority} priority`];
+              const metaParts = [projectName(task.projectId), scheduleNote, l(`${priorityLabel(task.priority)} priority`, `prioritas ${priorityLabel(task.priority)}`)];
               if (hasTargetQty) metaParts.push(`${completedQty}/${task.targetQuantity}`);
 
               return (
                 <div className={cx('task-row', done && 'is-done')} key={item.key}>
                   <button
                     type="button"
-                    aria-label={done ? `Uncheck ${task.title}` : `Check ${task.title}`}
+                    aria-label={done ? l(`Uncheck ${task.title}`, `Batalkan centang ${task.title}`) : l(`Check ${task.title}`, `Centang ${task.title}`)}
                     className={cx('check-control', done && 'checked')}
                     onClick={() => onToggleTask(task)}
                   >
@@ -485,12 +512,12 @@ export function TodayView({
                     <small>{metaParts.join(' · ')}</small>
                   </button>
                   {hasTargetQty && (
-                    <div className="weekly-habit-actions" aria-label={`${task.title} quantity progress`}>
+                    <div className="weekly-habit-actions" aria-label={l(`${task.title} quantity progress`, `Progres target ${task.title}`)}>
                       <button
                         type="button"
                         className="habit-mini-btn"
                         disabled={completedQty <= 0}
-                        aria-label={`Decrease progress for ${task.title} (-1)`}
+                        aria-label={l(`Decrease progress for ${task.title} (-1)`, `Kurangi progres ${task.title} (-1)`)}
                         onClick={() => onAdjustTaskQuantity?.(task, -1)}
                       >
                         -1
@@ -500,7 +527,7 @@ export function TodayView({
                         type="button"
                         className="habit-mini-btn"
                         disabled={completedQty >= task.targetQuantity!}
-                        aria-label={`Increase progress for ${task.title} (+1)`}
+                        aria-label={l(`Increase progress for ${task.title} (+1)`, `Tambah progres ${task.title} (+1)`)}
                         onClick={() => onAdjustTaskQuantity?.(task, 1)}
                       >
                         +1
@@ -513,9 +540,9 @@ export function TodayView({
           </div>
         ) : (
           <Empty
-            title="Nothing scheduled for today yet."
-            body="Tasks from your active phase, overdue work, and habits scheduled today appear here automatically."
-            action={onOpenImportPlan ? <Button variant="outline" onClick={onOpenImportPlan}><Sparkles size={14} /> Import a plan</Button> : undefined}
+            title={l('Nothing scheduled for today yet.', 'Belum ada yang dijadwalkan untuk hari ini.')}
+            body={l('Tasks from your active phase, overdue work, and habits scheduled today appear here automatically.', 'Tugas dari fase aktif, tugas terlambat, dan kebiasaan hari ini muncul di sini otomatis.')}
+            action={onOpenImportPlan ? <Button variant="outline" onClick={onOpenImportPlan}><Sparkles size={14} /> {l('Import a plan', 'Impor rencana')}</Button> : undefined}
           />
         )}
         {hiddenQueueCount > 0 && (
@@ -525,7 +552,9 @@ export function TodayView({
             aria-expanded={queueExpanded}
             onClick={() => setQueueExpanded(v => !v)}
           >
-            {queueExpanded ? `Collapse to top ${TODAY_QUEUE_CAP}` : `Show ${hiddenQueueCount} more today items`}
+            {queueExpanded
+              ? l(`Collapse to top ${TODAY_QUEUE_CAP}`, `Ringkas ke ${TODAY_QUEUE_CAP} teratas`)
+              : l(`Show ${hiddenQueueCount} more today items`, `Tampilkan ${hiddenQueueCount} item lagi`)}
           </button>
         )}
       </section>
@@ -533,7 +562,7 @@ export function TodayView({
       <div className="today-columns">
         <section className="panel priorities-panel">
           <div className="panel-head">
-            <div><div className="eyebrow">the essential</div><h2>Today&apos;s priorities</h2></div>
+            <div><div className="eyebrow">{l('the essential', 'yang utama')}</div><h2>{l("Today's priorities", 'Prioritas hari ini')}</h2></div>
             <span className="count-pill">{priorityTasks.length}/3</span>
           </div>
           {priorityTasks.length ? (
@@ -542,7 +571,7 @@ export function TodayView({
                 <div className={cx('priority-row', task.status === 'done' && 'is-done')} key={task.id}>
                   <button
                     type="button"
-                    aria-label={task.status === 'done' ? `Reopen ${task.title}` : `Complete ${task.title}`}
+                    aria-label={task.status === 'done' ? l(`Reopen ${task.title}`, `Buka kembali ${task.title}`) : l(`Complete ${task.title}`, `Selesaikan ${task.title}`)}
                     className={cx('check-control', task.status === 'done' && 'checked')}
                     onClick={() => onToggleTask(task)}
                   >
@@ -552,8 +581,8 @@ export function TodayView({
                   <button type="button" className="task-title-button" onClick={() => onEditTask(task.id)}>
                     <b>{task.title}</b>
                     <small>
-                      {projectName(task.projectId)} · {task.priority} priority
-                      {task.dueDate && task.dueDate !== today ? ` · ${shortDate(task.dueDate)}` : ''}
+                      {projectName(task.projectId)} · {l(`${priorityLabel(task.priority)} priority`, `prioritas ${priorityLabel(task.priority)}`)}
+                      {task.dueDate && task.dueDate !== today ? ` · ${shortDate(task.dueDate, locale)}` : ''}
                     </small>
                   </button>
                   {priorityTasks.length > 1 && (
@@ -562,8 +591,8 @@ export function TodayView({
                         type="button"
                         className="icon-btn subtle"
                         disabled={index === 0}
-                        aria-label={`Move ${task.title} higher`}
-                        title="Move up"
+                        aria-label={l(`Move ${task.title} higher`, `Naikkan ${task.title}`)}
+                        title={l('Move up', 'Naikkan')}
                         onClick={() => movePriority(index, -1)}
                       >
                         <ArrowUp size={13} />
@@ -572,8 +601,8 @@ export function TodayView({
                         type="button"
                         className="icon-btn subtle"
                         disabled={index === priorityTasks.length - 1}
-                        aria-label={`Move ${task.title} lower`}
-                        title="Move down"
+                        aria-label={l(`Move ${task.title} lower`, `Turunkan ${task.title}`)}
+                        title={l('Move down', 'Turunkan')}
                         onClick={() => movePriority(index, 1)}
                       >
                         <ArrowDown size={13} />
@@ -583,8 +612,8 @@ export function TodayView({
                   <button
                     type="button"
                     className="icon-btn subtle"
-                    title="Remove from today's priorities"
-                    aria-label={`Remove ${task.title} from priorities`}
+                    title={l("Remove from today's priorities", 'Hapus dari prioritas hari ini')}
+                    aria-label={l(`Remove ${task.title} from priorities`, `Hapus ${task.title} dari prioritas`)}
                     onClick={() => onPriorities(priorityIds.filter(id => id !== task.id))}
                   >
                     <X size={14} />
@@ -595,17 +624,17 @@ export function TodayView({
           ) : (
             <div className="priority-empty">
               <Target size={21} />
-              <p>Nothing is in your top three yet.</p>
-              <span>Pick up to three tasks that would make today count.</span>
+              <p>{l('Nothing is in your top three yet.', 'Belum ada tugas di tiga prioritas utama.')}</p>
+              <span>{l('Pick up to three tasks that would make today count.', 'Pilih hingga tiga tugas yang membuat hari ini berarti.')}</span>
             </div>
           )}
 
           {priorityIds.length < 3 && suggestedPriorityTasks.length > 0 && (
-            <div className="priority-suggestions" aria-label="Suggested top 3 priorities">
+            <div className="priority-suggestions" aria-label={l('Suggested top 3 priorities', 'Saran 3 prioritas utama')}>
               <div className="priority-suggestions-head">
-                <span className="eyebrow">suggested from overdue · today · active phase</span>
+                <span className="eyebrow">{l('suggested from overdue · today · active phase', 'saran dari terlambat · hari ini · fase aktif')}</span>
                 <button type="button" className="text-action" onClick={applySuggestedPriorities}>
-                  {priorityIds.length === 0 ? 'Apply 3 priorities' : 'Fill top 3'}
+                  {priorityIds.length === 0 ? l('Apply 3 priorities', 'Terapkan 3 prioritas') : l('Fill top 3', 'Lengkapi 3 besar')}
                 </button>
               </div>
               <div className="priority-suggestion-list">
@@ -618,7 +647,7 @@ export function TodayView({
                   >
                     <Plus size={13} />
                     <span>{task.title}</span>
-                    <small>{task.dueDate ? shortDate(task.dueDate) : 'Active phase'}</small>
+                    <small>{task.dueDate ? shortDate(task.dueDate, locale) : l('Active phase', 'Fase aktif')}</small>
                   </button>
                 ))}
               </div>
@@ -627,19 +656,19 @@ export function TodayView({
 
           <div className="panel-foot">
             <Button variant="outline" onClick={() => setShowPriorityPicker(v => !v)}>
-              <Plus size={15} />{showPriorityPicker ? 'Done selecting' : 'Set priorities'}
+              <Plus size={15} />{showPriorityPicker ? l('Done selecting', 'Selesai memilih') : l('Set priorities', 'Atur prioritas')}
             </Button>
-            <span>Limit yourself to three.</span>
+            <span>{l('Limit yourself to three.', 'Batasi maksimal tiga.')}</span>
           </div>
           {showPriorityPicker && (
             <div className="priority-picker">
               <div className="picker-top">
-                <b>Choose your priorities</b>
-                <span>{priorityIds.length}/3 selected</span>
+                <b>{l('Choose your priorities', 'Pilih prioritas Anda')}</b>
+                <span>{l(`${priorityIds.length}/3 selected`, `${priorityIds.length}/3 dipilih`)}</span>
               </div>
               <input
                 className="search-input"
-                placeholder="Find an open task..."
+                placeholder={l('Find an open task...', 'Cari tugas terbuka...')}
                 value={taskSearch}
                 onChange={e => setTaskSearch(e.target.value)}
               />
@@ -656,19 +685,19 @@ export function TodayView({
                   <small>{projectName(task.projectId)}</small>
                 </button>
               ))}
-              {available.length === 0 && <div className="picker-empty">No matching open tasks available.</div>}
+              {available.length === 0 && <div className="picker-empty">{l('No matching open tasks available.', 'Tidak ada tugas terbuka yang cocok.')}</div>}
               {priorityIds.length > 0 && (
                 <button type="button" className="clear-priorities" onClick={() => onPriorities([])}>
-                  Clear today&apos;s priorities
+                  {l("Clear today's priorities", 'Kosongkan prioritas hari ini')}
                 </button>
               )}
             </div>
           )}
         </section>
 
-        <section className="panel habits-panel" aria-label="Habits">
+        <section className="panel habits-panel" aria-label={l('Habits', 'Kebiasaan')}>
           <div className="panel-head">
-            <div><div className="eyebrow">{roughDay ? 'rough day · minimum versions' : 'show up daily'}</div><h2>Habits</h2></div>
+            <div><div className="eyebrow">{roughDay ? l('rough day · minimum versions', 'hari berat · versi minimum') : l('show up daily', 'hadir setiap hari')}</div><h2>{l('Habits', 'Kebiasaan')}</h2></div>
             <span className="count-pill">{doneHabits}/{scheduledHabitsCount}</span>
           </div>
           {activeHabits.length ? (
@@ -684,10 +713,10 @@ export function TodayView({
                   isWeeklyCount && habit.targetCount
                     ? `${weeklyCount}/${habit.targetCount}${todayCount > 0 ? ` (+${todayCount})` : ''}`
                     : done
-                      ? 'done'
+                      ? l('done', 'selesai')
                       : skipped
-                        ? 'skipped'
-                        : 'open';
+                        ? l('skipped', 'dilewati')
+                        : l('open', 'terbuka');
                 return (
                   <div
                     key={habit.id}
@@ -711,7 +740,7 @@ export function TodayView({
                           <button
                             type="button"
                             className="habit-mini-btn"
-                            aria-label={`Undo one ${habit.name} log today`}
+                            aria-label={l(`Undo one ${habit.name} log today`, `Kurangi satu catatan ${habit.name} hari ini`)}
                             onClick={() => onDecrementHabit(habit)}
                           >
                             -1
@@ -720,7 +749,7 @@ export function TodayView({
                         <button
                           type="button"
                           className="habit-mini-btn"
-                          aria-label={`Add completion for ${habit.name}`}
+                          aria-label={l(`Add completion for ${habit.name}`, `Tambah penyelesaian ${habit.name}`)}
                           onClick={() => onToggleHabit(habit)}
                         >
                           +1
@@ -731,11 +760,11 @@ export function TodayView({
                       <button
                         type="button"
                         className={cx('habit-skip-btn', skipped && 'active')}
-                        title={skipped ? 'Undo skip' : 'Skip for today without breaking streak'}
-                        aria-label={skipped ? `Undo skip for ${habit.name}` : `Skip ${habit.name} today`}
+                        title={skipped ? l('Undo skip', 'Batalkan lewati') : l('Skip for today without breaking streak', 'Lewati hari ini tanpa memutus rentetan')}
+                        aria-label={skipped ? l(`Undo skip for ${habit.name}`, `Batalkan lewati ${habit.name}`) : l(`Skip ${habit.name} today`, `Lewati ${habit.name} hari ini`)}
                         onClick={() => onToggleSkipHabit(habit)}
                       >
-                        {skipped ? 'Undo' : 'Skip'}
+                        {skipped ? l('Undo', 'Batalkan') : l('Skip', 'Lewati')}
                       </button>
                     )}
                   </div>
@@ -743,29 +772,29 @@ export function TodayView({
               })}
             </div>
           ) : (
-            <Empty title="No scheduled habits today" body="Add repeatable actions or check your habit schedule in Habits." />
+            <Empty title={l('No scheduled habits today', 'Tidak ada kebiasaan terjadwal hari ini')} body={l('Add repeatable actions or check your habit schedule in Habits.', 'Tambahkan aksi berulang atau periksa jadwal di tab Kebiasaan.')} />
           )}
           <div className="habits-progress">
             <Progress value={scheduledHabitsCount ? (doneHabits / scheduledHabitsCount) * 100 : 0} />
-            <span>{scheduledHabitsCount ? Math.round((doneHabits / scheduledHabitsCount) * 100) : 0}% complete</span>
+            <span>{scheduledHabitsCount ? Math.round((doneHabits / scheduledHabitsCount) * 100) : 0}% {l('complete', 'selesai')}</span>
           </div>
         </section>
       </div>
 
       <section className="panel tasks-panel">
         <div className="panel-head">
-          <div><div className="eyebrow">make progress visible</div><h2>Tasks</h2></div>
-          <Button variant="solid" onClick={onAddTask}><Plus size={15} /> Add task</Button>
+          <div><div className="eyebrow">{l('make progress visible', 'buat progres terlihat')}</div><h2>{l('Tasks', 'Tugas')}</h2></div>
+          <Button variant="solid" onClick={onAddTask}><Plus size={15} /> {l('Add task', 'Tambah tugas')}</Button>
         </div>
 
-        <div className="task-tabs" role="tablist" aria-label="Filter tasks">
+        <div className="task-tabs" role="tablist" aria-label={l('Filter tasks', 'Saring tugas')}>
           {(
             [
-              { id: 'today', label: 'Today', count: todayTasks.length },
-              { id: 'upcoming', label: 'Upcoming', count: upcomingTasks.length },
-              { id: 'nodate', label: 'No date', count: undatedTasks.length },
-              { id: 'all', label: 'All open', count: allOpenTasks.length },
-              { id: 'skipped', label: 'Skipped', count: skippedTasks.length },
+              { id: 'today', label: l('Today', 'Hari ini'), count: todayTasks.length },
+              { id: 'upcoming', label: l('Upcoming', 'Mendatang'), count: upcomingTasks.length },
+              { id: 'nodate', label: l('No date', 'Tanpa tanggal'), count: undatedTasks.length },
+              { id: 'all', label: l('All open', 'Semua terbuka'), count: allOpenTasks.length },
+              { id: 'skipped', label: l('Skipped', 'Dilewati'), count: skippedTasks.length },
             ] as const
           ).map(tab => (
             <button
@@ -795,10 +824,10 @@ export function TodayView({
                     type="button"
                     aria-label={
                       task.status === 'skipped'
-                        ? `Restore ${task.title}`
+                        ? l(`Restore ${task.title}`, `Pulihkan ${task.title}`)
                         : task.status === 'done'
-                          ? `Reopen ${task.title}`
-                          : `Complete ${task.title}`
+                          ? l(`Reopen ${task.title}`, `Buka kembali ${task.title}`)
+                          : l(`Complete ${task.title}`, `Selesaikan ${task.title}`)
                     }
                     className={cx('check-control', task.status === 'done' && 'checked')}
                     onClick={() => (task.status === 'skipped' ? onRestoreTask(task) : onToggleTask(task))}
@@ -809,17 +838,17 @@ export function TodayView({
                     <b>{task.title}</b>
                     <small>
                       {projectName(task.projectId)}
-                      {task.dueDate ? ` · ${task.dueDate === today ? 'Today' : shortDate(task.dueDate)}` : ' · No date'}
-                      {task.dueDate !== '' && task.dueDate < today && task.status === 'todo' ? ' (Overdue)' : ''}
+                      {task.dueDate ? ` · ${task.dueDate === today ? l('Today', 'Hari ini') : shortDate(task.dueDate, locale)}` : ` · ${l('No date', 'Tanpa tanggal')}`}
+                      {task.dueDate !== '' && task.dueDate < today && task.status === 'todo' ? ` (${l('Overdue', 'Terlambat')})` : ''}
                     </small>
                   </button>
                   {hasTargetQty && task.status !== 'skipped' && (
-                    <div className="weekly-habit-actions" aria-label={`${task.title} quantity progress`}>
+                    <div className="weekly-habit-actions" aria-label={l(`${task.title} quantity progress`, `Progres target ${task.title}`)}>
                       <button
                         type="button"
                         className="habit-mini-btn"
                         disabled={completedQty <= 0}
-                        aria-label={`Decrease progress for ${task.title} (-1)`}
+                        aria-label={l(`Decrease progress for ${task.title} (-1)`, `Kurangi progres ${task.title} (-1)`)}
                         onClick={() => onAdjustTaskQuantity?.(task, -1)}
                       >
                         -1
@@ -829,20 +858,20 @@ export function TodayView({
                         type="button"
                         className="habit-mini-btn"
                         disabled={completedQty >= task.targetQuantity!}
-                        aria-label={`Increase progress for ${task.title} (+1)`}
+                        aria-label={l(`Increase progress for ${task.title} (+1)`, `Tambah progres ${task.title} (+1)`)}
                         onClick={() => onAdjustTaskQuantity?.(task, 1)}
                       >
                         +1
                       </button>
                     </div>
                   )}
-                  <span className={cx('priority-tag', task.priority)}>{task.priority}</span>
+                  <span className={cx('priority-tag', task.priority)}>{priorityLabel(task.priority)}</span>
                   {task.status === 'skipped' ? (
                     <button type="button" className="move-today-btn" onClick={() => onRestoreTask(task)}>
-                      Restore
+                      {l('Restore', 'Pulihkan')}
                     </button>
                   ) : (
-                    <button type="button" className="icon-btn subtle" aria-label={`Edit ${task.title}`} onClick={() => onEditTask(task.id)}>
+                    <button type="button" className="icon-btn subtle" aria-label={l(`Edit ${task.title}`, `Ubah ${task.title}`)} onClick={() => onEditTask(task.id)}>
                       <ArrowUpRight size={15} />
                     </button>
                   )}
@@ -852,36 +881,46 @@ export function TodayView({
           </div>
         ) : (
           <Empty
-            title={taskTab === 'today' ? 'A clear runway today.' : `No ${taskTab === 'nodate' ? 'undated' : taskTab} tasks.`}
+            title={
+              taskTab === 'today'
+                ? l('A clear runway today.', 'Hari ini masih leluasa.')
+                : taskTab === 'upcoming'
+                  ? l('No upcoming tasks.', 'Tidak ada tugas mendatang.')
+                  : taskTab === 'nodate'
+                    ? l('No undated tasks.', 'Tidak ada tugas tanpa tanggal.')
+                    : taskTab === 'all'
+                      ? l('No open tasks.', 'Tidak ada tugas terbuka.')
+                      : l('No skipped tasks.', 'Tidak ada tugas dilewati.')
+            }
             body={
               taskTab === 'skipped'
-                ? 'Tasks marked skipped appear here so you can restore them anytime.'
-                : 'Add a task or switch tabs to view upcoming and undated work.'
+                ? l('Tasks marked skipped appear here so you can restore them anytime.', 'Tugas yang dilewati muncul di sini agar bisa dipulihkan kapan saja.')
+                : l('Add a task or switch tabs to view upcoming and undated work.', 'Tambah tugas atau pindah tab untuk melihat tugas mendatang dan tanpa tanggal.')
             }
-            action={taskTab !== 'skipped' ? <Button variant="outline" onClick={onAddTask}><Plus size={15} /> Create task</Button> : undefined}
+            action={taskTab !== 'skipped' ? <Button variant="outline" onClick={onAddTask}><Plus size={15} /> {l('Create task', 'Buat tugas')}</Button> : undefined}
           />
         )}
 
         {overdueTasks.length > 0 && (
           <div className="overdue-block">
             <div className="overdue-head">
-              <span className="eyebrow">overdue · carry forward or complete</span>
+              <span className="eyebrow">{l('overdue · carry forward or complete', 'terlambat · lanjutkan atau selesaikan')}</span>
               <span className="overdue-count">{overdueTasks.length}</span>
             </div>
             {displayedOverdue.map(task => (
               <div className="task-row overdue-row" key={task.id}>
                 <button
                   type="button"
-                  aria-label={`Complete overdue task ${task.title}`}
+                  aria-label={l(`Complete overdue task ${task.title}`, `Selesaikan tugas terlambat ${task.title}`)}
                   className="check-control"
                   onClick={() => onToggleTask(task)}
                 />
                 <button type="button" className="task-title-button" onClick={() => onEditTask(task.id)}>
                   <b>{task.title}</b>
-                  <small>{projectName(task.projectId)} · due {shortDate(task.dueDate)}</small>
+                  <small>{projectName(task.projectId)} · {l('due', 'tenggat')} {shortDate(task.dueDate, locale)}</small>
                 </button>
                 <button type="button" className="move-today-btn" onClick={() => onMoveToToday(task.id)}>
-                  Move to today
+                  {l('Move to today', 'Pindah ke hari ini')}
                 </button>
               </div>
             ))}
@@ -891,7 +930,7 @@ export function TodayView({
                 className="clear-priorities"
                 onClick={() => setShowAllOverdue(v => !v)}
               >
-                {showAllOverdue ? 'Show fewer overdue tasks' : `Show all ${overdueTasks.length} overdue tasks`}
+                {showAllOverdue ? l('Show fewer overdue tasks', 'Tampilkan lebih sedikit') : l(`Show all ${overdueTasks.length} overdue tasks`, `Tampilkan semua ${overdueTasks.length} tugas terlambat`)}
               </button>
             )}
           </div>
@@ -899,8 +938,8 @@ export function TodayView({
       </section>
 
       <div className="today-bottom">
-        <span><span className="status-dot" /> {dailyTasksDone} tasks completed today</span>
-        <button type="button" onClick={onReview}>Reflect on today <ArrowUpRight size={14} /></button>
+        <span><span className="status-dot" /> {l(`${dailyTasksDone} tasks completed today`, `${dailyTasksDone} tugas selesai hari ini`)}</span>
+        <button type="button" onClick={onReview}>{l('Reflect on today', 'Refleksi hari ini')} <ArrowUpRight size={14} /></button>
       </div>
     </div>
   );

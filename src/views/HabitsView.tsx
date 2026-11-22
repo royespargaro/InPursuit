@@ -1,9 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, Plus, Trash2 } from '../components/Icon';
 import { Button, cx, Empty, SectionTitle } from '../components/ui';
+import { useLanguage } from '../context/LanguageContext';
 import type { Habit, HabitLog } from '../types';
 import { getBestStreak, getStreak, getWeeklyHabitCount, shiftDateKey } from '../utils/habitUtils';
 import { getHabitConsistency } from '../utils/intelligence';
+
+const DAY_LABELS_ID: Record<string, string> = {
+  mon: 'Sen',
+  tue: 'Sel',
+  wed: 'Rab',
+  thu: 'Kam',
+  fri: 'Jum',
+  sat: 'Sab',
+  sun: 'Min',
+};
 
 interface HabitsViewProps {
   habits: Habit[];
@@ -28,6 +39,7 @@ export function HabitsView({
   onDelete,
   onToggle,
 }: HabitsViewProps) {
+  const { locale, l } = useLanguage();
   const now = useMemo(() => new Date(`${today}T12:00:00`), [today]);
   const [month, setMonth] = useState(now.getMonth());
   const [year, setYear] = useState(now.getFullYear());
@@ -47,7 +59,7 @@ export function HabitsView({
   }, [month, now, today, year]);
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const monthName = new Date(year, month, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const monthName = new Date(year, month, 1).toLocaleDateString(locale, { month: 'long', year: 'numeric' });
   const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
 
   const displayedDates = useMemo(() => {
@@ -57,7 +69,7 @@ export function HabitsView({
         const d = new Date(`${date}T12:00:00`);
         return {
           date,
-          label: d.toLocaleDateString('en-GB', { weekday: 'short' }).slice(0, 2),
+          label: d.toLocaleDateString(locale, { weekday: 'short' }).slice(0, 2),
           dayNum: d.getDate(),
           isToday: date === today,
         };
@@ -73,7 +85,7 @@ export function HabitsView({
         isToday: date === today,
       };
     });
-  }, [daysInMonth, matrixMode, monthPrefix, today]);
+  }, [daysInMonth, locale, matrixMode, monthPrefix, today]);
 
   const { monthDoneCount, logStatusMap, dayDoneCountMap } = useMemo(() => {
     let doneCount = 0;
@@ -126,43 +138,43 @@ export function HabitsView({
 
   return (
     <div className="view-stack">
-      <SectionTitle eyebrow="consistency · repeatable actions" title="Habits">
-        <Button variant="solid" onClick={onAdd}><Plus size={15} /> New habit</Button>
+      <SectionTitle eyebrow={l('consistency · repeatable actions', 'konsistensi · aksi berulang')} title={l('Habits', 'Kebiasaan')}>
+        <Button variant="solid" onClick={onAdd}><Plus size={15} /> {l('New habit', 'Kebiasaan baru')}</Button>
       </SectionTitle>
-      <div className="page-lede">Build a rhythm, not a perfect streak. Click cells to mark done (or add completions for weekly targets), skipped, or clear.</div>
+      <div className="page-lede">{l('Build a rhythm, not a perfect streak. Click cells to mark done (or add completions for weekly targets), skipped, or clear.', 'Bangun ritme, bukan sekadar rentetan sempurna. Klik kotak untuk menandai selesai (atau tambah capaian target mingguan), dilewati, atau kosongkan.')}</div>
 
       <div className="habit-summary">
-        <div><span>Active habits</span><b>{activeHabitsList.length}</b></div>
-        <div><span>30-day adherence</span><b>{consistency30d}%</b></div>
-        <div><span>This month · Today</span><b>{monthDoneCount} · {completedToday}/{scheduledActiveCount}</b></div>
+        <div><span>{l('Active habits', 'Kebiasaan aktif')}</span><b>{activeHabitsList.length}</b></div>
+        <div><span>{l('30-day adherence', 'Kepatuhan 30 hari')}</span><b>{consistency30d}%</b></div>
+        <div><span>{l('This month · Today', 'Bulan ini · Hari ini')}</span><b>{monthDoneCount} · {completedToday}/{scheduledActiveCount}</b></div>
       </div>
 
       <section className="panel habit-matrix-panel">
         <div className="matrix-head">
           <div>
-            <div className="eyebrow">{matrixMode === '7day' ? '7-day window' : 'monthly view'}</div>
-            <h2>{matrixMode === '7day' ? 'Last 7 days' : monthName}</h2>
+            <div className="eyebrow">{matrixMode === '7day' ? l('7-day window', 'rentang 7 hari') : l('monthly view', 'tampilan bulanan')}</div>
+            <h2>{matrixMode === '7day' ? l('Last 7 days', '7 hari terakhir') : monthName}</h2>
           </div>
           <div className="matrix-controls">
-            <div className="segmented" role="group" aria-label="Matrix view mode">
+            <div className="segmented" role="group" aria-label={l('Matrix view mode', 'Mode tampilan matriks')}>
               <button
                 type="button"
                 className={matrixMode === '7day' ? 'selected' : ''}
                 onClick={() => setMatrixMode('7day')}
               >
-                7 days
+                {l('7 days', '7 hari')}
               </button>
               <button
                 type="button"
                 className={matrixMode === 'month' ? 'selected' : ''}
                 onClick={() => setMatrixMode('month')}
               >
-                Month
+                {l('Month', 'Bulan')}
               </button>
             </div>
             {matrixMode === 'month' && (
               <div className="matrix-nav">
-                <button type="button" className="icon-btn" aria-label="Previous month" onClick={() => moveMonth(-1)}><ChevronLeft size={17} /></button>
+                <button type="button" className="icon-btn" aria-label={l('Previous month', 'Bulan sebelumnya')} onClick={() => moveMonth(-1)}><ChevronLeft size={17} /></button>
                 <button
                   type="button"
                   className="icon-btn"
@@ -171,9 +183,9 @@ export function HabitsView({
                     setYear(now.getFullYear());
                   }}
                 >
-                  Today
+                  {l('Today', 'Hari ini')}
                 </button>
-                <button type="button" className="icon-btn" aria-label="Next month" onClick={() => moveMonth(1)}><ChevronRight size={17} /></button>
+                <button type="button" className="icon-btn" aria-label={l('Next month', 'Bulan berikutnya')} onClick={() => moveMonth(1)}><ChevronRight size={17} /></button>
               </div>
             )}
           </div>
@@ -184,7 +196,7 @@ export function HabitsView({
             <table className="habit-table">
               <thead>
                 <tr>
-                  <th className="habit-name-cell">Habit · Streak / 30d</th>
+                  <th className="habit-name-cell">{l('Habit · Streak / 30d', 'Kebiasaan · Rentetan / 30h')}</th>
                   {displayedDates.map(col => (
                     <th key={col.date} className={col.isToday ? 'today-col' : ''}>
                       {col.label ? (
@@ -205,10 +217,15 @@ export function HabitsView({
                   const weeklyCount = h.cadence === 'weekly_count' ? getWeeklyHabitCount(h.id, logs, today) : 0;
                   const scheduleText =
                     h.cadence === 'weekly_count' && h.targetCount
-                      ? `${weeklyCount}/${h.targetCount} this week`
+                      ? l(`${weeklyCount}/${h.targetCount} this week`, `${weeklyCount}/${h.targetCount} minggu ini`)
                       : h.cadence === 'specific_days' && h.days?.length
-                        ? h.days.join(', ')
-                        : h.frequency;
+                        ? h.days.map(d => (locale === 'id-ID' ? (DAY_LABELS_ID[d] ?? d) : d)).join(', ')
+                        : h.frequency === 'daily'
+                          ? l('daily', 'harian')
+                          : h.frequency === 'weekdays'
+                            ? l('weekdays', 'hari kerja')
+                            : l('weekends', 'akhir pekan');
+                  const dayUnit = l('d', 'h');
                   return (
                     <tr key={h.id}>
                       <td className="habit-name-cell">
@@ -217,10 +234,10 @@ export function HabitsView({
                           <div className="habit-name-meta">
                             <button type="button" onClick={() => onEdit(h.id)}>{h.name}</button>
                             <small className="habit-submeta">
-                              {scheduleText}{h.timeBlock ? ` (${h.timeBlock.start}–${h.timeBlock.end})` : ''}{h.active ? '' : ' (paused)'} · {stats.streak}d (best {stats.best}d) · {stats.rate}%
+                              {scheduleText}{h.timeBlock ? ` (${h.timeBlock.start}–${h.timeBlock.end})` : ''}{h.active ? '' : ` (${l('paused', 'jeda')})`} · {stats.streak}{dayUnit} ({l('best', 'terbaik')} {stats.best}{dayUnit}) · {stats.rate}%
                             </small>
                           </div>
-                          <button type="button" className="delete-mini" aria-label={`Delete habit ${h.name}`} onClick={() => onDelete(h.id, h.name)}>
+                          <button type="button" className="delete-mini" aria-label={l(`Delete habit ${h.name}`, `Hapus kebiasaan ${h.name}`)} onClick={() => onDelete(h.id, h.name)}>
                             <Trash2 size={12} />
                           </button>
                         </div>
@@ -230,12 +247,20 @@ export function HabitsView({
                         const logStatus = logStatusMap.get(cellKey);
                         const dayDoneCount = dayDoneCountMap.get(cellKey) ?? 0;
                         const future = col.date > today;
+                        const statusText =
+                          dayDoneCount > 1
+                            ? l(`${dayDoneCount} done`, `${dayDoneCount} selesai`)
+                            : logStatus === 'done'
+                              ? l('done', 'selesai')
+                              : logStatus === 'skipped'
+                                ? l('skipped', 'dilewati')
+                                : l('not completed', 'belum selesai');
                         return (
                           <td key={col.date}>
                             <button
                               type="button"
                               disabled={future || !h.active}
-                              aria-label={`${h.name} ${col.date}: ${dayDoneCount > 1 ? `${dayDoneCount} done` : logStatus ?? 'not completed'}`}
+                              aria-label={`${h.name} ${col.date}: ${statusText}`}
                               className={cx('matrix-cell', (dayDoneCount > 0 || logStatus === 'done') && 'done', logStatus === 'skipped' && dayDoneCount === 0 && 'skipped', future && 'future')}
                               onClick={() => onToggle(h, col.date)}
                             >
@@ -258,17 +283,17 @@ export function HabitsView({
           </div>
         ) : (
           <Empty
-            title="No habits yet."
-            body="Start with actions you can repeat consistently."
-            action={<Button variant="outline" onClick={onAdd}><Plus size={15} /> Add a habit</Button>}
+            title={l('No habits yet.', 'Belum ada kebiasaan.')}
+            body={l('Start with actions you can repeat consistently.', 'Mulai dengan tindakan yang bisa Anda ulangi secara konsisten.')}
+            action={<Button variant="outline" onClick={onAdd}><Plus size={15} /> {l('Add a habit', 'Tambah kebiasaan')}</Button>}
           />
         )}
 
         <div className="matrix-legend">
-          <span><i className="legend-square done" /> Completed</span>
-          <span><i className="legend-square skipped" /> Skipped</span>
-          <span><i className="legend-square" /> Not completed</span>
-          <span>Future dates are locked</span>
+          <span><i className="legend-square done" /> {l('Completed', 'Selesai')}</span>
+          <span><i className="legend-square skipped" /> {l('Skipped', 'Dilewati')}</span>
+          <span><i className="legend-square" /> {l('Not completed', 'Belum selesai')}</span>
+          <span>{l('Future dates are locked', 'Tanggal mendatang terkunci')}</span>
         </div>
       </section>
     </div>

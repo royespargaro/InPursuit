@@ -250,35 +250,58 @@ function shiftIsoDate(isoDate: string, deltaDays: number): string {
 const WORD_NUMBERS: Record<string, number> = {
   once: 1,
   one: 1,
+  sekali: 1,
+  satu: 1,
   twice: 2,
   two: 2,
+  dua: 2,
   thrice: 3,
   three: 3,
+  tiga: 3,
   four: 4,
+  empat: 4,
   five: 5,
+  lima: 5,
   six: 6,
+  enam: 6,
   seven: 7,
+  tujuh: 7,
 };
 
 function parseWeeklyCount(text: string): number | null {
   const numericMatch = text.match(
-    /\b(\d+)\s*(?:x|times?|days?|sessions?|nights?|mornings?|workouts?)?\s*(?:per|a|\/)\s*(?:week|wk)\b/i,
+    /\b(\d+)\s*(?:x|kali|hari|sesi|latihan|malam|pagi|times?|days?|sessions?|nights?|mornings?|workouts?)?\s*(?:(?:per|a|\/)\s*(?:week|wk|minggu|mgg|pekan)|(?:tiap|setiap)\s+(?:minggu|mgg|pekan)|seminggu|sepekan)\b/i,
   );
   if (numericMatch) {
     const count = Number(numericMatch[1]);
     if (Number.isInteger(count) && count >= 1 && count <= 14) return count;
   }
 
-  const xWeekMatch = text.match(/\b(\d+)x\s*(?:per\s+|a\s+|\/)?(?:week|wk)\b/i);
+  const xWeekMatch = text.match(
+    /\b(\d+)x\s*(?:per\s+|a\s+|tiap\s+|setiap\s+|\/)?(?:week|wk|minggu|mgg|pekan|seminggu|sepekan)\b/i,
+  );
   if (xWeekMatch) {
     const count = Number(xWeekMatch[1]);
     if (Number.isInteger(count) && count >= 1 && count <= 14) return count;
   }
 
-  const wordMatch = text.match(
-    /\b(once|twice|thrice|one|two|three|four|five|six|seven)\s*(?:times?|days?|sessions?)?\s*(?:per|a|\/)\s*(?:week|wk)\b/i,
+  const indonesianPrefixMatch = text.match(
+    /\b(?:seminggu|sepekan|(?:per|tiap|setiap)\s+(?:minggu|pekan))\s+(\d+)\s*(?:x|kali|hari|sesi|latihan)\b/i,
   );
-  if (wordMatch) {
+  if (indonesianPrefixMatch) {
+    const count = Number(indonesianPrefixMatch[1]);
+    if (Number.isInteger(count) && count >= 1 && count <= 14) return count;
+  }
+
+  const wordMatch = text.match(
+    /\b(once|twice|thrice|one|two|three|four|five|six|seven|sekali|satu|dua|tiga|empat|lima|enam|tujuh)\s*(?:kali|hari|sesi|latihan|times?|days?|sessions?)?\s*(?:(?:per|a|\/)\s*(?:week|wk|minggu|mgg|pekan)|(?:tiap|setiap)\s+(?:minggu|mgg|pekan)|seminggu|sepekan)?\b/i,
+  );
+  if (
+    wordMatch &&
+    (wordMatch[1].toLowerCase() === 'sekali'
+      ? /\b(?:seminggu|sepekan|(?:per|tiap|setiap)\s+(?:minggu|mgg|pekan)|week|wk)\b/i.test(text)
+      : /\b(?:week|wk|minggu|mgg|pekan|seminggu|sepekan)\b/i.test(wordMatch[0]))
+  ) {
     const count = WORD_NUMBERS[wordMatch[1].toLowerCase()];
     if (count) return count;
   }
@@ -287,19 +310,29 @@ function parseWeeklyCount(text: string): number | null {
 }
 
 const WEEKDAY_TOKENS: Array<{ re: RegExp; key: WeekdayKey }> = [
-  { re: /\b(?:mon|monday)s?\b/i, key: 'mon' },
-  { re: /\b(?:tue|tues|tuesday)s?\b/i, key: 'tue' },
-  { re: /\b(?:wed|weds|wednesday)s?\b/i, key: 'wed' },
-  { re: /\b(?:thu|thur|thurs|thursday)s?\b/i, key: 'thu' },
-  { re: /\b(?:fri|friday)s?\b/i, key: 'fri' },
-  { re: /\b(?:sat|saturday)s?\b/i, key: 'sat' },
-  { re: /\b(?:sun|sunday)s?\b/i, key: 'sun' },
+  { re: /\b(?:mon|monday|senin)s?\b/i, key: 'mon' },
+  { re: /\b(?:tue|tues|tuesday|selasa)s?\b/i, key: 'tue' },
+  { re: /\b(?:wed|weds|wednesday|rabu)s?\b/i, key: 'wed' },
+  { re: /\b(?:thu|thur|thurs|thursday|kamis)s?\b/i, key: 'thu' },
+  { re: /\b(?:fri|friday|jumat|jum'at|jum’at)s?\b/i, key: 'fri' },
+  { re: /\b(?:sat|saturday|sabtu)s?\b/i, key: 'sat' },
+  { re: /\b(?:sun|sunday|hari\s+minggu|ahad)s?\b/i, key: 'sun' },
 ];
 
 function parseExplicitDays(text: string): WeekdayKey[] {
   const days: WeekdayKey[] = [];
   for (const token of WEEKDAY_TOKENS) {
     if (token.re.test(text)) days.push(token.key);
+  }
+  if (!days.includes('sun') && days.length > 0) {
+    // Disambiguate Indonesian "Minggu" (Sunday vs week) by stripping week-unit phrases first
+    const withoutWeekPhrases = text
+      .replace(/\b(?:seminggu|sepekan)\b/gi, '')
+      .replace(/\b(?:per|tiap|setiap|\/)\s*minggu\b/gi, '')
+      .replace(/\bminggu\s+(?:ke-?\s*\d+|\d+|depan|ini)\b/gi, '');
+    if (/\bminggu\b/i.test(withoutWeekPhrases)) {
+      days.push('sun');
+    }
   }
   return days;
 }
@@ -355,7 +388,9 @@ export function resolveRelativeRangePhrase(phrase: string, anchorDateKey: string
     return { start: clean, end: clean };
   }
 
-  const daysRange = clean.match(/\bdays?\s*(\d{1,3})\s*(?:[-–—]|to)\s*(?:days?\s*)?(\d{1,3})\b/i);
+  const daysRange = clean.match(
+    /\b(?:days?|hari(?:\s+ke-?)?)\s*(\d{1,3})\s*(?:[-–—]|to|s\/?d|sampai(?:\s+dengan)?|hingga)\s*(?:(?:days?|hari(?:\s+ke-?)?)\s*)?(\d{1,3})\b/i,
+  );
   if (daysRange) {
     const startDay = Number(daysRange[1]);
     const endDay = Number(daysRange[2]);
@@ -367,9 +402,11 @@ export function resolveRelativeRangePhrase(phrase: string, anchorDateKey: string
     }
   }
 
-  const firstNextDays = clean.match(/\b(?:first|next)\s+(\d{1,3})\s+days?\b/i);
+  const firstNextDays = clean.match(
+    /\b(?:(?:first|next)\s+(\d{1,3})\s+days?|(\d{1,3})\s+hari\s+(?:pertama|berikutnya|ke\s*depan))\b/i,
+  );
   if (firstNextDays) {
-    const count = Number(firstNextDays[1]);
+    const count = Number(firstNextDays[1] ?? firstNextDays[2]);
     if (count >= 1) {
       return {
         start: anchorDateKey,
@@ -378,7 +415,7 @@ export function resolveRelativeRangePhrase(phrase: string, anchorDateKey: string
     }
   }
 
-  const singleDay = clean.match(/\bday\s*(\d{1,3})\b/i);
+  const singleDay = clean.match(/\b(?:day|hari(?:\s+ke-?)?)\s*(\d{1,3})\b/i);
   if (singleDay) {
     const dayNum = Number(singleDay[1]);
     if (dayNum >= 1) {
@@ -387,7 +424,9 @@ export function resolveRelativeRangePhrase(phrase: string, anchorDateKey: string
     }
   }
 
-  const weeksRange = clean.match(/\bweeks?\s*(\d{1,2})\s*(?:[-–—]|to)\s*(?:weeks?\s*)?(\d{1,2})\b/i);
+  const weeksRange = clean.match(
+    /\b(?:weeks?|minggu(?:\s+ke-?)?|pekan(?:\s+ke-?)?)\s*(\d{1,2})\s*(?:[-–—]|to|s\/?d|sampai(?:\s+dengan)?|hingga)\s*(?:(?:weeks?|minggu(?:\s+ke-?)?|pekan(?:\s+ke-?)?)\s*)?(\d{1,2})\b/i,
+  );
   if (weeksRange) {
     const startWeek = Number(weeksRange[1]);
     const endWeek = Number(weeksRange[2]);
@@ -399,9 +438,11 @@ export function resolveRelativeRangePhrase(phrase: string, anchorDateKey: string
     }
   }
 
-  const nextWeeks = clean.match(/\b(?:first|next)\s+(\d{1,2})\s+weeks?\b/i);
+  const nextWeeks = clean.match(
+    /\b(?:(?:first|next)\s+(\d{1,2})\s+weeks?|(\d{1,2})\s+(?:minggu|pekan)\s+(?:pertama|berikutnya|ke\s*depan))\b/i,
+  );
   if (nextWeeks) {
-    const count = Number(nextWeeks[1]);
+    const count = Number(nextWeeks[1] ?? nextWeeks[2]);
     if (count >= 1) {
       return {
         start: anchorDateKey,
@@ -410,7 +451,7 @@ export function resolveRelativeRangePhrase(phrase: string, anchorDateKey: string
     }
   }
 
-  const singleWeek = clean.match(/\bweek\s*(\d{1,2})\b/i);
+  const singleWeek = clean.match(/\b(?:week|minggu(?:\s+ke-?)?|pekan(?:\s+ke-?)?)\s*(\d{1,2})\b/i);
   if (singleWeek) {
     const weekNum = Number(singleWeek[1]);
     if (weekNum >= 1) {
@@ -421,7 +462,9 @@ export function resolveRelativeRangePhrase(phrase: string, anchorDateKey: string
     }
   }
 
-  const monthsRange = clean.match(/\bmonths?\s*(\d{1,2})\s*(?:[-–—]|to)\s*(?:months?\s*)?(\d{1,2})\b/i);
+  const monthsRange = clean.match(
+    /\b(?:months?|bulan(?:\s+ke-?)?)\s*(\d{1,2})\s*(?:[-–—]|to|s\/?d|sampai(?:\s+dengan)?|hingga)\s*(?:(?:months?|bulan(?:\s+ke-?)?)\s*)?(\d{1,2})\b/i,
+  );
   if (monthsRange) {
     const startMonth = Number(monthsRange[1]);
     const endMonth = Number(monthsRange[2]);
@@ -433,7 +476,7 @@ export function resolveRelativeRangePhrase(phrase: string, anchorDateKey: string
     }
   }
 
-  const singleMonth = clean.match(/\bmonth\s*(\d{1,2})\b/i);
+  const singleMonth = clean.match(/\b(?:month|bulan(?:\s+ke-?)?)\s*(\d{1,2})\b/i);
   if (singleMonth) {
     const monthNum = Number(singleMonth[1]);
     if (monthNum >= 1) {
@@ -444,14 +487,18 @@ export function resolveRelativeRangePhrase(phrase: string, anchorDateKey: string
     }
   }
 
-  if (/\btoday\b/i.test(clean)) {
+  if (/\b(?:today|hari\s+ini)\b/i.test(clean)) {
     return { start: anchorDateKey, end: anchorDateKey };
   }
-  if (/\btomorrow\b/i.test(clean)) {
+  if (/\b(?:tomorrow|besok|esok)\b/i.test(clean)) {
     const tomorrow = shiftIsoDate(anchorDateKey, 1);
     return { start: tomorrow, end: tomorrow };
   }
-  if (/\bnext week\b/i.test(clean)) {
+  if (/\blusa\b/i.test(clean)) {
+    const dayAfterTomorrow = shiftIsoDate(anchorDateKey, 2);
+    return { start: dayAfterTomorrow, end: dayAfterTomorrow };
+  }
+  if (/\b(?:next\s+week|minggu\s+depan|pekan\s+depan)\b/i.test(clean)) {
     const nextWeek = shiftIsoDate(anchorDateKey, 7);
     return { start: nextWeek, end: shiftIsoDate(anchorDateKey, 13) };
   }
@@ -501,7 +548,7 @@ function resolveTaskDue(task: ExtractionTask, phases: ExtractionPhase[], anchorD
   }
 
   if (rawDue) {
-    const fromDueField = resolveSingleRelativeDate(rawDue, anchorDateKey, /\b(?:to|[-–—]|end|by)\b/i.test(rawDue));
+    const fromDueField = resolveSingleRelativeDate(rawDue, anchorDateKey, /\b(?:to|[-–—]|end|by|s\/?d|sampai|hingga)\b/i.test(rawDue));
     if (fromDueField) {
       return { ...task, due: fromDueField };
     }
