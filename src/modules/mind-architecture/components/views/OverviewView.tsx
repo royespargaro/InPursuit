@@ -19,6 +19,7 @@ import type {
 } from '../../types/knowledge';
 import type { MindSyncState } from '../../context/MindWorkspaceContext';
 import { CognitiveArchitecturePanel } from '../CognitiveArchitecturePanel';
+import { ContextualRetrievalPanel } from '../ContextualRetrievalPanel';
 import { computeMindInsights } from '../../services/mindBuilder';
 import {
   computeCelestialLayout,
@@ -645,6 +646,14 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         dataset={dataset}
         hideSensitive={hideSensitive}
         onNavigateView={onNavigateView}
+      />
+
+      {/* Temporary, goal-conditioned working set over the shared knowledge graph */}
+      <ContextualRetrievalPanel
+        dataset={dataset}
+        hideSensitive={hideSensitive}
+        hypothesisDecisions={hypothesisDecisions}
+        onFocusNodeInGraph={(nodeId) => onFocusNodeInGraph(nodeId, 'graph')}
       />
 
       {/* 4. Review Panel + 5. Recent Exploration + 6. Key Insight */}
