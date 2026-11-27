@@ -1,0 +1,569 @@
+import React, { useMemo, useState } from 'react';
+import {
+  ArrowUpRight,
+  Check,
+  Database,
+  Download,
+  FileCode2,
+  GitFork,
+  RotateCcw,
+  ShieldCheck,
+  X,
+} from 'lucide-react';
+import type { HypothesisDecision, IndexedDataset } from '../../types/knowledge';
+import { BASIS_META, GRADE_META } from '../../utils/dataset';
+
+interface EvidenceViewProps {
+  dataset: IndexedDataset;
+  hideSensitive: boolean;
+  hypothesisDecisions: Record<string, HypothesisDecision>;
+  onUpdateHypothesis: (edgeId: string, decision: HypothesisDecision) => void;
+  onResetHypotheses: () => void;
+  onFocusNodeInGraph: (nodeId: string) => void;
+}
+
+type EvidenceTab =
+  | 'sources'
+  | 'hypotheses'
+  | 'resolution'
+  | 'orphans'
+  | 'ingestion';
+
+const INGESTION_STAGES = [
+  { stage: '0. Intake', desc: 'Detect conversations.json or shards, hash each file, verify list schema.' },
+  { stage: '1. Register', desc: 'Read original conversation_id, title, create_time, update_time (raw + UTC ISO).' },
+  { stage: '2. Linearize', desc: 'Walk current_node back to root for main thread; preserve edits as alternate branches.' },
+  { stage: '3. Message Records', desc: 'Classify author_kind: user_message (primary), user_profile_text (context), assistant_context, tool_output.' },
+  { stage: '4. Candidate Extraction', desc: 'Deterministic English/Indonesian/Spanish question detection + model-assisted extraction with verbatim excerpts.' },
+  { stage: '5. Validation', desc: 'Reject any proposal with unknown message_ref, non-user author, or non-verbatim excerpt.' },
+  { stage: '6. Entity Resolution', desc: 'Exact normalized title/alias match links evidence; partial overlap routes to resolution_queue (never auto-merged).' },
+  { stage: '7. Dedup & Merge', desc: 'Append-only merge; preserve summary sources; recompute evidence_grade up to Q4.' },
+  { stage: '8. Coverage Report', desc: 'Per-batch metrics for processed, partial, skipped_empty, failed_parse, rejects, and conflicts.' },
+];
+
+export const EvidenceView: React.FC<EvidenceViewProps> = ({
+  dataset,
+  hideSensitive,
+  hypothesisDecisions,
+  onUpdateHypothesis,
+  onResetHypotheses,
+  onFocusNodeInGraph,
+}) => {
+  const [activeTab, setActiveTab] = useState<EvidenceTab>('sources');
+  const [sourceClassFilter, setSourceClassFilter] = useState<string>('all');
+
+  const inferredEdges = useMemo(
+    () => dataset.raw.edges.filter((e) => e.basis === 'inferred'),
+    [dataset]
+  );
+
+  const filteredSources = useMemo(() => {
+    if (sourceClassFilter === 'all') return dataset.raw.sources;
+    return dataset.raw.sources.filter((s) => s.evidence_class === sourceClassFilter);
+  }, [dataset, sourceClassFilter]);
+
+  const noEdgeNodes = useMemo(() => {
+    return dataset.raw.nodes.filter((n) => {
+      if (hideSensitive && dataset.sensitiveNodeIds.has(n.id)) return false;
+      return (dataset.edgesByNodeId.get(n.id)?.length ?? 0) === 0;
+    });
+  }, [dataset, hideSensitive]);
+
+  const decisionCounts = useMemo(() => {
+    let confirmed = 0;
+    let rejected = 0;
+    for (const e of inferredEdges) {
+      const d = hypothesisDecisions[e.id];
+      if (d === 'confirmed') confirmed += 1;
+      else if (d === 'rejected') rejected += 1;
+    }
+    return {
+      confirmed,
+      rejected,
+      unreviewed: inferredEdges.length - confirmed - rejected,
+    };
+  }, [inferredEdges, hypothesisDecisions]);
+
+  const handleExportReviewDecisions = () => {
+    const payload = {
+      dataset_version: dataset.raw.version,
+      exported_at: new Date().toISOString(),
+      inferred_edge_reviews: inferredEdges.map((e) => ({
+        edge_id: e.id,
+        source: e.source,
+        target: e.target,
+        decision: hypothesisDecisions[e.id] ?? 'unreviewed',
+      })),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'inferred_edge_reviews.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const dq = dataset.raw.data_quality;
+
+  return (
+    <div className="mx-auto max-w-[1440px] px-5 py-8 lg:px-10 lg:py-10 space-y-8">
+      {/* Masthead */}
+      <div className="border-b border-white/[0.08] pb-7">
+        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#D4AF72]">
+          Epistemic Audit & Provenance Ledger
+        </p>
+        <h1 className="mt-2 font-serif text-3xl font-medium tracking-tight text-[#EDE9E0] sm:text-4xl text-balance">
+          Evidence Explorer
+        </h1>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[#9BA3B4]">
+          Inspect source provenance, verify evidence grades (Q1–Q4), review unconfirmed assistant hypotheses, and audit candidate duplicate pairs without altering immutable IDs.
+        </p>
+      </div>
+
+      {/* Dataset Integrity & Grade Strip */}
+      <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+        {[
+          { label: 'Preserved Nodes', val: dataset.raw.nodes.length, sub: '0 duplicate IDs' },
+          { label: 'Preserved Edges', val: dataset.raw.edges.length, sub: '0 dangling edges' },
+          { label: 'Q3 Practice / Multi', val: dq.evidence_grades.Q3 ?? 0, sub: 'Highest current tier' },
+          { label: 'Q2 Single Summary', val: dq.evidence_grades.Q2 ?? 0, sub: 'Secondary summaries' },
+          { label: 'Q1 Brief / Proposal', val: dq.evidence_grades.Q1 ?? 0, sub: 'Unexplored / proposed' },
+          { label: 'Q4 Conversations', val: 0, sub: '0 of 20 sources original' },
+        ].map((kpi) => (
+          <div
+            key={kpi.label}
+            className="border border-white/[0.08] bg-[#0B0E16] p-4"
+          >
+            <p className="text-[11px] text-[#8C95A6]">{kpi.label}</p>
+            <p className="mt-1 font-mono text-2xl font-medium text-[#EDE9E0] tabular-nums">
+              {kpi.val}
+            </p>
+            <p className="mt-1 font-mono text-[10px] text-[#646D7E]">{kpi.sub}</p>
+          </div>
+        ))}
+      </section>
+
+      {/* Dataset Rules & Evidence Grade Definitions */}
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <div className="lg:col-span-6 border border-white/[0.08] bg-[#0B0E16] p-6">
+          <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-[#78AD8E]">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            <span>Invariant Dataset Rules ({dataset.raw.rules.length})</span>
+          </div>
+          <ul className="mt-4 space-y-2 text-xs text-[#C9C4B8]">
+            {dataset.raw.rules.map((rule) => (
+              <li key={rule} className="flex items-start gap-2.5">
+                <span className="font-mono text-[#646D7E]">—</span>
+                <span>{rule}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="lg:col-span-6 border border-white/[0.08] bg-[#0B0E16] p-6">
+          <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-[#D4AF72]">
+            <Database className="h-3.5 w-3.5" />
+            <span>Evidence Grades & Structural Share</span>
+          </div>
+          <div className="mt-4 space-y-2.5">
+            {(['Q4', 'Q3', 'Q2', 'Q1'] as const).map((g) => {
+              const meta = GRADE_META[g];
+              return (
+                <div key={g} className="flex items-baseline justify-between gap-4 text-xs">
+                  <span className="font-mono font-medium shrink-0" style={{ color: meta.color }}>
+                    {meta.label}
+                  </span>
+                  <span className="text-right text-[#9BA3B4]">
+                    {dataset.raw.evidence_grades[g]}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-4 border-t border-white/[0.06] pt-3 flex flex-wrap items-center justify-between gap-2 font-mono text-[11px] text-[#8C95A6]">
+            <span>Structural share: {(dq.structural_share * 100).toFixed(1)}%</span>
+            <span>Nodes with structural-only edges: {dq.nodes_with_only_structural_edges}</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Interactive Workbench Navigation Tabs */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.08] pb-3">
+        {(
+          [
+            { id: 'sources', label: `Sources Registry (${dataset.raw.sources.length})` },
+            { id: 'hypotheses', label: `Inferred Hypotheses (${inferredEdges.length})` },
+            {
+              id: 'resolution',
+              label: `Resolution Queue (${dataset.raw.entity_tables.resolution_queue.length})`,
+            },
+            { id: 'orphans', label: `Unconnected & Change Log (${noEdgeNodes.length})` },
+            { id: 'ingestion', label: 'Ingestion Spec (v4)' },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2 text-xs border transition-colors ${
+              activeTab === tab.id
+                ? 'border-[#D4AF72]/50 bg-[#D4AF72]/12 text-[#EDE9E0] font-medium'
+                : 'border-white/[0.07] text-[#8C95A6] hover:text-[#EDE9E0]'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* TAB 1: Sources Registry */}
+      {activeTab === 'sources' && (
+        <section className="border border-white/[0.08] bg-[#0B0E16]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] px-6 py-4">
+            <h2 className="font-serif text-xl font-medium text-[#EDE9E0]">
+              Source Provenance Records
+            </h2>
+            <div className="flex flex-wrap items-center gap-1 border border-white/[0.08] bg-[#080A0F] p-1">
+              {[
+                'all',
+                'summary_claude_memory',
+                'summary_chatgpt',
+                'user_brief',
+                'assistant_inferred',
+              ].map((cls) => (
+                <button
+                  key={cls}
+                  type="button"
+                  onClick={() => setSourceClassFilter(cls)}
+                  className={`px-2.5 py-1 font-mono text-[11px] transition-colors ${
+                    sourceClassFilter === cls
+                      ? 'bg-[#171E2C] text-[#D4AF72]'
+                      : 'text-[#8C95A6] hover:text-[#EDE9E0]'
+                  }`}
+                >
+                  {cls}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-white/[0.07] bg-[#090C12] font-mono text-[11px] text-[#646D7E]">
+                  <th className="py-3 px-6 font-medium">Source ID</th>
+                  <th className="py-3 px-4 font-medium">Class</th>
+                  <th className="py-3 px-4 font-medium">Path / Description</th>
+                  <th className="py-3 px-4 font-medium">Date</th>
+                  <th className="py-3 px-4 font-medium">Reliability</th>
+                  <th className="py-3 px-6 font-medium text-right">Linked Nodes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.05]">
+                {filteredSources.map((src) => {
+                  const count = dataset.raw.nodes.filter((n) =>
+                    n.source_ids.includes(src.id)
+                  ).length;
+                  return (
+                    <tr key={src.id} className="hover:bg-[#101521]">
+                      <td className="py-3 px-6 font-mono font-medium text-[#D4AF72]">
+                        {src.id}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[11px] text-[#9BA3B4]">
+                        {src.evidence_class}
+                      </td>
+                      <td className="py-3 px-4 text-[#C9C4B8]">
+                        {src.path ?? src.file ?? src.description}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[11px] text-[#9BA3B4] tabular-nums">
+                        {src.date ?? 'null'}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[11px] text-[#8C95A6]">
+                        {src.reliability}
+                      </td>
+                      <td className="py-3 px-6 font-mono text-right text-[#EDE9E0] tabular-nums">
+                        {count}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {/* TAB 2: Inferred Hypotheses Workbench */}
+      {activeTab === 'hypotheses' && (
+        <section className="border border-white/[0.08] bg-[#0B0E16]">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] px-6 py-4">
+            <div>
+              <h2 className="font-serif text-xl font-medium text-[#EDE9E0]">
+                Unreviewed Assistant Hypotheses ({inferredEdges.length})
+              </h2>
+              <p className="mt-1 text-xs text-[#9BA3B4]">
+                Session review: {decisionCounts.unreviewed} unreviewed ·{' '}
+                <span className="text-[#78AD8E]">{decisionCounts.confirmed} confirmed</span> ·{' '}
+                <span className="text-[#D9826C]">{decisionCounts.rejected} dismissed</span>. Does not mutate the JSON dataset.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onResetHypotheses}
+                className="inline-flex items-center gap-1.5 border border-white/[0.08] px-3 py-1.5 text-xs text-[#9BA3B4] hover:text-[#EDE9E0]"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>Reset</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleExportReviewDecisions}
+                className="inline-flex items-center gap-1.5 border border-[#D4AF72]/40 bg-[#D4AF72]/10 px-3 py-1.5 text-xs text-[#EDE9E0] hover:border-[#D4AF72]/70"
+              >
+                <Download className="h-3.5 w-3.5 text-[#D4AF72]" />
+                <span>Export Decisions</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="divide-y divide-white/[0.05]">
+            {inferredEdges.map((edge) => {
+              const sNode = dataset.nodeById.get(edge.source);
+              const tNode = dataset.nodeById.get(edge.target);
+              const decision = hypothesisDecisions[edge.id] ?? 'unreviewed';
+
+              return (
+                <div
+                  key={edge.id}
+                  className="flex flex-col gap-3 px-6 py-4 md:flex-row md:items-center md:justify-between"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="font-mono text-[11px] text-[#646D7E]">
+                        {edge.id}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => onFocusNodeInGraph(edge.source)}
+                        className="font-medium text-[#EDE9E0] hover:text-[#D4AF72]"
+                      >
+                        {sNode?.title ?? edge.source}
+                      </button>
+                      <span className="font-mono text-[#D9826C]">→</span>
+                      <button
+                        type="button"
+                        onClick={() => onFocusNodeInGraph(edge.target)}
+                        className="font-medium text-[#EDE9E0] hover:text-[#D4AF72]"
+                      >
+                        {tNode?.title ?? edge.target}
+                      </button>
+                      <span className="font-mono text-[11px] text-[#8C95A6]">
+                        · confidence: {edge.confidence}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-[#9BA3B4]">{edge.explanation}</p>
+                    <p className="mt-1 font-mono text-[10px] text-[#646D7E]">
+                      {BASIS_META.inferred.ruleNote}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onUpdateHypothesis(
+                          edge.id,
+                          decision === 'confirmed' ? 'unreviewed' : 'confirmed'
+                        )
+                      }
+                      className={`inline-flex items-center gap-1 border px-3 py-1.5 font-mono text-[11px] transition-colors ${
+                        decision === 'confirmed'
+                          ? 'border-[#78AD8E] bg-[#78AD8E]/18 text-[#78AD8E]'
+                          : 'border-white/[0.1] text-[#9BA3B4] hover:text-[#EDE9E0]'
+                      }`}
+                    >
+                      <Check className="h-3 w-3" />
+                      <span>Confirm</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onUpdateHypothesis(
+                          edge.id,
+                          decision === 'rejected' ? 'unreviewed' : 'rejected'
+                        )
+                      }
+                      className={`inline-flex items-center gap-1 border px-3 py-1.5 font-mono text-[11px] transition-colors ${
+                        decision === 'rejected'
+                          ? 'border-[#D9826C] bg-[#D9826C]/18 text-[#D9826C]'
+                          : 'border-white/[0.1] text-[#9BA3B4] hover:text-[#EDE9E0]'
+                      }`}
+                    >
+                      <X className="h-3 w-3" />
+                      <span>Dismiss</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* TAB 3: Resolution Queue (31 candidate pairs) */}
+      {activeTab === 'resolution' && (
+        <section className="border border-white/[0.08] bg-[#0B0E16]">
+          <div className="border-b border-white/[0.08] px-6 py-4">
+            <h2 className="font-serif text-xl font-medium text-[#EDE9E0]">
+              Entity Resolution Queue ({dataset.raw.entity_tables.resolution_queue.length} pairs)
+            </h2>
+            <p className="mt-1 text-xs text-[#9BA3B4]">
+              Possible duplicate or parent/child pairs queued for human review. Nothing is auto-merged.
+            </p>
+          </div>
+          <div className="divide-y divide-white/[0.05]">
+            {dataset.raw.entity_tables.resolution_queue.map((rq) => {
+              const nodeA = dataset.nodeById.get(rq.node_a);
+              const nodeB = dataset.nodeById.get(rq.node_b);
+              return (
+                <div
+                  key={rq.id}
+                  className="grid grid-cols-1 gap-3 px-6 py-3.5 md:grid-cols-12 md:items-center text-xs"
+                >
+                  <div className="md:col-span-1 font-mono text-[#646D7E]">{rq.id}</div>
+                  <div className="md:col-span-4">
+                    <button
+                      type="button"
+                      onClick={() => onFocusNodeInGraph(rq.node_a)}
+                      className="font-medium text-[#EDE9E0] hover:text-[#D4AF72] text-left"
+                    >
+                      {nodeA?.title ?? rq.node_a}
+                    </button>
+                    <p className="font-mono text-[10px] text-[#646D7E]">
+                      {nodeA?.type} · {nodeA?.evidence_grade}
+                    </p>
+                  </div>
+                  <div className="md:col-span-1 flex justify-start md:justify-center text-[#D4AF72]">
+                    <GitFork className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="md:col-span-4">
+                    <button
+                      type="button"
+                      onClick={() => onFocusNodeInGraph(rq.node_b)}
+                      className="font-medium text-[#EDE9E0] hover:text-[#D4AF72] text-left"
+                    >
+                      {nodeB?.title ?? rq.node_b}
+                    </button>
+                    <p className="font-mono text-[10px] text-[#646D7E]">
+                      {nodeB?.type} · {nodeB?.evidence_grade}
+                    </p>
+                  </div>
+                  <div className="md:col-span-2 text-right font-mono text-[11px] text-[#8C95A6]">
+                    {rq.reason} · {rq.status}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* TAB 4: Unconnected Nodes & Change Log */}
+      {activeTab === 'orphans' && (
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+          <section className="lg:col-span-7 border border-white/[0.08] bg-[#0B0E16]">
+            <div className="border-b border-white/[0.08] px-6 py-4">
+              <h2 className="font-serif text-xl font-medium text-[#EDE9E0]">
+                Nodes Without Edges ({noEdgeNodes.length})
+              </h2>
+              <p className="mt-1 text-xs text-[#9BA3B4]">
+                Includes the 7 reported Hypothesis patterns and undated Conversation titles from the export.
+              </p>
+            </div>
+            <div className="divide-y divide-white/[0.05]">
+              {noEdgeNodes.map((n) => (
+                <div
+                  key={n.id}
+                  className="flex items-center justify-between gap-4 px-6 py-3 text-xs"
+                >
+                  <div className="min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => onFocusNodeInGraph(n.id)}
+                      className="font-medium text-[#EDE9E0] hover:text-[#D4AF72] text-left"
+                    >
+                      {n.title}
+                    </button>
+                    <p className="font-mono text-[10px] text-[#646D7E]">
+                      {n.type} · {n.evidence_grade} · {n.source_ids.join(', ')}
+                    </p>
+                  </div>
+                  <ArrowUpRight className="h-3.5 w-3.5 text-[#646D7E] shrink-0" />
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="lg:col-span-5 border border-white/[0.08] bg-[#0B0E16] p-6 space-y-4">
+            <h2 className="font-serif text-xl font-medium text-[#EDE9E0]">
+              Dataset Change Log (v2 → v3)
+            </h2>
+            {dataset.raw.change_log.map((entry) => (
+              <div
+                key={entry.id}
+                className="border border-white/[0.07] bg-[#0F131C] p-4 text-xs"
+              >
+                <div className="flex items-center justify-between font-mono text-[11px] text-[#D4AF72]">
+                  <span>{entry.id}</span>
+                  <span>{entry.type}</span>
+                </div>
+                <p className="mt-1.5 text-[#C9C4B8] leading-relaxed">
+                  {entry.reason ?? entry.detail}
+                </p>
+                {entry.edge_id && (
+                  <p className="mt-1 font-mono text-[10px] text-[#646D7E]">
+                    edge_id: {entry.edge_id} (before: {String(entry.before)} → after:{' '}
+                    {String(entry.after)})
+                  </p>
+                )}
+              </div>
+            ))}
+          </section>
+        </div>
+      )}
+
+      {/* TAB 5: Ingestion Architecture Spec */}
+      {activeTab === 'ingestion' && (
+        <section className="border border-white/[0.08] bg-[#0B0E16] p-6">
+          <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-[#D4AF72]">
+            <FileCode2 className="h-3.5 w-3.5" />
+            <span>ingest_chatgpt_export.py · Stages 0–8</span>
+          </div>
+          <h2 className="mt-1.5 font-serif text-2xl font-medium text-[#EDE9E0]">
+            Conversation Evidence Ingestion Architecture
+          </h2>
+          <p className="mt-1.5 max-w-3xl text-xs leading-relaxed text-[#9BA3B4]">
+            Designed to promote nodes to Q4 when original ChatGPT conversations.json exports are supplied—enforcing verbatim user-message provenance and rejecting ungrounded extractor proposals.
+          </p>
+
+          <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-3">
+            {INGESTION_STAGES.map((s) => (
+              <div
+                key={s.stage}
+                className="border border-white/[0.07] bg-[#0F131C] p-4"
+              >
+                <p className="font-mono text-xs font-medium text-[#D4AF72]">{s.stage}</p>
+                <p className="mt-1.5 text-xs leading-relaxed text-[#9BA3B4]">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+};

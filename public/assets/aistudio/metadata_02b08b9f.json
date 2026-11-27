@@ -1,0 +1,6 @@
+{
+  "name": "The Architecture of My Mind",
+  "description": "An interactive intellectual atlas and epistemic archive mapping domains, concepts, projects, provenance, and thinking patterns.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

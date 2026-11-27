@@ -22,6 +22,7 @@ import {
   ListTodo as LucideListTodo,
   LoaderCircle as LucideLoaderCircle,
   MessageSquare as LucideMessageSquare,
+  Orbit as LucideOrbit,
   Plus as LucidePlus,
   RotateCcw as LucideRotateCcw,
   Search as LucideSearch,
@@ -36,7 +37,7 @@ import {
 } from 'lucide-react';
 
 export type IconName =
-  | 'today' | 'goals' | 'projects' | 'habits' | 'review'
+  | 'today' | 'goals' | 'projects' | 'habits' | 'review' | 'mind'
   | 'add' | 'check' | 'close' | 'arrow-up' | 'arrow-down' | 'arrow-up-right'
   | 'calendar' | 'download' | 'upload' | 'flag' | 'activity' | 'archive'
   | 'list' | 'search' | 'settings' | 'trash' | 'spark' | 'target' | 'clock'
@@ -51,6 +52,7 @@ const ICON_MAP = {
   projects: LucideFolderKanban,
   habits: LucideCheckCircle2,
   review: LucideBarChart3,
+  mind: LucideOrbit,
   add: LucidePlus,
   check: LucideCheck,
   close: LucideX,

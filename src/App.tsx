@@ -31,6 +31,7 @@ const GoalsView = lazy(() => import('./views/GoalsView').then(m => ({ default: m
 const ProjectsView = lazy(() => import('./views/ProjectsView').then(m => ({ default: m.ProjectsView })));
 const HabitsView = lazy(() => import('./views/HabitsView').then(m => ({ default: m.HabitsView })));
 const ReviewView = lazy(() => import('./views/ReviewView').then(m => ({ default: m.ReviewView })));
+const MindArchitectureModule = lazy(() => import('./modules/mind-architecture/MindArchitectureModule'));
 const EditorModal = lazy(() => import('./components/EditorModal').then(m => ({ default: m.EditorModal })));
 const LifeAreasModal = lazy(() => import('./components/LifeAreasModal').then(m => ({ default: m.LifeAreasModal })));
 const ConfirmModal = lazy(() => import('./components/ConfirmModal').then(m => ({ default: m.ConfirmModal })));
@@ -39,7 +40,7 @@ const SettingsModal = lazy(() => import('./components/SettingsModal').then(m => 
 const SignInPage = lazy(() => import('./components/SignInPage').then(m => ({ default: m.SignInPage })));
 const PlanImportModal = lazy(() => import('./components/PlanImportModal').then(m => ({ default: m.PlanImportModal })));
 
-type View = 'today' | 'goals' | 'projects' | 'habits' | 'review';
+type View = 'today' | 'goals' | 'projects' | 'habits' | 'review' | 'mind';
 type DeleteTarget =
   | { kind: 'task' | 'goal' | 'project' | 'habit'; id: string; title: string }
   | { kind: 'lifeArea'; id: string; title: string; linkedGoals: number }
@@ -642,12 +643,19 @@ export default function App() {
     notify(l(`Backup restored successfully${archivedNote}`, `Cadangan berhasil dipulihkan${archivedNote}`));
   };
 
-  const nav = [
-    { id: 'today' as const, label: l('Today', 'Hari Ini'), icon: 'today' as const },
-    { id: 'goals' as const, label: l('Goals', 'Tujuan'), icon: 'goals' as const, count: activeGoals.length },
-    { id: 'projects' as const, label: l('Projects', 'Proyek'), icon: 'projects' as const, count: activeProjects.length },
-    { id: 'habits' as const, label: l('Habits', 'Kebiasaan'), icon: 'habits' as const },
-    { id: 'review' as const, label: l('Review', 'Evaluasi'), icon: 'review' as const },
+  const nav: Array<{
+    id: View;
+    label: string;
+    mobileLabel?: string;
+    icon: 'today' | 'goals' | 'projects' | 'habits' | 'review' | 'mind';
+    count?: number;
+  }> = [
+    { id: 'today', label: l('Today', 'Hari Ini'), icon: 'today' },
+    { id: 'goals', label: l('Goals', 'Tujuan'), icon: 'goals', count: activeGoals.length },
+    { id: 'projects', label: l('Projects', 'Proyek'), icon: 'projects', count: activeProjects.length },
+    { id: 'habits', label: l('Habits', 'Kebiasaan'), icon: 'habits' },
+    { id: 'review', label: l('Review', 'Evaluasi'), icon: 'review' },
+    { id: 'mind', label: l('Mind Architecture', 'Arsitektur Pikiran'), mobileLabel: l('Mind', 'Pikiran'), icon: 'mind' },
   ];
   const currentTitle = nav.find(n => n.id === view)?.label ?? l('Today', 'Hari Ini');
 
@@ -734,7 +742,7 @@ export default function App() {
         </div>
       </aside>
 
-      <main className="main-area">
+      <main className={cx('main-area', view === 'mind' && 'main-area--full')}>
         <header className="topbar">
           <div className="mobile-brand">
             <img className="brand-mark" src="/inpursuit-mark.svg" alt="" />
@@ -779,7 +787,7 @@ export default function App() {
         </header>
 
         <input ref={importRef} type="file" accept="application/json" hidden onChange={e => void handleImportSelect(e.target.files?.[0])} />
-        <div className="content-wrap">
+        <div className={cx('content-wrap', view === 'mind' && 'content-wrap--full')}>
           {user && incompatibleSchema !== null && (
             <div className="schema-recovery-banner" role="alert">
               <div>
@@ -849,6 +857,7 @@ export default function App() {
               onEditGoal={id => openModal('goal', id)}
               onAddGoal={() => openModal('goal')}
               onOpenImportPlan={() => setShowPlanImport(true)}
+              onOpenMindArchitecture={() => setView('mind')}
               lastImportRecord={activeLastImport}
               onUndoImport={handleUndoPlanImport}
             />
@@ -908,6 +917,9 @@ export default function App() {
                 onDeleteReview={date => setDeleteTarget({ kind: 'review', id: date, title: prettyDate(date, undefined, locale) })}
               />
             )}
+            {view === 'mind' && (
+              <MindArchitectureModule className="flex-1 min-h-0" />
+            )}
           </Suspense>
         </div>
       </main>
@@ -922,7 +934,7 @@ export default function App() {
             aria-current={view === item.id ? 'page' : undefined}
           >
             <span className="mobile-nav-icon"><Icon name={item.icon} size={19} /></span>
-            <span className="mobile-nav-label">{item.label}</span>
+            <span className="mobile-nav-label">{item.mobileLabel ?? item.label}</span>
           </button>
         ))}
       </nav>

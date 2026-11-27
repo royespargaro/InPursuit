@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { FilmHeader, type HeroGoalSummary } from '../components/FilmHeader';
+import { MindDashboardCard } from '../components/MindDashboardCard';
 import { OnboardingCard, type StarterTemplateOption } from '../components/OnboardingCard';
 import {
   Activity, ArrowDown, ArrowUp, ArrowUpRight, Check, Flag, FolderKanban, Plus, RotateCcw, Sparkles, Target, X,
@@ -54,6 +55,7 @@ interface TodayViewProps {
   onEditGoal: (id: string) => void;
   onAddGoal: () => void;
   onOpenImportPlan?: () => void;
+  onOpenMindArchitecture?: () => void;
   lastImportRecord?: PlanImportRecord | null;
   onUndoImport?: () => void;
 }
@@ -108,6 +110,7 @@ export function TodayView({
   onEditGoal,
   onAddGoal,
   onOpenImportPlan,
+  onOpenMindArchitecture,
   lastImportRecord,
   onUndoImport,
 }: TodayViewProps) {
@@ -780,6 +783,8 @@ export function TodayView({
           </div>
         </section>
       </div>
+
+      <MindDashboardCard onOpen={() => onOpenMindArchitecture?.()} />
 
       <section className="panel tasks-panel">
         <div className="panel-head">
