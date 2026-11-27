@@ -18,6 +18,7 @@ import type {
   ViewId,
 } from '../types/knowledge';
 import { BASIS_META, getDomainTheme, GRADE_META } from '../utils/dataset';
+import { classifyCognitiveLayer, COGNITIVE_LAYER_META } from '../utils/cognitiveModel';
 
 interface NodeDossierProps {
   nodeId: string;
@@ -156,6 +157,30 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
             </p>
           )}
         </section>
+
+        {/* Cognitive lens is derived from node type and kept separate from evidence quality */}
+        {(() => {
+          const cognitiveLayer = classifyCognitiveLayer(node);
+          const cognitiveMeta = cognitiveLayer ? COGNITIVE_LAYER_META[cognitiveLayer] : null;
+          return (
+            <section className="border-t border-white/[0.08] pt-5">
+              <h3 className="text-[11px] font-mono uppercase tracking-widest text-[#89a8ff]">
+                Cognitive Classification
+              </h3>
+              <div className="mt-2 rounded-xl border border-white/[0.08] bg-white/[0.025] p-3">
+                <p className="text-sm font-medium text-[#f5f5f3]">
+                  {cognitiveMeta?.label ?? 'Unclassified'}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-[#9ba3b0]">
+                  {cognitiveMeta?.description ?? 'This node type has not yet been assigned a cognitive lens.'}
+                </p>
+                <p className="mt-2 font-mono text-[10px] text-[#7f8794]">
+                  Derived lens · not an evidence grade or brain-region claim
+                </p>
+              </div>
+            </section>
+          );
+        })()}
 
         {/* Epistemic Metadata Grid */}
         <section className="border-t border-white/[0.08] pt-5">
