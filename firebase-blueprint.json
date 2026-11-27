@@ -211,12 +211,30 @@
         "createdAt": { "type": "string", "format": "date-time", "maxLength": 40 }
       },
       "required": ["role"]
+    },
+    "MindArchitectureDoc": {
+      "title": "MindArchitectureDoc",
+      "description": "Per-user Mind Architecture profile, custom intellectual graph, review decisions, and recent explorations",
+      "type": "object",
+      "properties": {
+        "schemaVersion": { "type": "integer" },
+        "profile": { "type": "object" },
+        "customDataset": { "type": "object" },
+        "hypothesisDecisions": { "type": "object" },
+        "recentExplorations": { "type": "array" },
+        "updatedAt": { "type": "string", "format": "date-time", "maxLength": 40 }
+      },
+      "required": ["schemaVersion", "profile", "customDataset", "hypothesisDecisions", "recentExplorations", "updatedAt"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "UserWorkspace",
       "description": "Single-owner v3 workspace document or v4 metadata document"
+    },
+    "/users/{userId}/mindArchitecture/{docId}": {
+      "schema": "MindArchitectureDoc",
+      "description": "Per-user customizable Mind Architecture workspace document ('default')"
     },
     "/users/{userId}/lifeAreas/{areaId}": {
       "schema": "LifeAreaDoc",

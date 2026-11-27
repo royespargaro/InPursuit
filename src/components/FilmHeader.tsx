@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
+import { useMindWorkspaceOptional } from '../modules/mind-architecture/context/MindWorkspaceContext';
 import type { IndexedDataset, KnowledgeDataset } from '../modules/mind-architecture/types/knowledge';
 import type { CelestialLayout } from '../modules/mind-architecture/utils/dataset';
 import {
@@ -87,7 +88,10 @@ export const FilmHeader = ({
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const [bundle, setBundle] = useState<{
+  const workspace = useMindWorkspaceOptional();
+  const hasSharedWorkspace = Boolean(workspace && !initialData);
+
+  const [fallbackBundle, setFallbackBundle] = useState<{
     indexed: IndexedDataset;
     layout: CelestialLayout;
   } | null>(() => {
@@ -100,9 +104,10 @@ export const FilmHeader = ({
   const pointerRef = useRef<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false });
 
   useEffect(() => {
+    if (hasSharedWorkspace) return;
     const existing = getCachedMindBundle(datasetUrl, initialData);
     if (existing) {
-      setBundle({ indexed: existing.indexed, layout: existing.layout });
+      setFallbackBundle({ indexed: existing.indexed, layout: existing.layout });
       return;
     }
 
@@ -110,7 +115,7 @@ export const FilmHeader = ({
     void loadMindBundle(datasetUrl)
       .then((loaded) => {
         if (!cancelled && loaded) {
-          setBundle({ indexed: loaded.indexed, layout: loaded.layout });
+          setFallbackBundle({ indexed: loaded.indexed, layout: loaded.layout });
         }
       })
       .catch(() => {
@@ -120,7 +125,12 @@ export const FilmHeader = ({
     return () => {
       cancelled = true;
     };
-  }, [datasetUrl, initialData]);
+  }, [hasSharedWorkspace, datasetUrl, initialData]);
+
+  const bundle =
+    hasSharedWorkspace && workspace?.indexed && workspace?.layout
+      ? { indexed: workspace.indexed, layout: workspace.layout }
+      : fallbackBundle;
 
   // Live Architecture of Mind constellation canvas inside FilmHeader
   useEffect(() => {

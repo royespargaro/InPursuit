@@ -3,6 +3,7 @@ import App from './App.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { HabitProvider } from './context/HabitContext';
 import { LanguageProvider } from './context/LanguageContext';
+import { MindWorkspaceProvider } from './modules/mind-architecture/context/MindWorkspaceContext';
 import './index.css';
 import './styles/skin.css';
 
@@ -13,7 +14,9 @@ if (rootElement) {
     <ErrorBoundary>
       <LanguageProvider>
         <HabitProvider>
-          <App />
+          <MindWorkspaceProvider>
+            <App />
+          </MindWorkspaceProvider>
         </HabitProvider>
       </LanguageProvider>
     </ErrorBoundary>,

@@ -42,4 +42,14 @@ describe('firestore.rules static security invariant verification (no emulator ex
     expect(rulesText).toContain("'syncVersion'");
     expect(rulesText).toContain('Firestore Rules CEL cannot loop over arbitrary-length lists');
   });
+
+  it('isolates /users/{userId}/mindArchitecture/{docId} strictly to verified owners and enforces bounded schema', () => {
+    const mindBlock = rulesText.match(/match \/mindArchitecture\/\{docId\}[\s\S]*?allow delete: if [^;]+;/)?.[0] ?? '';
+    expect(mindBlock).toContain("allow get: if isOwner(userId) && isValidId(userId) && docId == 'default'");
+    expect(mindBlock).toContain('allow create: if isOwner(userId) && isVerified()');
+    expect(mindBlock).toContain('isValidMindArchitectureDoc(incoming(), docId)');
+    expect(mindBlock).toContain('incoming().schemaVersion == existing().schemaVersion');
+    expect(rulesText).toContain('isBoundedMapList(data.customDataset.nodes, 600)');
+    expect(rulesText).toContain('isBoundedMapList(data.customDataset.edges, 1200)');
+  });
 });

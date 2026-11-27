@@ -182,6 +182,42 @@ service cloud.firestore {
         && data.energy is int && data.energy >= 1 && data.energy <= 5;
     }
 
+    function isValidMindProfile(profile) {
+      return profile is map
+        && profile.keys().hasAll(['title', 'subtitle', 'mode', 'updatedAt'])
+        && profile.keys().hasOnly(['title', 'subtitle', 'mode', 'ownerName', 'updatedAt'])
+        && profile.title is string && profile.title.size() >= 1 && profile.title.size() <= 120
+        && profile.subtitle is string && profile.subtitle.size() <= 320
+        && profile.mode in ['sample', 'custom']
+        && (!('ownerName' in profile) || (profile.ownerName is string && profile.ownerName.size() <= 80))
+        && isValidTimestampStr(profile.updatedAt);
+    }
+
+    function isValidMindArchitectureDoc(data, docId) {
+      return docId == 'default'
+        && data.keys().hasAll(['schemaVersion', 'profile', 'customDataset', 'hypothesisDecisions', 'recentExplorations', 'updatedAt'])
+        && data.keys().hasOnly(['schemaVersion', 'profile', 'customDataset', 'hypothesisDecisions', 'recentExplorations', 'updatedAt'])
+        && data.schemaVersion is int
+        && data.schemaVersion == 1
+        && isValidMindProfile(data.profile)
+        && (
+          (data.profile.mode == 'sample' && data.customDataset == null)
+          || (
+            data.profile.mode == 'custom'
+            && data.customDataset is map
+            && data.customDataset.keys().hasAll(['version', 'sources', 'nodes', 'edges'])
+            && isBoundedMapList(data.customDataset.sources, 200)
+            && isBoundedMapList(data.customDataset.nodes, 600)
+            && isBoundedMapList(data.customDataset.edges, 1200)
+          )
+        )
+        && data.hypothesisDecisions is map
+        && data.hypothesisDecisions.size() <= 400
+        && data.recentExplorations is list
+        && data.recentExplorations.size() <= 12
+        && isValidTimestampStr(data.updatedAt);
+    }
+
     // Monetization validators
     function isValidEntitlement(data) {
       return data.keys().hasAll(['tier', 'status', 'updatedAt', 'updatedBy'])
@@ -392,6 +428,19 @@ service cloud.firestore {
           && isValidDailyReviewDoc(incoming(), dateKey)
           && incoming().diff(existing()).affectedKeys().hasOnly(['wins', 'blockers', 'notes', 'energy']);
         allow delete: if isOwner(userId) && isVerified() && isValidId(userId) && isValidDateKey(dateKey);
+      }
+
+      match /mindArchitecture/{docId} {
+        allow get: if isOwner(userId) && isValidId(userId) && docId == 'default';
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isVerified() && isValidId(userId) && isValidMindArchitectureDoc(incoming(), docId);
+        allow update: if isOwner(userId) && isVerified() && isValidId(userId)
+          && isValidMindArchitectureDoc(incoming(), docId)
+          && incoming().schemaVersion == existing().schemaVersion
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'profile', 'customDataset', 'hypothesisDecisions', 'recentExplorations', 'updatedAt'
+          ]);
+        allow delete: if isOwner(userId) && isVerified() && isValidId(userId) && docId == 'default';
       }
     }
   }

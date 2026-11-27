@@ -1,11 +1,12 @@
 # Security Specification: InPursuit
 
 ## 1. Data Invariants
-1. **User Data Isolation**: Only the authenticated user whose `request.auth.uid == userId` may read/write `/users/{userId}` and its v4 subcollections (`lifeAreas`, `goals`, `projects`, `tasks`, `habits`, `habitLogMonths`, `dailyPlans`, `dailyReviews`). Collection listing (`allow list`) on `/users` is strictly disabled (`if false`).
+1. **User Data Isolation**: Only the authenticated user whose `request.auth.uid == userId` may read/write `/users/{userId}` and its v4 subcollections (`lifeAreas`, `goals`, `projects`, `tasks`, `habits`, `habitLogMonths`, `dailyPlans`, `dailyReviews`, and `mindArchitecture/default`). Collection listing (`allow list`) on `/users` is strictly disabled (`if false`).
 2. **Verified Identity**: All writes (`create`, `update`, `delete`) require `request.auth.token.email_verified == true`.
-3. **Path Integrity**: `{userId}` and entity IDs MUST satisfy `isValidId(id)` (`1..128` chars matching `^[a-zA-Z0-9_-]+$`); date-keyed docs require `YYYY-MM-DD` / `YYYY-MM`.
+3. **Path Integrity**: `{userId}` and entity IDs MUST satisfy `isValidId(id)` (`1..128` chars matching `^[a-zA-Z0-9_-]+$`); date-keyed docs require `YYYY-MM-DD` / `YYYY-MM`; Mind Architecture doc ID is constrained to `'default'`.
 4. **Strict Schema Enforcement & CEL Boundary**:
    - Every v4 subcollection doc and dailyPlan (`priorityTaskIds[0..2]`) is validated element-by-element in Firestore Rules.
+   - `/users/{userId}/mindArchitecture/default` validates `schemaVersion == 1`, strict profile fields (`title`, `subtitle`, `mode in ['sample', 'custom']`), bounded custom arrays (`sources <= 200`, `nodes <= 600`, `edges <= 1200`), `hypothesisDecisions <= 400`, `recentExplorations <= 12`, and enforces `customDataset == null` in `'sample'` mode.
    - v3 `/users/{userId}` validates required keys, `allowedKeys` (including optional `syncVersion >= 0`), max list sizes, and prevents v3 clients from overwriting migrated `existing().schemaVersion == 4` documents.
    - Because Firestore Rules CEL cannot iterate arbitrary-length lists (up to 1000 tasks), per-element sanitization inside v3 arrays is enforced client-side by `sanitizeAppData()`, while full per-document rules enforcement applies on v4 subcollections.
 5. **Privilege Isolation (Monetization)**:

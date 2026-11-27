@@ -1,4 +1,10 @@
-export type ViewId = 'graph' | 'atlas' | 'evolution' | 'patterns' | 'evidence';
+export type ViewId =
+  | 'overview'
+  | 'graph'
+  | 'atlas'
+  | 'evolution'
+  | 'patterns'
+  | 'evidence';
 
 export type ConnectionBasis =
   | 'explicit'
@@ -11,6 +17,32 @@ export type ConnectionBasis =
 export type EvidenceGrade = 'Q1' | 'Q2' | 'Q3' | 'Q4';
 
 export type HypothesisDecision = 'unreviewed' | 'confirmed' | 'rejected';
+
+export type MindWorkspaceMode = 'sample' | 'custom';
+
+export interface MindWorkspaceProfile {
+  title: string;
+  subtitle: string;
+  mode: MindWorkspaceMode;
+  ownerName?: string;
+  updatedAt: string;
+}
+
+export interface RecentExplorationEntry {
+  nodeId: string;
+  title: string;
+  domain?: string;
+  visitedAt: string;
+}
+
+export interface MindWorkspaceRecord {
+  schemaVersion: 1;
+  profile: MindWorkspaceProfile;
+  customDataset: KnowledgeDataset | null;
+  hypothesisDecisions: Record<string, HypothesisDecision>;
+  recentExplorations: RecentExplorationEntry[];
+  updatedAt: string;
+}
 
 export interface KnowledgeSource {
   id: string;

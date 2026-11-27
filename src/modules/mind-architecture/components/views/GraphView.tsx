@@ -14,6 +14,7 @@ import type {
   HypothesisDecision,
   IndexedDataset,
   KnowledgeEdge,
+  KnowledgeNode,
   ViewId,
 } from '../../types/knowledge';
 import {
@@ -37,6 +38,7 @@ interface GraphViewProps {
   hypothesisDecisions: Record<string, HypothesisDecision>;
   onUpdateHypothesis: (edgeId: string, decision: HypothesisDecision) => void;
   onNavigateView: (view: ViewId) => void;
+  onEditNode?: (node: KnowledgeNode) => void;
 }
 
 type ExplorationMode = 'progressive' | 'all' | 'q3';
@@ -146,6 +148,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
   hypothesisDecisions,
   onUpdateHypothesis,
   onNavigateView,
+  onEditNode,
 }) => {
   const layout = useMemo(() => getLayoutForDataset(dataset), [dataset]);
 
@@ -1669,6 +1672,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
             onUpdateHypothesis={onUpdateHypothesis}
             onSelectNode={(id) => onSelectNode(id)}
             onNavigateView={(view) => onNavigateView(view)}
+            onEditNode={onEditNode}
             onClose={() => onSelectNode(null)}
           />
         </div>

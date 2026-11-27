@@ -5,6 +5,7 @@ import {
   Compass,
   ExternalLink,
   GitFork,
+  Pencil,
   ShieldAlert,
   X,
 } from 'lucide-react';
@@ -13,6 +14,7 @@ import type {
   HypothesisDecision,
   IndexedDataset,
   KnowledgeEdge,
+  KnowledgeNode,
   ViewId,
 } from '../types/knowledge';
 import { BASIS_META, getDomainTheme, GRADE_META } from '../utils/dataset';
@@ -24,6 +26,7 @@ interface NodeDossierProps {
   onUpdateHypothesis?: (edgeId: string, decision: HypothesisDecision) => void;
   onSelectNode: (nodeId: string) => void;
   onNavigateView?: (view: ViewId, focusSourceId?: string) => void;
+  onEditNode?: (node: KnowledgeNode) => void;
   onClose: () => void;
 }
 
@@ -42,6 +45,7 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
   onUpdateHypothesis,
   onSelectNode,
   onNavigateView,
+  onEditNode,
   onClose,
 }) => {
   const node = dataset.nodeById.get(nodeId);
@@ -101,14 +105,27 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close dossier"
-          className="p-2 text-[#9ba3b0] hover:text-[#f5f5f3] rounded-full border border-white/[0.1] hover:border-white/25 transition-colors shrink-0"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {onEditNode && (
+            <button
+              type="button"
+              onClick={() => onEditNode(node)}
+              aria-label="Edit node"
+              title="Edit node"
+              className="p-2 text-[#9ba3b0] hover:text-[#d4ff3a] rounded-full border border-white/[0.1] hover:border-[#d4ff3a]/40 transition-colors"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close dossier"
+            className="p-2 text-[#9ba3b0] hover:text-[#f5f5f3] rounded-full border border-white/[0.1] hover:border-white/25 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Scrollable Body */}

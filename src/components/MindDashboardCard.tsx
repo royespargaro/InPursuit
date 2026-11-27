@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUpRight } from 'lucide-react';
 import { Button } from './ui';
 import { useLanguage } from '../context/LanguageContext';
+import { useMindWorkspaceOptional } from '../modules/mind-architecture/context/MindWorkspaceContext';
 import type { KnowledgeDataset } from '../modules/mind-architecture/types/knowledge';
 import { computeCelestialLayout, indexDataset } from '../modules/mind-architecture/utils/dataset';
 
@@ -21,12 +22,16 @@ export function MindDashboardCard({
   initialData,
 }: MindDashboardCardProps) {
   const { l } = useLanguage();
+  const workspace = useMindWorkspaceOptional();
+  const hasSharedWorkspace = Boolean(workspace && !initialData);
+
   const [rawData, setRawData] = useState<KnowledgeDataset | null>(
     () => initialData ?? cachedDataset,
   );
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
+    if (hasSharedWorkspace) return;
     if (initialData) {
       cachedDataset = initialData;
       setRawData(initialData);
@@ -63,9 +68,10 @@ export function MindDashboardCard({
       cancelled = true;
       controller?.abort();
     };
-  }, [datasetUrl, initialData]);
+  }, [hasSharedWorkspace, datasetUrl, initialData]);
 
-  const indexed = useMemo(() => (rawData ? indexDataset(rawData) : null), [rawData]);
+  const effectiveRawData = hasSharedWorkspace ? workspace!.activeDataset : rawData;
+  const indexed = useMemo(() => (effectiveRawData ? indexDataset(effectiveRawData) : null), [effectiveRawData]);
   const layout = useMemo(() => (indexed ? computeCelestialLayout(indexed) : null), [indexed]);
 
   useEffect(() => {

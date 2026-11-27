@@ -3,6 +3,7 @@ import { createServer as createHttpServer } from 'node:http';
 import { resolve } from 'node:path';
 import { createServer as createViteServer } from 'vite';
 import { handleImportPlanHttp, MAX_IMPORT_REQUEST_BYTES } from './api/_lib/importAuth';
+import { handleExtractMindHttp } from './api/_lib/mindExtract';
 
 const app = express();
 app.disable('x-powered-by');
@@ -57,6 +58,40 @@ app.post(
   async (request, response) => {
     const rawBytesHeader = Number(request.headers['content-length'] ?? 0);
     const result = await handleImportPlanHttp({
+      method: request.method,
+      authorizationHeader: request.headers.authorization,
+      body: request.body,
+      rawBodyBytes: Number.isFinite(rawBytesHeader) && rawBytesHeader > 0 ? rawBytesHeader : undefined,
+    });
+
+    for (const [key, value] of Object.entries(result.headers)) {
+      response.setHeader(key, value);
+    }
+    response.status(result.status).json(result.body);
+  },
+);
+
+app.post(
+  '/api/extract-mind',
+  (request, response, next) => {
+    express.json({ limit: MAX_IMPORT_REQUEST_BYTES })(request, response, err => {
+      if (err) {
+        response.setHeader('Cache-Control', 'no-store');
+        const status = (err as { status?: number; type?: string }).type === 'entity.too.large' ? 413 : 400;
+        response.status(status).json({
+          error:
+            status === 413
+              ? `Request payload too large. Maximum size is ${Math.round(MAX_IMPORT_REQUEST_BYTES / 1024)}KB.`
+              : 'Malformed JSON request body.',
+        });
+        return;
+      }
+      next();
+    });
+  },
+  async (request, response) => {
+    const rawBytesHeader = Number(request.headers['content-length'] ?? 0);
+    const result = await handleExtractMindHttp({
       method: request.method,
       authorizationHeader: request.headers.authorization,
       body: request.body,

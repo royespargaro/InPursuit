@@ -6,6 +6,9 @@
   "functions": {
     "api/import-plan.ts": {
       "maxDuration": 60
+    },
+    "api/extract-mind.ts": {
+      "maxDuration": 45
     }
   },
   "rewrites": [

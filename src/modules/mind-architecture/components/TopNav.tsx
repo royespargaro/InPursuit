@@ -1,15 +1,17 @@
 import React from 'react';
-import { Search } from 'lucide-react';
+import { Search, SlidersHorizontal } from 'lucide-react';
 import type { ViewId } from '../types/knowledge';
 
 interface TopNavProps {
   activeView: ViewId;
   onSelectView: (view: ViewId) => void;
   onOpenSearch: () => void;
+  onOpenCustomize?: () => void;
   embedded?: boolean;
 }
 
 const NAV_ITEMS: { id: ViewId; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
   { id: 'graph', label: 'Intellectual Graph' },
   { id: 'atlas', label: 'Intellectual Atlas' },
   { id: 'evolution', label: 'Personal Evolution' },
@@ -21,6 +23,7 @@ export const TopNav: React.FC<TopNavProps> = ({
   activeView,
   onSelectView,
   onOpenSearch,
+  onOpenCustomize,
   embedded = false,
 }) => {
   const stickyClasses =
@@ -36,7 +39,7 @@ export const TopNav: React.FC<TopNavProps> = ({
         {!embedded && (
           <button
             type="button"
-            onClick={() => onSelectView('graph')}
+            onClick={() => onSelectView('overview')}
             className="font-display text-sm sm:text-base font-semibold tracking-tight text-[#f5f5f3] whitespace-nowrap shrink-0 hover:text-[#d4ff3a] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4ff3a]"
           >
             The Architecture of My Mind
@@ -72,7 +75,17 @@ export const TopNav: React.FC<TopNavProps> = ({
           })}
         </nav>
 
-        <div className="flex items-center shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          {onOpenCustomize && (
+            <button
+              type="button"
+              onClick={onOpenCustomize}
+              className="inline-flex min-h-[34px] items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-[#f5f5f3] hover:border-[#d4ff3a]/55 hover:text-[#d4ff3a] transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4ff3a]"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5 text-[#9ba3b0]" />
+              <span className="hidden sm:inline">Customize</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={onOpenSearch}

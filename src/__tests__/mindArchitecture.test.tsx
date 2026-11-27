@@ -102,6 +102,37 @@ describe('MindArchitectureModule integration', () => {
     expect(onOpen).toHaveBeenCalledTimes(2);
   });
 
+  it('renders the sophisticated Overview dashboard with metrics, review panel, recent exploration, key insight, and Continue Exploring CTA', () => {
+    const raw = loadRealDataset();
+    render(<MindArchitectureModule initialData={raw} />);
+
+    // Header + Metrics
+    expect(screen.getByRole('heading', { name: 'The Architecture of My Mind' })).toBeTruthy();
+    expect(screen.getByText('303')).toBeTruthy();
+    expect(screen.getByText('357')).toBeTruthy();
+    expect(screen.getByText('21')).toBeTruthy();
+
+    // Review Panel surfacing 28 inferred connections + inline Confirm action
+    expect(screen.getByText(/inferred connections awaiting review/i)).toBeTruthy();
+    const confirmButtons = screen.getAllByRole('button', { name: /^Confirm$/i });
+    expect(confirmButtons.length).toBeGreaterThan(0);
+    fireEvent.click(confirmButtons[0]);
+    expect(screen.getByText(/1 confirmed · 27 pending/i)).toBeTruthy();
+
+    // Recent Exploration + Key Insight
+    expect(screen.getByLabelText('Recent exploration')).toBeTruthy();
+    expect(screen.getByLabelText('Key insight')).toBeTruthy();
+
+    // Customize modal lets any user start a blank mind and add their own concepts
+    fireEvent.click(screen.getAllByRole('button', { name: /Customize/i })[0]);
+    expect(screen.getByRole('dialog', { name: 'Customize Mind Architecture' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Start Fresh Blank Mind/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Close customize modal/i }));
+
+    expect(screen.getByText('My Mind Architecture')).toBeTruthy();
+    expect(screen.getByText(/Empty Personal Constellation/i)).toBeTruthy();
+  });
+
   it('ignores Cmd+K when an InPursuit modal backdrop is active', () => {
     const raw = loadRealDataset();
     const backdrop = document.createElement('div');
