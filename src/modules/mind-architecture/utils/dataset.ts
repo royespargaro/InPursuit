@@ -16,10 +16,10 @@ export interface DomainTheme {
 }
 
 export const GRADE_META: Record<EvidenceGrade, { label: string; color: string }> = {
-  Q4: { label: 'Q4 · Original Conversation', color: '#78AD8E' },
-  Q3: { label: 'Q3 · Practice / Multi-Summary', color: '#D4AF72' },
-  Q2: { label: 'Q2 · Single Summary', color: '#9BA3B4' },
-  Q1: { label: 'Q1 · Brief / Assistant Proposal', color: '#D9826C' },
+  Q4: { label: 'Q4 · Original Conversation', color: '#89a8ff' },
+  Q3: { label: 'Q3 · Practice / Multi-Summary', color: '#d4ff3a' },
+  Q2: { label: 'Q2 · Single Summary', color: '#b4bac4' },
+  Q1: { label: 'Q1 · Brief / Assistant Proposal', color: '#ff8b3d' },
 };
 
 export const BASIS_META: Record<
@@ -35,42 +35,42 @@ export const BASIS_META: Record<
   explicit: {
     label: 'Explicit (Stated in Source)',
     shortLabel: 'Explicit',
-    color: '#D4AF72',
+    color: '#d4ff3a',
     dash: 'none',
     ruleNote: 'Directly stated relationship in summary or memory note.',
   },
   user_suggested: {
     label: 'User-Suggested (Brief Example)',
     shortLabel: 'User-Suggested',
-    color: '#78AD8E',
+    color: '#72e3a8',
     dash: '6 3',
     ruleNote: 'Proposed as an illustrative chain in your project brief—not prior exploration.',
   },
   co_discussed: {
     label: 'Co-Discussed (Same Entry)',
     shortLabel: 'Co-Discussed',
-    color: '#7E9BC8',
+    color: '#89a8ff',
     dash: '4 4',
     ruleNote: 'Items appear together within a single summary entry.',
   },
   inferred: {
     label: 'Inferred (Assistant Hypothesis)',
     shortLabel: 'Inferred',
-    color: '#D9826C',
+    color: '#ff8b3d',
     dash: '2 4',
     ruleNote: 'Assistant proposal with a rationale; requires user confirmation or dismissal.',
   },
   structural: {
     label: 'Structural (Taxonomy Grouping)',
     shortLabel: 'Structural',
-    color: '#5B6475',
+    color: '#5b6475',
     dash: '2 5',
     ruleNote: 'Parent/child listing or organizational grouping only.',
   },
   established_academic: {
     label: 'Established Academic (Reserved)',
     shortLabel: 'Academic',
-    color: '#8C95A6',
+    color: '#9ba3b0',
     dash: '8 4',
     ruleNote: 'Reserved for externally cited academic relationships; none present.',
   },
@@ -101,7 +101,7 @@ const DOMAIN_THEMES: Record<string, DomainTheme> = {
     thinNotice: '21 nodes with 0 Q3 practice evidence and no explicitly recorded links',
   },
   'Economics, finance, and wealth': {
-    color: '#D4AF72',
+    color: '#d4ff3a',
     shortName: 'Economics & Finance',
     roman: 'V',
   },
@@ -151,10 +151,10 @@ const DOMAIN_THEMES: Record<string, DomainTheme> = {
 };
 
 const FALLBACK_PALETTE = [
-  '#D4AF72',
-  '#7E9BC8',
-  '#78AD8E',
-  '#D9826C',
+  '#d4ff3a',
+  '#89a8ff',
+  '#72e3a8',
+  '#ff8b3d',
   '#A99CE2',
   '#6BB8A6',
 ];

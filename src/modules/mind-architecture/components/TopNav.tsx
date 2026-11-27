@@ -30,14 +30,14 @@ export const TopNav: React.FC<TopNavProps> = ({
 
   return (
     <header
-      className={`${stickyClasses} border-b border-white/[0.08] bg-[#080A0F]/92 backdrop-blur-md`}
+      className={`${stickyClasses} border-b border-white/[0.08] bg-black/90 md:bg-black/82 md:backdrop-blur-md`}
     >
-      <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3 px-4 py-2.5 lg:px-6">
+      <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3 px-4 py-2 lg:px-6">
         {!embedded && (
           <button
             type="button"
             onClick={() => onSelectView('graph')}
-            className="font-sans text-sm sm:text-base font-semibold tracking-tight text-[#EDE9E0] whitespace-nowrap shrink-0 hover:text-[#D4AF72] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D4AF72]"
+            className="font-display text-sm sm:text-base font-semibold tracking-tight text-[#f5f5f3] whitespace-nowrap shrink-0 hover:text-[#d4ff3a] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4ff3a]"
           >
             The Architecture of My Mind
           </button>
@@ -54,17 +54,17 @@ export const TopNav: React.FC<TopNavProps> = ({
                 key={item.id}
                 type="button"
                 onClick={() => onSelectView(item.id)}
-                className={`relative py-1.5 text-xs tracking-[0.01em] whitespace-nowrap shrink-0 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D4AF72] ${
+                className={`relative min-h-[36px] py-1.5 text-[13px] sm:text-xs tracking-[0.01em] whitespace-nowrap shrink-0 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4ff3a] ${
                   isActive
-                    ? 'text-[#EDE9E0] font-semibold'
-                    : 'text-[#8C95A6] hover:text-[#EDE9E0]'
+                    ? 'text-[#f5f5f3] font-semibold'
+                    : 'text-[#9ba3b0] hover:text-[#f5f5f3]'
                 }`}
               >
                 {item.label}
                 {isActive && (
                   <span
                     aria-hidden="true"
-                    className="absolute inset-x-0 -bottom-[10px] h-[1.5px] bg-[#D4AF72]"
+                    className="absolute inset-x-0 -bottom-[9px] h-[2px] bg-[#d4ff3a]"
                   />
                 )}
               </button>
@@ -76,11 +76,11 @@ export const TopNav: React.FC<TopNavProps> = ({
           <button
             type="button"
             onClick={onOpenSearch}
-            className="inline-flex items-center gap-1.5 border border-[#D4AF72]/35 bg-[#D4AF72]/10 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-[#EDE9E0] hover:border-[#D4AF72]/70 hover:bg-[#D4AF72]/18 transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D4AF72]"
+            className="inline-flex min-h-[34px] items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-3 sm:px-3.5 py-1.5 text-xs font-medium text-[#f5f5f3] hover:border-[#d4ff3a]/55 hover:text-[#d4ff3a] transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4ff3a]"
           >
-            <Search className="h-3.5 w-3.5 text-[#D4AF72]" />
+            <Search className="h-3.5 w-3.5 text-[#d4ff3a]" />
             <span>Search</span>
-            <kbd className="hidden sm:inline-block font-mono text-[10px] text-[#9BA3B4] pl-0.5">
+            <kbd className="hidden sm:inline-block font-mono text-[10px] text-[#9ba3b0] pl-0.5">
               ⌘K
             </kbd>
           </button>

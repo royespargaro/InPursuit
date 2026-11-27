@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 @theme {
+  --font-display: 'Bricolage Grotesque', 'Instrument Sans', system-ui, sans-serif;
   --font-sans: 'Instrument Sans', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }

@@ -77,12 +77,12 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
   return (
     <aside
       aria-label={`Archival dossier for ${node.title}`}
-      className="flex h-full flex-col border-l border-white/[0.09] bg-[#0B0E16]/96 backdrop-blur-md text-[#EDE9E0]"
+      className="flex h-full flex-col border-l border-white/[0.1] bg-[#0c0d10]/98 md:bg-[#0c0d10]/94 md:backdrop-blur-md text-[#f5f5f3]"
     >
       {/* Dossier Header */}
-      <div className="flex items-start justify-between gap-4 border-b border-white/[0.08] px-6 py-5">
+      <div className="flex items-start justify-between gap-4 border-b border-white/[0.08] px-5 sm:px-6 py-4 sm:py-5">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[11px] font-mono tracking-wider text-[#9BA3B4]">
+          <div className="flex items-center gap-2 text-[11px] font-mono tracking-wider text-[#9ba3b0]">
             <span
               className="h-2 w-2 rounded-full shrink-0"
               style={{ backgroundColor: theme.color }}
@@ -93,10 +93,10 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
             <span aria-hidden="true">·</span>
             <span style={{ color: grade?.color }}>{node.evidence_grade}</span>
           </div>
-          <h2 className="mt-2 font-sans text-base font-semibold tracking-tight leading-tight text-[#EDE9E0] text-balance">
+          <h2 className="mt-2 font-display text-lg sm:text-base font-semibold tracking-tight leading-tight text-[#f5f5f3] text-balance">
             {node.title}
           </h2>
-          <p className="mt-1 font-mono text-[11px] text-[#646D7E] break-all">
+          <p className="mt-1 font-mono text-[11px] text-[#7f8794] break-all">
             ID: {node.id}
           </p>
         </div>
@@ -105,20 +105,20 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
           type="button"
           onClick={onClose}
           aria-label="Close dossier"
-          className="p-1.5 text-[#8C95A6] hover:text-[#EDE9E0] border border-white/[0.08] hover:border-white/20 transition-colors shrink-0"
+          className="p-2 text-[#9ba3b0] hover:text-[#f5f5f3] rounded-full border border-white/[0.1] hover:border-white/25 transition-colors shrink-0"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
 
       {/* Scrollable Body */}
-      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+      <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-5 space-y-6">
         {isSensitive && (
-          <div className="flex items-start gap-2.5 border border-[#D9826C]/30 bg-[#D9826C]/8 p-3.5 text-xs text-[#E8B4A6]">
-            <ShieldAlert className="h-4 w-4 text-[#D9826C] shrink-0 mt-0.5" />
+          <div className="flex items-start gap-2.5 rounded-xl border border-[#ff8b3d]/35 bg-[#ff8b3d]/10 p-3.5 text-xs text-[#ffd6ba]">
+            <ShieldAlert className="h-4 w-4 text-[#ff8b3d] shrink-0 mt-0.5" />
             <div>
-              <p className="font-medium text-[#EDE9E0]">Sensitive Review Item</p>
-              <p className="mt-0.5 text-[#C29B90]">
+              <p className="font-medium text-[#f5f5f3]">Sensitive Review Item</p>
+              <p className="mt-0.5 text-[#e6b697]">
                 Flagged in data_quality.sensitive_review for optional hiding in shared views.
               </p>
             </div>
@@ -127,57 +127,57 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
 
         {/* Description */}
         <section>
-          <h3 className="text-[11px] font-mono uppercase tracking-widest text-[#646D7E]">
+          <h3 className="text-[11px] font-mono uppercase tracking-widest text-[#7f8794]">
             Archival Description
           </h3>
-          <p className="mt-2 text-xs leading-relaxed text-[#D4CFC4]">
+          <p className="mt-2 text-[13px] sm:text-xs leading-relaxed text-[#d6d9e0]">
             {node.description || 'No description recorded.'}
           </p>
           {node.aliases.length > 0 && (
-            <p className="mt-2 text-xs text-[#8C95A6]">
-              Aliases: <span className="text-[#D4CFC4]">{node.aliases.join(', ')}</span>
+            <p className="mt-2 text-xs text-[#9ba3b0]">
+              Aliases: <span className="text-[#f5f5f3]">{node.aliases.join(', ')}</span>
             </p>
           )}
         </section>
 
         {/* Epistemic Metadata Grid */}
-        <section className="border-t border-white/[0.07] pt-5">
-          <h3 className="text-[11px] font-mono uppercase tracking-widest text-[#646D7E]">
+        <section className="border-t border-white/[0.08] pt-5">
+          <h3 className="text-[11px] font-mono uppercase tracking-widest text-[#7f8794]">
             Epistemic Classification
           </h3>
           <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
             <div>
-              <dt className="text-[#646D7E]">Evidence Grade</dt>
+              <dt className="text-[#7f8794]">Evidence Grade</dt>
               <dd className="mt-0.5 font-mono font-medium" style={{ color: grade?.color }}>
                 {grade?.label ?? node.evidence_grade}
               </dd>
             </div>
             <div>
-              <dt className="text-[#646D7E]">Engagement</dt>
-              <dd className="mt-0.5 font-mono text-[#EDE9E0]">{node.engagement}</dd>
+              <dt className="text-[#7f8794]">Engagement</dt>
+              <dd className="mt-0.5 font-mono text-[#f5f5f3]">{node.engagement}</dd>
             </div>
             <div>
-              <dt className="text-[#646D7E]">Confidence</dt>
-              <dd className="mt-0.5 font-mono text-[#EDE9E0]">{node.confidence}</dd>
+              <dt className="text-[#7f8794]">Confidence</dt>
+              <dd className="mt-0.5 font-mono text-[#f5f5f3]">{node.confidence}</dd>
             </div>
             <div>
-              <dt className="text-[#646D7E]">Lifecycle</dt>
-              <dd className="mt-0.5 font-mono text-[#EDE9E0]">
+              <dt className="text-[#7f8794]">Lifecycle</dt>
+              <dd className="mt-0.5 font-mono text-[#f5f5f3]">
                 {node.lifecycle ?? 'unrecorded'}
                 {node.lifecycle_basis ? (
-                  <span className="text-[#646D7E]"> ({node.lifecycle_basis})</span>
+                  <span className="text-[#7f8794]"> ({node.lifecycle_basis})</span>
                 ) : null}
               </dd>
             </div>
             <div>
-              <dt className="text-[#646D7E]">Summary Mentions</dt>
-              <dd className="mt-0.5 font-mono tabular-nums text-[#EDE9E0]">
+              <dt className="text-[#7f8794]">Summary Mentions</dt>
+              <dd className="mt-0.5 font-mono tabular-nums text-[#f5f5f3]">
                 {node.mentions}
               </dd>
             </div>
             <div>
-              <dt className="text-[#646D7E]">Observed Window</dt>
-              <dd className="mt-0.5 font-mono text-[#9BA3B4]">
+              <dt className="text-[#7f8794]">Observed Window</dt>
+              <dd className="mt-0.5 font-mono text-[#9ba3b0]">
                 {node.first_observed_at || node.last_observed_at
                   ? `${node.first_observed_at ?? '?'} – ${node.last_observed_at ?? '?'}`
                   : 'No conversation dates'}
@@ -187,12 +187,12 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
         </section>
 
         {/* Domains */}
-        <section className="border-t border-white/[0.07] pt-5">
-          <h3 className="text-[11px] font-mono uppercase tracking-widest text-[#646D7E]">
+        <section className="border-t border-white/[0.08] pt-5">
+          <h3 className="text-[11px] font-mono uppercase tracking-widest text-[#7f8794]">
             Domains ({node.domains.length || 'Unassigned'})
           </h3>
           {node.domains.length === 0 ? (
-            <p className="mt-2 text-xs text-[#8C95A6]">
+            <p className="mt-2 text-xs text-[#9ba3b0]">
               No domain assigned ({node.type} without domain grouping).
             </p>
           ) : (
@@ -201,14 +201,14 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
                 const t = getDomainTheme(dom);
                 return (
                   <div key={dom} className="flex items-center justify-between text-xs">
-                    <span className="flex items-center gap-2 text-[#EDE9E0]">
+                    <span className="flex items-center gap-2 text-[#f5f5f3]">
                       <span
                         className="h-2 w-2 rounded-full"
                         style={{ backgroundColor: t.color }}
                       />
                       <span>{dom}</span>
                     </span>
-                    <span className="font-mono text-[10px] text-[#646D7E]">
+                    <span className="font-mono text-[10px] text-[#7f8794]">
                       {idx === 0 ? 'Primary' : 'Bridge'}
                     </span>
                   </div>
@@ -217,23 +217,23 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
             </div>
           )}
           {primaryDomain === '(no domain)' && node.type === 'Conversation' && (
-            <p className="mt-2 font-mono text-[11px] text-[#8C95A6]">
+            <p className="mt-2 font-mono text-[11px] text-[#9ba3b0]">
               conversation_id: null · original_available: false · date: null
             </p>
           )}
         </section>
 
         {/* Provenance Sources */}
-        <section className="border-t border-white/[0.07] pt-5">
+        <section className="border-t border-white/[0.08] pt-5">
           <div className="flex items-center justify-between">
-            <h3 className="text-[11px] font-mono uppercase tracking-widest text-[#646D7E]">
+            <h3 className="text-[11px] font-mono uppercase tracking-widest text-[#7f8794]">
               Provenance Sources ({node.source_ids.length})
             </h3>
             {onNavigateView && (
               <button
                 type="button"
                 onClick={() => onNavigateView('evidence')}
-                className="inline-flex items-center gap-1 text-[11px] text-[#D4AF72] hover:underline"
+                className="inline-flex items-center gap-1 text-[11px] text-[#d4ff3a] hover:underline"
               >
                 <span>Open Ledger</span>
                 <ExternalLink className="h-3 w-3" />
@@ -246,19 +246,19 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
               return (
                 <div
                   key={sid}
-                  className="border border-white/[0.07] bg-[#0F131C] px-3 py-2.5 text-xs"
+                  className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-xs"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono font-medium text-[#D4AF72]">{sid}</span>
-                    <span className="font-mono text-[10px] text-[#8C95A6]">
+                    <span className="font-mono font-medium text-[#d4ff3a]">{sid}</span>
+                    <span className="font-mono text-[10px] text-[#9ba3b0]">
                       {src?.evidence_class ?? 'unknown'}
                     </span>
                   </div>
-                  <p className="mt-1 text-[11px] text-[#9BA3B4]">
+                  <p className="mt-1 text-xs text-[#9ba3b0]">
                     {src?.path ?? src?.file ?? src?.description ?? src?.source_type}
                   </p>
                   {src?.date && (
-                    <p className="mt-1 font-mono text-[10px] text-[#646D7E]">
+                    <p className="mt-1 font-mono text-[10px] text-[#7f8794]">
                       {src.date} · {src.date_meaning}
                     </p>
                   )}
@@ -269,13 +269,13 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
         </section>
 
         {/* Connected Relationships grouped by Basis */}
-        <section className="border-t border-white/[0.07] pt-5">
-          <h3 className="text-[11px] font-mono uppercase tracking-widest text-[#646D7E]">
+        <section className="border-t border-white/[0.08] pt-5">
+          <h3 className="text-[11px] font-mono uppercase tracking-widest text-[#7f8794]">
             Connections ({connectedEdges.length})
           </h3>
 
           {connectedEdges.length === 0 ? (
-            <p className="mt-2 text-xs text-[#8C95A6]">
+            <p className="mt-2 text-xs text-[#9ba3b0]">
               No edges attached yet in dataset v{dataset.raw.version}.
             </p>
           ) : (
@@ -291,7 +291,7 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
                       <span className="font-medium" style={{ color: meta.color }}>
                         {meta.label}
                       </span>
-                      <span className="font-mono text-[#646D7E] tabular-nums">
+                      <span className="font-mono text-[#7f8794] tabular-nums">
                         {list.length}
                       </span>
                     </div>
@@ -305,15 +305,15 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
                         return (
                           <div
                             key={edge.id}
-                            className="border border-white/[0.07] bg-[#0F131C]/80 px-3 py-2 text-xs"
+                            className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-xs"
                           >
                             <div className="flex items-center justify-between gap-2">
                               <button
                                 type="button"
                                 onClick={() => onSelectNode(otherId)}
-                                className="inline-flex items-center gap-1.5 text-left font-medium text-[#EDE9E0] hover:text-[#D4AF72] transition-colors min-w-0"
+                                className="inline-flex items-center gap-1.5 text-left font-medium text-[#f5f5f3] hover:text-[#d4ff3a] transition-colors min-w-0"
                               >
-                                <span className="font-mono text-[10px] text-[#646D7E]">
+                                <span className="font-mono text-[10px] text-[#7f8794]">
                                   {isOutgoing ? '→' : '←'}
                                 </span>
                                 <span className="truncate">
@@ -321,23 +321,23 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
                                 </span>
                                 <ArrowUpRight className="h-3 w-3 shrink-0 opacity-60" />
                               </button>
-                              <span className="font-mono text-[10px] text-[#646D7E] shrink-0">
+                              <span className="font-mono text-[10px] text-[#7f8794] shrink-0">
                                 {edge.relationship}
                               </span>
                             </div>
 
-                            <p className="mt-1 text-[11px] leading-snug text-[#9BA3B4]">
+                            <p className="mt-1 text-xs leading-snug text-[#9ba3b0]">
                               {edge.explanation}
                             </p>
 
-                            <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-[#646D7E]">
+                            <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-[#7f8794]">
                               <span>{edge.presentation_rule}</span>
                               <span>{edge.id}</span>
                             </div>
 
                             {basis === 'inferred' && onUpdateHypothesis && (
                               <div className="mt-2 flex items-center gap-2 border-t border-white/[0.06] pt-2">
-                                <span className="text-[10px] font-mono text-[#D9826C]">
+                                <span className="text-[10px] font-mono text-[#ff8b3d]">
                                   Session review: {decision}
                                 </span>
                                 <div className="ml-auto flex items-center gap-1.5">
@@ -349,10 +349,10 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
                                         decision === 'confirmed' ? 'unreviewed' : 'confirmed'
                                       )
                                     }
-                                    className={`px-2 py-0.5 text-[10px] font-mono border transition-colors ${
+                                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-mono border transition-colors ${
                                       decision === 'confirmed'
-                                        ? 'border-[#78AD8E] bg-[#78AD8E]/20 text-[#78AD8E]'
-                                        : 'border-white/10 text-[#9BA3B4] hover:text-[#EDE9E0]'
+                                        ? 'border-[#72e3a8] bg-[#72e3a8]/20 text-[#72e3a8]'
+                                        : 'border-white/15 text-[#9ba3b0] hover:text-[#f5f5f3]'
                                     }`}
                                   >
                                     Confirm
@@ -365,10 +365,10 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
                                         decision === 'rejected' ? 'unreviewed' : 'rejected'
                                       )
                                     }
-                                    className={`px-2 py-0.5 text-[10px] font-mono border transition-colors ${
+                                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-mono border transition-colors ${
                                       decision === 'rejected'
-                                        ? 'border-[#D9826C] bg-[#D9826C]/20 text-[#D9826C]'
-                                        : 'border-white/10 text-[#9BA3B4] hover:text-[#EDE9E0]'
+                                        ? 'border-[#ff8b3d] bg-[#ff8b3d]/20 text-[#ff8b3d]'
+                                        : 'border-white/15 text-[#9ba3b0] hover:text-[#f5f5f3]'
                                     }`}
                                   >
                                     Dismiss
@@ -389,8 +389,8 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
 
         {/* Resolution Queue & Conflict Notices */}
         {(relatedQueue.length > 0 || relatedConflicts.length > 0) && (
-          <section className="border-t border-white/[0.07] pt-5 space-y-3">
-            <h3 className="text-[11px] font-mono uppercase tracking-widest text-[#646D7E]">
+          <section className="border-t border-white/[0.08] pt-5 space-y-3">
+            <h3 className="text-[11px] font-mono uppercase tracking-widest text-[#7f8794]">
               Audit Flags
             </h3>
             {relatedQueue.map((rq) => {
@@ -399,23 +399,23 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
               return (
                 <div
                   key={rq.id}
-                  className="border border-white/[0.08] bg-[#101520] p-3 text-xs"
+                  className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3 text-xs"
                 >
-                  <div className="flex items-center gap-2 text-[#D4AF72] font-mono text-[11px]">
+                  <div className="flex items-center gap-2 text-[#d4ff3a] font-mono text-[11px]">
                     <GitFork className="h-3.5 w-3.5" />
                     <span>Resolution Queue · {rq.id}</span>
                   </div>
-                  <p className="mt-1 text-[#D4CFC4]">
+                  <p className="mt-1 text-[#d6d9e0]">
                     Overlap with{' '}
                     <button
                       type="button"
                       onClick={() => onSelectNode(partnerId)}
-                      className="underline decoration-[#D4AF72]/50 hover:text-[#D4AF72]"
+                      className="underline decoration-[#d4ff3a]/50 hover:text-[#d4ff3a]"
                     >
                       {partner?.title ?? partnerId}
                     </button>
                   </p>
-                  <p className="mt-1 text-[11px] text-[#8C95A6]">{rq.proposed_action}</p>
+                  <p className="mt-1 text-xs text-[#9ba3b0]">{rq.proposed_action}</p>
                 </div>
               );
             })}
@@ -423,17 +423,17 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
             {relatedConflicts.map((c) => (
               <div
                 key={c.topic}
-                className="border border-[#D9826C]/30 bg-[#D9826C]/8 p-3 text-xs"
+                className="rounded-xl border border-[#ff8b3d]/35 bg-[#ff8b3d]/10 p-3 text-xs"
               >
-                <div className="flex items-center gap-2 font-mono text-[11px] text-[#D9826C]">
+                <div className="flex items-center gap-2 font-mono text-[11px] text-[#ff8b3d]">
                   <AlertTriangle className="h-3.5 w-3.5" />
                   <span>Recorded Conflict · {c.topic}</span>
                 </div>
-                <p className="mt-1 text-[#EDE9E0]">{c.this_export}</p>
+                <p className="mt-1 text-[#f5f5f3]">{c.this_export}</p>
                 {c.other_source && (
-                  <p className="mt-0.5 text-[#9BA3B4]">vs. {c.other_source}</p>
+                  <p className="mt-0.5 text-[#9ba3b0]">vs. {c.other_source}</p>
                 )}
-                <p className="mt-1 font-mono text-[10px] text-[#8C95A6]">
+                <p className="mt-1 font-mono text-[10px] text-[#9ba3b0]">
                   Status: {c.resolution}
                 </p>
               </div>
@@ -444,16 +444,16 @@ export const NodeDossier: React.FC<NodeDossierProps> = ({
 
       {/* Footer Quick Jump */}
       {onNavigateView && (
-        <div className="flex items-center justify-between border-t border-white/[0.08] bg-[#090C12] px-6 py-3 text-xs">
+        <div className="flex items-center justify-between border-t border-white/[0.08] bg-black/50 px-5 sm:px-6 py-3 text-xs">
           <button
             type="button"
             onClick={() => onNavigateView('atlas')}
-            className="inline-flex items-center gap-1.5 text-[#9BA3B4] hover:text-[#EDE9E0] transition-colors"
+            className="inline-flex items-center gap-1.5 text-[#9ba3b0] hover:text-[#d4ff3a] transition-colors"
           >
-            <Compass className="h-3.5 w-3.5 text-[#D4AF72]" />
+            <Compass className="h-3.5 w-3.5 text-[#d4ff3a]" />
             <span>View in Domain Atlas</span>
           </button>
-          <span className="font-mono text-[10px] text-[#646D7E]">
+          <span className="font-mono text-[10px] text-[#7f8794]">
             {connectedEdges.length} edges
           </span>
         </div>

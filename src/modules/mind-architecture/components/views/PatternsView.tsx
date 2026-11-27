@@ -25,10 +25,10 @@ const BIG_FIVE = [
 ];
 
 const DISC_SCORES = [
-  { key: 'D', label: 'Dominance', value: 51, color: '#D4AF72' },
-  { key: 'I', label: 'Influence', value: 30, color: '#7E9BC8' },
-  { key: 'C', label: 'Conscientiousness', value: 13, color: '#88B3B8' },
-  { key: 'S', label: 'Steadiness', value: 6, color: '#9BA3B4' },
+  { key: 'D', label: 'Dominance', value: 51, color: '#d4ff3a' },
+  { key: 'I', label: 'Influence', value: 30, color: '#89a8ff' },
+  { key: 'C', label: 'Conscientiousness', value: 13, color: '#72e3a8' },
+  { key: 'S', label: 'Steadiness', value: 6, color: '#9ba3b0' },
 ];
 
 export const PatternsView: React.FC<PatternsViewProps> = ({
@@ -113,33 +113,33 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
   }, []);
 
   return (
-    <div className="mx-auto max-w-[1440px] px-5 py-8 lg:px-10 lg:py-10 space-y-10">
+    <div className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-10 lg:py-8 space-y-8">
       {/* Masthead */}
-      <div className="border-b border-white/[0.08] pb-7">
-        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#D4AF72]">
+      <div className="border-b border-white/[0.08] pb-6">
+        <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[#d4ff3a]">
           Cognitive Architecture & Self-Models
         </p>
-        <h1 className="mt-2 font-sans text-xl font-semibold tracking-tight text-[#EDE9E0] text-balance">
+        <h1 className="mt-1.5 font-display text-2xl sm:text-[26px] font-bold tracking-tight text-[#f5f5f3] text-balance">
           Thinking Patterns
         </h1>
-        <p className="mt-1.5 max-w-3xl text-xs leading-relaxed text-[#9BA3B4]">
+        <p className="mt-1.5 max-w-3xl text-[13px] sm:text-xs leading-relaxed text-[#9ba3b0]">
           Reported behavioral hypotheses, the 2027 Mandalart strategic architecture, user-proposed cross-domain reasoning chains, and self-reported psychometric models.
         </p>
       </div>
 
       {/* Section 1: Reported Cognitive Patterns */}
-      <section className="border border-white/[0.08] bg-[#0B0E16]">
-        <div className="border-b border-white/[0.08] px-6 py-5 flex flex-wrap items-center justify-between gap-4">
+      <section className="rounded-2xl border border-white/[0.08] bg-[rgba(12,13,16,0.85)] overflow-hidden">
+        <div className="border-b border-white/[0.08] px-5 py-4 sm:px-6 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-[#D9826C]">
+            <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-[#ff8b3d]">
               <AlertCircle className="h-3.5 w-3.5" />
               <span>Unvalidated Hypotheses · 0 Structural Edges</span>
             </div>
-            <h2 className="mt-1.5 font-sans text-base font-semibold tracking-tight text-[#EDE9E0]">
+            <h2 className="mt-1.5 font-display text-base sm:text-lg font-semibold tracking-tight text-[#f5f5f3]">
               Reported Thinking & Execution Patterns ({hypothesisNodes.length})
             </h2>
           </div>
-          <span className="font-mono text-xs text-[#8C95A6]">
+          <span className="font-mono text-xs text-[#9ba3b0]">
             Awaiting corpus validation against original conversations
           </span>
         </div>
@@ -148,30 +148,30 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
           {hypothesisNodes.map((node, idx) => (
             <div
               key={node.id}
-              className="bg-[#0B0E16] p-6 flex flex-col justify-between gap-4 hover:bg-[#101521] transition-colors"
+              className="bg-[rgba(12,13,16,0.92)] p-5 sm:p-6 flex flex-col justify-between gap-4 hover:bg-white/[0.03] transition-colors"
             >
               <div>
-                <div className="flex items-center justify-between font-mono text-[11px] text-[#646D7E]">
+                <div className="flex items-center justify-between font-mono text-[11px] text-[#7c8494]">
                   <span>0{idx + 1}. Hypothesis</span>
-                  <span className="text-[#D9826C]">
+                  <span className="text-[#ff8b3d]">
                     confidence: {node.confidence} · {node.evidence_grade}
                   </span>
                 </div>
-                <h3 className="mt-2 font-sans text-sm font-semibold tracking-tight text-[#EDE9E0] leading-snug">
+                <h3 className="mt-2 font-display text-sm sm:text-base font-semibold tracking-tight text-[#f5f5f3] leading-snug">
                   {node.title}
                 </h3>
-                <p className="mt-2 text-xs text-[#9BA3B4]">{node.description}</p>
+                <p className="mt-2 text-[13px] sm:text-xs text-[#9ba3b0]">{node.description}</p>
               </div>
 
-              <div className="flex items-center justify-between border-t border-white/[0.06] pt-3 text-[11px] font-mono text-[#646D7E]">
+              <div className="flex items-center justify-between border-t border-white/[0.06] pt-3 text-[11px] font-mono text-[#7c8494]">
                 <span>source: {node.source_ids.join(', ')}</span>
                 <button
                   type="button"
                   onClick={() => onFocusNodeInGraph(node.id)}
-                  className="inline-flex items-center gap-1 text-[#D4AF72] hover:underline"
+                  className="inline-flex items-center gap-1 min-h-[32px] text-[#d4ff3a] hover:underline"
                 >
                   <span>Locate</span>
-                  <ArrowUpRight className="h-3 w-3" />
+                  <ArrowUpRight className="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>
@@ -180,28 +180,28 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
       </section>
 
       {/* Section 2: Mandalart 9x9 Core Matrix & B:2 Reasoning Chains */}
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-        <section className="lg:col-span-5 border border-white/[0.08] bg-[#0B0E16] p-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-8">
+        <section className="lg:col-span-5 rounded-2xl border border-white/[0.08] bg-[rgba(12,13,16,0.85)] p-5 sm:p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-mono text-[11px] uppercase tracking-widest text-[#D4AF72]">
+              <p className="font-mono text-[11px] uppercase tracking-wider text-[#d4ff3a]">
                 M:mandalart · 2027 Execution Cycle
               </p>
-              <h2 className="mt-1 font-sans text-base font-semibold tracking-tight text-[#EDE9E0]">
+              <h2 className="mt-1 font-display text-base sm:text-lg font-semibold tracking-tight text-[#f5f5f3]">
                 Mandalart Core Matrix
               </h2>
             </div>
             <button
               type="button"
               onClick={() => onFocusNodeInGraph('mandalart')}
-              className="inline-flex items-center gap-1 text-xs text-[#D4AF72] hover:underline"
+              className="inline-flex items-center gap-1.5 min-h-[34px] rounded-full border border-[#d4ff3a]/35 bg-[#d4ff3a]/10 px-3 py-1 text-xs text-[#d4ff3a] hover:bg-[#d4ff3a]/20"
             >
               <Compass className="h-3.5 w-3.5" />
               <span>Graph</span>
             </button>
           </div>
 
-          <p className="mt-2 text-xs text-[#9BA3B4]">
+          <p className="mt-2 text-[13px] sm:text-xs text-[#9ba3b0]">
             9×9 life-architecture framework centering on Net Worth & Freedom, branching into 7 pillars and Javabali Co. as the first business.
           </p>
 
@@ -214,16 +214,16 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
                   key={cell.id}
                   type="button"
                   onClick={() => onFocusNodeInGraph(cell.id)}
-                  className={`min-h-[96px] p-3 text-left flex flex-col justify-between border transition-colors ${
+                  className={`min-h-[88px] sm:min-h-[96px] rounded-xl p-2.5 sm:p-3 text-left flex flex-col justify-between border transition-colors ${
                     isCenter
-                      ? 'border-[#D4AF72]/60 bg-[#D4AF72]/14 hover:bg-[#D4AF72]/22'
-                      : 'border-white/[0.08] bg-[#0F131C] hover:border-white/25'
+                      ? 'border-[#d4ff3a]/60 bg-[#d4ff3a]/12 hover:bg-[#d4ff3a]/20'
+                      : 'border-white/[0.08] bg-white/[0.025] hover:border-white/25'
                   }`}
                 >
-                  <span className="font-mono text-[10px] text-[#8C95A6]">
+                  <span className="font-mono text-[10px] text-[#9ba3b0]">
                     {isCenter ? 'CENTER' : cell.type.toUpperCase()}
                   </span>
-                  <span className="text-xs font-medium text-[#EDE9E0] leading-snug">
+                  <span className="text-[12px] sm:text-xs font-medium text-[#f5f5f3] leading-snug">
                     {cell.title}
                   </span>
                 </button>
@@ -232,15 +232,15 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
           </div>
         </section>
 
-        <section className="lg:col-span-7 border border-white/[0.08] bg-[#0B0E16] p-6">
-          <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-[#D4AF72]">
+        <section className="lg:col-span-7 rounded-2xl border border-white/[0.08] bg-[rgba(12,13,16,0.85)] p-5 sm:p-6">
+          <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-[#72e3a8]">
             <GitBranch className="h-3.5 w-3.5" />
             <span>Source B:2 · User-Suggested Edges</span>
           </div>
-          <h2 className="mt-1 font-sans text-base font-semibold tracking-tight text-[#EDE9E0]">
+          <h2 className="mt-1 font-display text-base sm:text-lg font-semibold tracking-tight text-[#f5f5f3]">
             Illustrative Cross-Domain Chains
           </h2>
-          <p className="mt-1.5 text-xs text-[#9BA3B4]">
+          <p className="mt-1.5 text-[13px] sm:text-xs text-[#9ba3b0]">
             Rule: These chains were proposed as illustrative examples in your project brief—not presented as claims of deep prior discussion.
           </p>
 
@@ -248,9 +248,9 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
             {userChains.map((chain, idx) => (
               <div
                 key={chain.id}
-                className="border border-white/[0.07] bg-[#0F131C] p-4"
+                className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4"
               >
-                <div className="flex items-center justify-between text-[11px] font-mono text-[#646D7E] mb-2.5">
+                <div className="flex items-center justify-between text-[11px] font-mono text-[#7c8494] mb-2.5">
                   <span>Chain 0{idx + 1} · You proposed in brief</span>
                   <span>{chain.edges.length} links</span>
                 </div>
@@ -263,7 +263,7 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
                         <button
                           type="button"
                           onClick={() => onFocusNodeInGraph(nid)}
-                          className="inline-flex items-center gap-1.5 border border-white/[0.08] bg-[#0B0E16] px-2.5 py-1 text-xs text-[#EDE9E0] hover:border-[#D4AF72]/50 transition-colors"
+                          className="inline-flex items-center gap-1.5 min-h-[32px] rounded-full border border-white/[0.08] bg-black/50 px-3 py-1 text-xs text-[#f5f5f3] hover:border-[#d4ff3a]/50 transition-colors"
                         >
                           <span
                             className="h-1.5 w-1.5 rounded-full"
@@ -272,7 +272,7 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
                           <span>{node?.title ?? nid}</span>
                         </button>
                         {nIdx < chain.nodeIds.length - 1 && (
-                          <ArrowRight className="h-3 w-3 text-[#D4AF72]/70 shrink-0" />
+                          <ArrowRight className="h-3 w-3 text-[#d4ff3a]/70 shrink-0" />
                         )}
                       </React.Fragment>
                     );
@@ -285,32 +285,32 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
       </div>
 
       {/* Section 3: Psychometric & Self-Modeling Frameworks */}
-      <section className="border border-white/[0.08] bg-[#0B0E16] p-6 lg:p-8">
+      <section className="rounded-2xl border border-white/[0.08] bg-[rgba(12,13,16,0.85)] p-5 sm:p-6 lg:p-8">
         <div className="border-b border-white/[0.07] pb-5">
-          <p className="font-mono text-[11px] uppercase tracking-widest text-[#8C95A6]">
+          <p className="font-mono text-[11px] uppercase tracking-wider text-[#9ba3b0]">
             Self-Reported Typologies
           </p>
-          <h2 className="mt-1 font-sans text-base font-semibold tracking-tight text-[#EDE9E0]">
+          <h2 className="mt-1 font-display text-base sm:text-lg font-semibold tracking-tight text-[#f5f5f3]">
             Personality & Self-Modeling Frameworks
           </h2>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-12">
-          <div className="lg:col-span-5 flex flex-col items-center border border-white/[0.07] bg-[#0F131C] p-5">
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-8">
+          <div className="lg:col-span-5 flex flex-col items-center rounded-xl border border-white/[0.07] bg-white/[0.025] p-5">
             <div className="w-full flex items-center justify-between mb-2">
               <button
                 type="button"
                 onClick={() => onFocusNodeInGraph('big_five')}
-                className="font-sans text-sm font-semibold tracking-tight text-[#EDE9E0] hover:text-[#D4AF72]"
+                className="font-display text-sm font-semibold tracking-tight text-[#f5f5f3] hover:text-[#d4ff3a]"
               >
                 Big Five Profile
               </button>
-              <span className="font-mono text-[11px] text-[#8C95A6]">
+              <span className="font-mono text-[11px] text-[#9ba3b0]">
                 X:export · B:1, B:2
               </span>
             </div>
 
-            <svg width="240" height="240" viewBox="0 0 240 240" className="my-2">
+            <svg width="240" height="240" viewBox="0 0 240 240" className="my-2 max-w-full">
               {[25, 50, 75, 100].map((pct) => {
                 const pts = BIG_FIVE.map((_, i) => {
                   const a = -Math.PI / 2 + (i * 2 * Math.PI) / BIG_FIVE.length;
@@ -322,7 +322,7 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
                     key={pct}
                     points={pts}
                     fill="none"
-                    stroke="rgba(226, 232, 240, 0.1)"
+                    stroke="rgba(226, 232, 240, 0.12)"
                     strokeWidth="1"
                   />
                 );
@@ -334,25 +334,25 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
                   y1="120"
                   x2={p.ax}
                   y2={p.ay}
-                  stroke="rgba(226, 232, 240, 0.1)"
+                  stroke="rgba(226, 232, 240, 0.12)"
                   strokeWidth="1"
                 />
               ))}
               <polygon
                 points={radarPoints.map((p) => `${p.x},${p.y}`).join(' ')}
-                fill="rgba(212, 175, 114, 0.22)"
-                stroke="#D4AF72"
+                fill="rgba(212, 255, 58, 0.16)"
+                stroke="#d4ff3a"
                 strokeWidth="1.8"
               />
               {radarPoints.map((p) => (
                 <g key={p.key}>
-                  <circle cx={p.x} cy={p.y} r="3.5" fill="#D4AF72" />
+                  <circle cx={p.x} cy={p.y} r="3.5" fill="#d4ff3a" />
                   <text
                     x={p.lx}
                     y={p.ly}
                     textAnchor="middle"
                     dominantBaseline="middle"
-                    fill="#C9C4B8"
+                    fill="#d6d9e0"
                     fontSize="11"
                     fontFamily="JetBrains Mono, monospace"
                   >
@@ -364,33 +364,33 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
           </div>
 
           <div className="lg:col-span-7 space-y-5">
-            <div className="border border-white/[0.07] bg-[#0F131C] p-5">
+            <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-5">
               <div className="flex items-center justify-between mb-3">
                 <button
                   type="button"
                   onClick={() => onFocusNodeInGraph('disc')}
-                  className="font-sans text-sm font-semibold tracking-tight text-[#EDE9E0] hover:text-[#D4AF72]"
+                  className="font-display text-sm font-semibold tracking-tight text-[#f5f5f3] hover:text-[#d4ff3a]"
                 >
                   DISC Breakdown
                 </button>
-                <span className="font-mono text-[11px] text-[#8C95A6]">
+                <span className="font-mono text-[11px] text-[#9ba3b0]">
                   D51 · I30 · S6 · C13
                 </span>
               </div>
               <div className="space-y-2.5">
                 {DISC_SCORES.map((item) => (
-                  <div key={item.key} className="grid grid-cols-12 items-center gap-3 text-xs">
-                    <span className="col-span-4 text-[#9BA3B4]">{item.label}</span>
-                    <div className="col-span-6 h-1.5 bg-white/[0.06]">
+                  <div key={item.key} className="grid grid-cols-12 items-center gap-3 text-[13px] sm:text-xs">
+                    <span className="col-span-5 sm:col-span-4 text-[#9ba3b0] truncate">{item.label}</span>
+                    <div className="col-span-5 sm:col-span-6 h-1.5 rounded-full bg-white/[0.07] overflow-hidden">
                       <div
-                        className="h-full"
+                        className="h-full rounded-full"
                         style={{
                           width: `${item.value}%`,
                           backgroundColor: item.color,
                         }}
                       />
                     </div>
-                    <span className="col-span-2 text-right font-mono text-[#EDE9E0] tabular-nums">
+                    <span className="col-span-2 text-right font-mono text-[#f5f5f3] tabular-nums">
                       {item.value}
                     </span>
                   </div>
@@ -400,61 +400,61 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {mbtiNode && (
-                <div className="border border-white/[0.07] bg-[#0F131C] p-4">
+                <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4">
                   <div className="flex items-center justify-between">
                     <button
                       type="button"
                       onClick={() => onFocusNodeInGraph(mbtiNode.id)}
-                      className="font-sans text-sm font-semibold tracking-tight text-[#EDE9E0] hover:text-[#D4AF72]"
+                      className="font-display text-sm font-semibold tracking-tight text-[#f5f5f3] hover:text-[#d4ff3a]"
                     >
                       {mbtiNode.title}
                     </button>
-                    <span className="font-mono text-[11px] text-[#D4AF72]">
+                    <span className="font-mono text-[11px] text-[#d4ff3a]">
                       {mbtiNode.evidence_grade}
                     </span>
                   </div>
-                  <p className="mt-1.5 text-xs leading-relaxed text-[#9BA3B4]">
+                  <p className="mt-1.5 text-[13px] sm:text-xs leading-relaxed text-[#9ba3b0]">
                     {mbtiNode.description}
                   </p>
                 </div>
               )}
 
               {enneagramNode && (
-                <div className="border border-white/[0.07] bg-[#0F131C] p-4">
+                <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4">
                   <div className="flex items-center justify-between">
                     <button
                       type="button"
                       onClick={() => onFocusNodeInGraph(enneagramNode.id)}
-                      className="font-sans text-sm font-semibold tracking-tight text-[#EDE9E0] hover:text-[#D4AF72]"
+                      className="font-display text-sm font-semibold tracking-tight text-[#f5f5f3] hover:text-[#d4ff3a]"
                     >
                       {enneagramNode.title}
                     </button>
-                    <span className="font-mono text-[11px] text-[#9BA3B4]">
+                    <span className="font-mono text-[11px] text-[#9ba3b0]">
                       {enneagramNode.evidence_grade}
                     </span>
                   </div>
-                  <p className="mt-1.5 text-xs leading-relaxed text-[#9BA3B4]">
+                  <p className="mt-1.5 text-[13px] sm:text-xs leading-relaxed text-[#9ba3b0]">
                     {enneagramNode.description}
                   </p>
                 </div>
               )}
 
               {humanDesignNode && (
-                <div className="border border-white/[0.07] bg-[#0F131C] p-4 sm:col-span-2">
+                <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4 sm:col-span-2">
                   <div className="flex items-center justify-between">
                     <button
                       type="button"
                       onClick={() => onFocusNodeInGraph(humanDesignNode.id)}
-                      className="font-sans text-sm font-semibold tracking-tight text-[#EDE9E0] hover:text-[#D4AF72]"
+                      className="font-display text-sm font-semibold tracking-tight text-[#f5f5f3] hover:text-[#d4ff3a]"
                     >
                       {humanDesignNode.title}
                     </button>
-                    <span className="inline-flex items-center gap-1 font-mono text-[11px] text-[#D9826C]">
+                    <span className="inline-flex items-center gap-1 font-mono text-[11px] text-[#ff8b3d]">
                       <ShieldAlert className="h-3 w-3" />
                       <span>Sensitive Review</span>
                     </span>
                   </div>
-                  <p className="mt-1.5 text-xs leading-relaxed text-[#9BA3B4]">
+                  <p className="mt-1.5 text-[13px] sm:text-xs leading-relaxed text-[#9ba3b0]">
                     {hideHumanDesign
                       ? 'Masked in Shared View mode (sensitive_review). Switch to Showing All to inspect.'
                       : humanDesignNode.description}

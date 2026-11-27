@@ -21,9 +21,11 @@ import {
   computeCelestialLayout,
   getDomainTheme,
   GRADE_META,
+  type CelestialLayout,
   type ClusterAnchor,
   type PositionedNode,
 } from '../../utils/dataset';
+import { getCachedMindBundle } from '../../utils/datasetCache';
 import { NodeDossier } from '../NodeDossier';
 
 interface GraphViewProps {
@@ -78,9 +80,24 @@ const DEFAULT_BASIS_VISIBILITY: Record<ConnectionBasis, boolean> = {
   established_academic: false,
 };
 
+const LAYOUT_CACHE = new WeakMap<IndexedDataset, CelestialLayout>();
+
+function getLayoutForDataset(dataset: IndexedDataset): CelestialLayout {
+  const fromWeak = LAYOUT_CACHE.get(dataset);
+  if (fromWeak) return fromWeak;
+  const fromBundle = getCachedMindBundle(undefined, dataset.raw);
+  if (fromBundle && fromBundle.indexed === dataset) {
+    LAYOUT_CACHE.set(dataset, fromBundle.layout);
+    return fromBundle.layout;
+  }
+  const computed = computeCelestialLayout(dataset);
+  LAYOUT_CACHE.set(dataset, computed);
+  return computed;
+}
+
 function hexToRgba(hex: string, alpha: number): string {
   const clean = hex.replace('#', '');
-  if (clean.length !== 6) return `rgba(212, 175, 114, ${alpha})`;
+  if (clean.length !== 6) return `rgba(212, 255, 58, ${alpha})`;
   const r = parseInt(clean.slice(0, 2), 16);
   const g = parseInt(clean.slice(2, 4), 16);
   const b = parseInt(clean.slice(4, 6), 16);
@@ -96,7 +113,7 @@ function evalQuadTangent(p0: number, p1: number, p2: number, t: number): number 
   return 2 * (1 - t) * (p1 - p0) + 2 * t * (p2 - p1);
 }
 
-// Deterministic background cosmic starfield
+// Deterministic background cosmic starfield tuned to InPursuit palette
 function generateStarfield(count: number): BackgroundStar[] {
   const stars: BackgroundStar[] = [];
   let s = 48271;
@@ -104,21 +121,21 @@ function generateStarfield(count: number): BackgroundStar[] {
     s = (s * 16807) % 2147483647;
     return (s - 1) / 2147483646;
   };
-  const palette = ['#EDE9E0', '#C5D3EB', '#D4AF72', '#9DB4D4', '#E6EEF8'];
+  const palette = ['#f5f5f3', '#89a8ff', '#ff8b3d', '#d4ff3a', '#9ba3b0'];
   for (let i = 0; i < count; i++) {
     stars.push({
       x: (nextRand() - 0.5) * 4200,
       y: (nextRand() - 0.5) * 3200,
-      size: 0.6 + nextRand() * 1.15,
-      alpha: 0.14 + nextRand() * 0.42,
-      parallax: i % 3 === 0 ? 0.22 : 0.1,
+      size: 1 + Math.round(nextRand() * 1.2),
+      alpha: 0.14 + nextRand() * 0.38,
+      parallax: i % 3 === 0 ? 0.2 : 0.09,
       color: palette[i % palette.length],
     });
   }
   return stars;
 }
 
-const STARFIELD = generateStarfield(300);
+const STARFIELD = generateStarfield(140);
 
 export const GraphView: React.FC<GraphViewProps> = ({
   dataset,
@@ -130,16 +147,18 @@ export const GraphView: React.FC<GraphViewProps> = ({
   onUpdateHypothesis,
   onNavigateView,
 }) => {
-  const layout = useMemo(() => computeCelestialLayout(dataset), [dataset]);
+  const layout = useMemo(() => getLayoutForDataset(dataset), [dataset]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const bgBufferRef = useRef<HTMLCanvasElement | null>(null);
   const viewportRef = useRef({ width: 1200, height: 760, dpr: 1 });
 
   const cameraRef = useRef<CameraState>({ x: 0, y: 0, scale: 0.5 });
   const targetCameraRef = useRef<CameraState>({ x: 0, y: 0, scale: 0.5 });
   const velocityRef = useRef<{ vx: number; vy: number }>({ vx: 0, vy: 0 });
   const hasInitializedCamera = useRef(false);
+  const scheduleRenderRef = useRef<() => void>(() => {});
 
   const [zoomPercent, setZoomPercent] = useState(50);
   const lastZoomPercentRef = useRef(50);
@@ -153,7 +172,9 @@ export const GraphView: React.FC<GraphViewProps> = ({
   const [basisVisible, setBasisVisible] = useState<Record<ConnectionBasis, boolean>>(
     DEFAULT_BASIS_VISIBILITY
   );
-  const [showLegend, setShowLegend] = useState(true);
+  const [showLegend, setShowLegend] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 768 : true
+  );
 
   const dragRef = useRef<{
     pointerId: number;
@@ -172,6 +193,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
     reducedMotionRef.current = mq.matches;
     const onChange = (e: MediaQueryListEvent) => {
       reducedMotionRef.current = e.matches;
+      scheduleRenderRef.current();
     };
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
@@ -179,9 +201,10 @@ export const GraphView: React.FC<GraphViewProps> = ({
 
   const fitUniverseCamera = useCallback(
     (w = viewportRef.current.width, h = viewportRef.current.height): CameraState => {
-      const scaleX = (w - 80) / layout.width;
-      const scaleY = (h - 80) / layout.height;
-      const scale = Math.max(0.28, Math.min(0.66, Math.min(scaleX, scaleY) * 1.18));
+      const pad = w < 640 ? 40 : 80;
+      const scaleX = (w - pad) / layout.width;
+      const scaleY = (h - pad) / layout.height;
+      const scale = Math.max(0.24, Math.min(0.68, Math.min(scaleX, scaleY) * 1.18));
       return {
         x: w / 2 - layout.centerX * scale,
         y: h / 2 - layout.centerY * scale,
@@ -191,19 +214,63 @@ export const GraphView: React.FC<GraphViewProps> = ({
     [layout]
   );
 
-  // Measure container & keep high-DPI canvas crisp
+  // Measure container & keep high-DPI canvas + cached background glow crisp
   useEffect(() => {
     const el = containerRef.current;
     const canvas = canvasRef.current;
     if (!el || !canvas) return;
 
+    const rebuildBgBuffer = (w: number, h: number) => {
+      if (typeof document === 'undefined') return;
+      const buf = bgBufferRef.current ?? document.createElement('canvas');
+      buf.width = Math.max(1, Math.round(w));
+      buf.height = Math.max(1, Math.round(h));
+      const bctx = buf.getContext('2d');
+      if (bctx) {
+        bctx.fillStyle = '#000000';
+        bctx.fillRect(0, 0, buf.width, buf.height);
+
+        const orangeGlow = bctx.createRadialGradient(
+          buf.width * 0.9,
+          buf.height * 0.95,
+          10,
+          buf.width * 0.9,
+          buf.height * 0.95,
+          Math.max(buf.width, buf.height) * 0.68
+        );
+        orangeGlow.addColorStop(0, 'rgba(255, 106, 0, 0.16)');
+        orangeGlow.addColorStop(0.5, 'rgba(255, 106, 0, 0.04)');
+        orangeGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        bctx.fillStyle = orangeGlow;
+        bctx.fillRect(0, 0, buf.width, buf.height);
+
+        const blueGlow = bctx.createRadialGradient(
+          buf.width * 0.06,
+          buf.height * 0.16,
+          10,
+          buf.width * 0.06,
+          buf.height * 0.16,
+          Math.max(buf.width, buf.height) * 0.58
+        );
+        blueGlow.addColorStop(0, 'rgba(35, 77, 204, 0.18)');
+        blueGlow.addColorStop(0.55, 'rgba(35, 77, 204, 0.04)');
+        blueGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        bctx.fillStyle = blueGlow;
+        bctx.fillRect(0, 0, buf.width, buf.height);
+      }
+      bgBufferRef.current = buf;
+    };
+
     const updateSize = () => {
       const rect = el.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) return;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const isNarrow = rect.width < 768;
+      const maxDpr = isNarrow ? 1.5 : 2;
+      const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
       viewportRef.current = { width: rect.width, height: rect.height, dpr };
       canvas.width = Math.round(rect.width * dpr);
       canvas.height = Math.round(rect.height * dpr);
+      rebuildBgBuffer(rect.width, rect.height);
 
       if (!hasInitializedCamera.current) {
         hasInitializedCamera.current = true;
@@ -211,6 +278,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
         cameraRef.current = { ...initial };
         targetCameraRef.current = { ...initial };
       }
+      scheduleRenderRef.current();
     };
 
     updateSize();
@@ -316,9 +384,9 @@ export const GraphView: React.FC<GraphViewProps> = ({
       const decision = hypothesisDecisions[edge.id];
       const color =
         decision === 'confirmed'
-          ? '#78AD8E'
+          ? '#72e3a8'
           : decision === 'rejected'
-          ? '#4B5262'
+          ? '#4b5262'
           : meta.color;
       const dash =
         meta.dash === 'none'
@@ -394,6 +462,22 @@ export const GraphView: React.FC<GraphViewProps> = ({
     clustersArray,
   };
 
+  useEffect(() => {
+    scheduleRenderRef.current();
+  }, [
+    selectedNodeId,
+    hoveredNodeId,
+    hoveredBasis,
+    hoveredClusterDomain,
+    focusedDomain,
+    explorationMode,
+    basisVisible,
+    hideSensitive,
+    hypothesisDecisions,
+    preparedEdges,
+    visibleNodes,
+  ]);
+
   const prevSelectedRef = useRef<string | null>(null);
   useEffect(() => {
     if (selectedNodeId && selectedNodeId !== prevSelectedRef.current) {
@@ -407,6 +491,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
           y: height / 2 - pos.y * targetScale,
           scale: targetScale,
         };
+        scheduleRenderRef.current();
       }
     }
     prevSelectedRef.current = selectedNodeId;
@@ -418,17 +503,19 @@ export const GraphView: React.FC<GraphViewProps> = ({
       velocityRef.current = { vx: 0, vy: 0 };
       if (!domainName) {
         targetCameraRef.current = fitUniverseCamera();
+        scheduleRenderRef.current();
         return;
       }
       const anchor = layout.clusters.get(domainName);
       if (anchor) {
         const { width, height } = viewportRef.current;
-        const targetScale = domainName === '(no domain)' ? 0.98 : 1.15;
+        const targetScale = domainName === '(no domain)' ? 0.96 : 1.12;
         targetCameraRef.current = {
           x: width / 2 - anchor.x * targetScale,
           y: height / 2 - anchor.y * targetScale,
           scale: targetScale,
         };
+        scheduleRenderRef.current();
       }
     },
     [layout, fitUniverseCamera]
@@ -447,6 +534,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
       x: cx - (cx - cur.x) * ratio,
       y: cy - (cy - cur.y) * ratio,
     };
+    scheduleRenderRef.current();
   }, []);
 
   useEffect(() => {
@@ -471,6 +559,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
         x: mx - (mx - cur.x) * ratio,
         y: my - (my - cur.y) * ratio,
       };
+      scheduleRenderRef.current();
     };
 
     canvas.addEventListener('wheel', onWheel, { passive: false });
@@ -497,6 +586,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
         setFocusedDomain(null);
         onSelectNode(null);
         targetCameraRef.current = fitUniverseCamera();
+        scheduleRenderRef.current();
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -519,7 +609,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
 
       let bestNodeId: string | null = null;
       let bestDist = Infinity;
-      const pad = 11 / cam.scale;
+      const pad = (viewportRef.current.width < 768 ? 16 : 11) / cam.scale;
 
       for (let i = nodes.length - 1; i >= 0; i--) {
         const pos = nodes[i];
@@ -575,6 +665,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
       moved: false,
     };
     setIsDraggingUi(true);
+    scheduleRenderRef.current();
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -605,8 +696,11 @@ export const GraphView: React.FC<GraphViewProps> = ({
       cameraRef.current.y = nextY;
       targetCameraRef.current.x = nextX;
       targetCameraRef.current.y = nextY;
+      scheduleRenderRef.current();
       return;
     }
+
+    if (e.pointerType === 'touch') return;
 
     const rect = canvas.getBoundingClientRect();
     const sx = e.clientX - rect.left;
@@ -657,6 +751,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
         onSelectNode(null);
       }
     }
+    scheduleRenderRef.current();
   };
 
   const handlePointerLeave = () => {
@@ -683,20 +778,23 @@ export const GraphView: React.FC<GraphViewProps> = ({
           y: height / 2 - pos.y * targetScale,
           scale: targetScale,
         };
+        scheduleRenderRef.current();
       }
     } else if (hit.clusterDomain) {
       handleFocusDomain(hit.clusterDomain);
     } else {
       setFocusedDomain(null);
       targetCameraRef.current = fitUniverseCamera();
+      scheduleRenderRef.current();
     }
   };
 
+  // On-demand render loop: runs at high FPS while panning/zooming/pulsing and stops completely when idle
   useEffect(() => {
     let rafId = 0;
 
-    const renderFrame = (now: number) => {
-      rafId = requestAnimationFrame(renderFrame);
+    const drawFrame = (now: number) => {
+      rafId = 0;
 
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -709,22 +807,34 @@ export const GraphView: React.FC<GraphViewProps> = ({
       const cam = cameraRef.current;
       const target = targetCameraRef.current;
       const vel = velocityRef.current;
+      let needsAnotherFrame = false;
 
-      if (!dragRef.current) {
-        if (Math.abs(vel.vx) > 0.08 || Math.abs(vel.vy) > 0.08) {
-          cam.x += vel.vx;
-          cam.y += vel.vy;
-          target.x = cam.x;
-          target.y = cam.y;
-          vel.vx *= 0.91;
-          vel.vy *= 0.91;
+      if (dragRef.current) {
+        needsAnotherFrame = true;
+      } else if (Math.abs(vel.vx) > 0.08 || Math.abs(vel.vy) > 0.08) {
+        cam.x += vel.vx;
+        cam.y += vel.vy;
+        target.x = cam.x;
+        target.y = cam.y;
+        vel.vx *= 0.9;
+        vel.vy *= 0.9;
+        needsAnotherFrame = true;
+      } else {
+        vel.vx = 0;
+        vel.vy = 0;
+        const dx = target.x - cam.x;
+        const dy = target.y - cam.y;
+        const ds = target.scale - cam.scale;
+        if (Math.abs(dx) > 0.12 || Math.abs(dy) > 0.12 || Math.abs(ds) > 0.0005) {
+          const lerp = reducedMotionRef.current ? 1 : 0.24;
+          cam.x += dx * lerp;
+          cam.y += dy * lerp;
+          cam.scale += ds * lerp;
+          if (!reducedMotionRef.current) needsAnotherFrame = true;
         } else {
-          vel.vx = 0;
-          vel.vy = 0;
-          const lerp = reducedMotionRef.current ? 1 : 0.22;
-          cam.x += (target.x - cam.x) * lerp;
-          cam.y += (target.y - cam.y) * lerp;
-          cam.scale += (target.scale - cam.scale) * lerp;
+          cam.x = target.x;
+          cam.y = target.y;
+          cam.scale = target.scale;
         }
       }
 
@@ -751,19 +861,12 @@ export const GraphView: React.FC<GraphViewProps> = ({
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      const bgGrad = ctx.createRadialGradient(
-        width * 0.5,
-        height * 0.48,
-        20,
-        width * 0.5,
-        height * 0.5,
-        Math.max(width, height) * 0.78
-      );
-      bgGrad.addColorStop(0, '#0D1220');
-      bgGrad.addColorStop(0.55, '#080B12');
-      bgGrad.addColorStop(1, '#05070B');
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, width, height);
+      if (bgBufferRef.current) {
+        ctx.drawImage(bgBufferRef.current, 0, 0, width, height);
+      } else {
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, width, height);
+      }
 
       for (let i = 0; i < STARFIELD.length; i++) {
         const star = STARFIELD[i];
@@ -773,9 +876,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
           ((star.y + cam.y * star.parallax + height * 2) % (height + 80)) - 40;
         ctx.globalAlpha = star.alpha;
         ctx.fillStyle = star.color;
-        ctx.beginPath();
-        ctx.arc(px, py, star.size, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillRect(px, py, star.size, star.size);
       }
       ctx.globalAlpha = 1;
 
@@ -786,22 +887,13 @@ export const GraphView: React.FC<GraphViewProps> = ({
       const cx0 = layout.centerX;
       const cy0 = layout.centerY;
 
-      const coreGrad = ctx.createRadialGradient(cx0, cy0, 10, cx0, cy0, 1080);
-      coreGrad.addColorStop(0, 'rgba(212, 175, 114, 0.065)');
-      coreGrad.addColorStop(0.45, 'rgba(110, 148, 204, 0.025)');
-      coreGrad.addColorStop(1, 'rgba(5, 7, 11, 0)');
-      ctx.fillStyle = coreGrad;
-      ctx.beginPath();
-      ctx.arc(cx0, cy0, 1080, 0, Math.PI * 2);
-      ctx.fill();
-
       const rings = [
-        { r: 470, dash: [] as number[], alpha: 0.07 },
-        { r: 820, dash: [5, 9], alpha: 0.06 },
+        { r: 470, dash: [] as number[], alpha: 0.08 },
+        { r: 820, dash: [5, 9], alpha: 0.065 },
         { r: 1060, dash: [] as number[], alpha: 0.05 },
       ];
       for (const ring of rings) {
-        ctx.strokeStyle = `rgba(226, 232, 240, ${ring.alpha})`;
+        ctx.strokeStyle = `rgba(245, 245, 243, ${ring.alpha})`;
         ctx.lineWidth = 1 / cam.scale;
         ctx.setLineDash(ring.dash);
         ctx.beginPath();
@@ -810,7 +902,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
       }
       ctx.setLineDash([]);
 
-      ctx.strokeStyle = 'rgba(226, 232, 240, 0.032)';
+      ctx.strokeStyle = 'rgba(245, 245, 243, 0.03)';
       ctx.lineWidth = 1 / cam.scale;
       for (let i = 0; i < 12; i++) {
         const rad = (i * 30 * Math.PI) / 180;
@@ -820,7 +912,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
         ctx.stroke();
       }
 
-      ctx.strokeStyle = 'rgba(212, 175, 114, 0.14)';
+      ctx.strokeStyle = 'rgba(212, 255, 58, 0.14)';
       for (let deg = 0; deg < 360; deg += 5) {
         const rad = (deg * Math.PI) / 180;
         const isMajor = deg % 30 === 0;
@@ -831,7 +923,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
         ctx.stroke();
       }
 
-      ctx.strokeStyle = 'rgba(212, 175, 114, 0.22)';
+      ctx.strokeStyle = 'rgba(212, 255, 58, 0.24)';
       ctx.lineWidth = 1 / cam.scale;
       ctx.beginPath();
       ctx.arc(cx0, cy0, 26, 0, Math.PI * 2);
@@ -858,27 +950,23 @@ export const GraphView: React.FC<GraphViewProps> = ({
           }
         }
         const isDimmedByNode = actId !== null && !hasActiveMember;
-        const alpha = isDimmedByFocus ? 0.16 : isDimmedByNode ? 0.25 : 1;
+        const alpha = isDimmedByFocus ? 0.16 : isDimmedByNode ? 0.24 : 1;
 
         ctx.save();
         ctx.globalAlpha = alpha;
 
-        const haloR = c.orbitRadius + 34;
-        const neb = ctx.createRadialGradient(c.x, c.y, 6, c.x, c.y, haloR);
-        neb.addColorStop(
-          0,
-          hexToRgba(c.theme.color, isClusterHovered || focDom === c.domain ? 0.16 : 0.09)
+        const haloR = c.orbitRadius + 30;
+        ctx.fillStyle = hexToRgba(
+          c.theme.color,
+          isClusterHovered || focDom === c.domain ? 0.09 : 0.045
         );
-        neb.addColorStop(0.65, hexToRgba(c.theme.color, 0.03));
-        neb.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = neb;
         ctx.beginPath();
         ctx.arc(c.x, c.y, haloR, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.strokeStyle = hexToRgba(
           c.theme.color,
-          isClusterHovered || focDom === c.domain ? 0.42 : 0.18
+          isClusterHovered || focDom === c.domain ? 0.48 : 0.2
         );
         ctx.lineWidth = (isClusterHovered ? 1.4 : 1) / cam.scale;
         ctx.setLineDash([4, 7]);
@@ -907,13 +995,13 @@ export const GraphView: React.FC<GraphViewProps> = ({
         let alpha =
           pe.edge.basis === 'structural'
             ? inFocusedCluster
-              ? 0.24
-              : 0.085
+              ? 0.26
+              : 0.09
             : pe.edge.basis === 'explicit'
-            ? 0.38
+            ? 0.4
             : pe.edge.basis === 'user_suggested'
             ? 0.44
-            : 0.3;
+            : 0.32;
 
         if (actId || hovBasis) {
           alpha = 0.035;
@@ -932,11 +1020,13 @@ export const GraphView: React.FC<GraphViewProps> = ({
       }
       ctx.setLineDash([]);
 
+      let hasAnimatedPulse = false;
+
       for (let i = 0; i < activePulseEdges.length; i++) {
         const pe = activePulseEdges[i];
         const isSemantic = pe.edge.basis !== 'structural';
 
-        ctx.strokeStyle = hexToRgba(pe.color, isSemantic ? 0.26 : 0.16);
+        ctx.strokeStyle = hexToRgba(pe.color, isSemantic ? 0.28 : 0.16);
         ctx.lineWidth = (isSemantic ? 4.5 : 2.6) / cam.scale;
         ctx.setLineDash([]);
         ctx.beginPath();
@@ -944,7 +1034,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
         ctx.quadraticCurveTo(pe.cx, pe.cy, pe.tx, pe.ty);
         ctx.stroke();
 
-        ctx.strokeStyle = hexToRgba(pe.color, isSemantic ? 0.94 : 0.55);
+        ctx.strokeStyle = hexToRgba(pe.color, isSemantic ? 0.94 : 0.58);
         ctx.lineWidth = (isSemantic ? 1.85 : 1.1) / cam.scale;
         ctx.setLineDash(pe.dash);
         ctx.beginPath();
@@ -976,16 +1066,21 @@ export const GraphView: React.FC<GraphViewProps> = ({
           ctx.fill();
 
           if (!reducedMotionRef.current && actId) {
+            hasAnimatedPulse = true;
             const tPulse = (now * 0.00045 + pe.seed) % 1;
             const px = evalQuadBezier(pe.sx, pe.cx, pe.tx, tPulse);
             const py = evalQuadBezier(pe.sy, pe.cy, pe.ty, tPulse);
             const pulseR = 2.6 / Math.sqrt(cam.scale);
-            ctx.fillStyle = '#FFFFFF';
+            ctx.fillStyle = '#f5f5f3';
             ctx.beginPath();
             ctx.arc(px, py, pulseR, 0, Math.PI * 2);
             ctx.fill();
           }
         }
+      }
+
+      if (hasAnimatedPulse && !document.hidden) {
+        needsAnotherFrame = true;
       }
 
       const isZoomedIntoDetail = cam.scale >= 0.9;
@@ -1033,14 +1128,11 @@ export const GraphView: React.FC<GraphViewProps> = ({
         const r = pos.radius;
 
         if (node.evidence_grade === 'Q3' || node.type === 'Discipline' || isSelected || isHovered) {
-          const glowR = isSelected || isHovered ? r * 3.1 : r * 2.4;
-          const glow = ctx.createRadialGradient(pos.x, pos.y, r * 0.2, pos.x, pos.y, glowR);
-          glow.addColorStop(
-            0,
-            hexToRgba(isSelected || isHovered ? '#D4AF72' : pos.color, isSelected ? 0.42 : 0.24)
+          const glowR = isSelected || isHovered ? r * 2.7 : r * 2.1;
+          ctx.fillStyle = hexToRgba(
+            isSelected || isHovered ? '#d4ff3a' : pos.color,
+            isSelected ? 0.24 : 0.14
           );
-          glow.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.fillStyle = glow;
           ctx.beginPath();
           ctx.arc(pos.x, pos.y, glowR, 0, Math.PI * 2);
           ctx.fill();
@@ -1048,7 +1140,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
 
         if (isSelected || isHovered) {
           const retR = r + 7.5 / Math.sqrt(cam.scale);
-          ctx.strokeStyle = '#D4AF72';
+          ctx.strokeStyle = '#d4ff3a';
           ctx.lineWidth = 1.4 / cam.scale;
           ctx.beginPath();
           ctx.arc(pos.x, pos.y, retR, 0, Math.PI * 2);
@@ -1069,10 +1161,13 @@ export const GraphView: React.FC<GraphViewProps> = ({
             );
             ctx.stroke();
           }
+          if (!reducedMotionRef.current && !document.hidden) {
+            needsAnotherFrame = true;
+          }
         }
 
         if (pos.isBridge) {
-          ctx.strokeStyle = 'rgba(237, 233, 224, 0.55)';
+          ctx.strokeStyle = 'rgba(245, 245, 243, 0.55)';
           ctx.lineWidth = 0.9 / cam.scale;
           ctx.setLineDash([2, 2.5]);
           ctx.beginPath();
@@ -1082,8 +1177,8 @@ export const GraphView: React.FC<GraphViewProps> = ({
         }
 
         if (node.type === 'Hypothesis') {
-          ctx.fillStyle = '#0B0E16';
-          ctx.strokeStyle = '#D9826C';
+          ctx.fillStyle = '#0c0d10';
+          ctx.strokeStyle = '#ff8b3d';
           ctx.lineWidth = 1.6 / Math.sqrt(cam.scale);
           ctx.beginPath();
           ctx.moveTo(pos.x, pos.y - r * 1.3);
@@ -1095,19 +1190,19 @@ export const GraphView: React.FC<GraphViewProps> = ({
           ctx.stroke();
         } else if (node.type === 'Discipline') {
           ctx.fillStyle = pos.color;
-          ctx.strokeStyle = '#080A0F';
+          ctx.strokeStyle = '#000000';
           ctx.lineWidth = 2.2 / Math.sqrt(cam.scale);
           ctx.beginPath();
           ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
 
-          ctx.fillStyle = '#FFF9EE';
+          ctx.fillStyle = '#f5f5f3';
           ctx.beginPath();
           ctx.arc(pos.x, pos.y, r * 0.3, 0, Math.PI * 2);
           ctx.fill();
         } else if (node.type === 'Subdiscipline') {
-          ctx.fillStyle = '#0A0E17';
+          ctx.fillStyle = '#0c0d10';
           ctx.strokeStyle = pos.color;
           ctx.lineWidth = 1.9 / Math.sqrt(cam.scale);
           ctx.beginPath();
@@ -1120,8 +1215,8 @@ export const GraphView: React.FC<GraphViewProps> = ({
           ctx.arc(pos.x, pos.y, r * 0.38, 0, Math.PI * 2);
           ctx.fill();
         } else {
-          ctx.fillStyle = isSelected ? '#D4AF72' : pos.color;
-          ctx.strokeStyle = '#07090E';
+          ctx.fillStyle = isSelected ? '#d4ff3a' : pos.color;
+          ctx.strokeStyle = '#000000';
           ctx.lineWidth = 1.2 / Math.sqrt(cam.scale);
           ctx.beginPath();
           ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
@@ -1171,12 +1266,12 @@ export const GraphView: React.FC<GraphViewProps> = ({
                   : node.title,
               fontSize:
                 node.type === 'Subdiscipline'
-                  ? 11.5
-                  : isSelected || isHovered
                   ? 12
-                  : 10.5,
+                  : isSelected || isHovered
+                  ? 12.5
+                  : 11,
               weight: isSelected || node.type === 'Subdiscipline' ? 600 : 400,
-              color: isSelected || isHovered ? '#EDE9E0' : '#C9C4B8',
+              color: isSelected || isHovered ? '#f5f5f3' : '#d6d9e0',
             });
           }
         }
@@ -1198,13 +1293,13 @@ export const GraphView: React.FC<GraphViewProps> = ({
 
         const metaSize = Math.max(9.5, Math.min(11.5, 9 + cam.scale * 3));
         ctx.font = `500 ${metaSize}px "JetBrains Mono", monospace`;
-        ctx.fillStyle = isClusterHovered ? '#EDE9E0' : c.theme.color;
+        ctx.fillStyle = isClusterHovered ? '#f5f5f3' : c.theme.color;
         ctx.fillText(`${c.theme.roman} · ${c.nodeCount} NODES`, sx, sy - 14);
 
-        const titleSize = Math.max(12, Math.min(18, 11 + cam.scale * 7));
-        ctx.font = `600 ${titleSize}px "Instrument Sans", system-ui, sans-serif`;
+        const titleSize = Math.max(12.5, Math.min(18, 11.5 + cam.scale * 7));
+        ctx.font = `700 ${titleSize}px "Bricolage Grotesque", "Instrument Sans", sans-serif`;
         ctx.fillStyle =
-          isClusterHovered || focDom === c.domain ? '#FFFFFF' : '#EDE9E0';
+          isClusterHovered || focDom === c.domain ? '#ffffff' : '#f5f5f3';
         ctx.fillText(c.theme.shortName, sx, sy + 4);
         ctx.restore();
       }
@@ -1222,9 +1317,9 @@ export const GraphView: React.FC<GraphViewProps> = ({
         const textW = ctx.measureText(item.text).width;
         const labelY = sy + item.pos.radius * cam.scale + 13;
         const box = {
-          x1: sx - textW / 2 - 5,
+          x1: sx - textW / 2 - 6,
           y1: labelY - item.fontSize + 1,
-          x2: sx + textW / 2 + 5,
+          x2: sx + textW / 2 + 6,
           y2: labelY + 5,
         };
 
@@ -1248,17 +1343,38 @@ export const GraphView: React.FC<GraphViewProps> = ({
         if (collides) continue;
         occupiedBoxes.push(box);
 
-        ctx.fillStyle = 'rgba(6, 8, 13, 0.78)';
+        ctx.fillStyle = 'rgba(8, 9, 12, 0.84)';
         ctx.fillRect(box.x1, box.y1, box.x2 - box.x1, box.y2 - box.y1);
 
         ctx.textAlign = 'center';
         ctx.fillStyle = item.color;
         ctx.fillText(item.text, sx, labelY);
       }
+
+      if (needsAnotherFrame) {
+        rafId = requestAnimationFrame(drawFrame);
+      }
     };
 
-    rafId = requestAnimationFrame(renderFrame);
-    return () => cancelAnimationFrame(rafId);
+    const scheduleRender = () => {
+      if (rafId === 0) {
+        rafId = requestAnimationFrame(drawFrame);
+      }
+    };
+
+    scheduleRenderRef.current = scheduleRender;
+    scheduleRender();
+
+    const onVisibility = () => {
+      if (!document.hidden) scheduleRender();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (rafId !== 0) cancelAnimationFrame(rafId);
+      scheduleRenderRef.current = () => {};
+    };
   }, [layout]);
 
   const hoveredNode = hoveredNodeId ? dataset.nodeById.get(hoveredNodeId) : null;
@@ -1268,19 +1384,19 @@ export const GraphView: React.FC<GraphViewProps> = ({
   );
 
   return (
-    <div className="relative flex flex-1 h-full min-h-[540px] w-full overflow-hidden bg-[#06080D]">
+    <div className="relative flex flex-1 h-full min-h-[460px] md:min-h-[540px] w-full overflow-hidden bg-black">
       {/* Main Interactive Universe Stage */}
       <div className="relative flex-1 flex flex-col min-w-0 min-h-0">
-        {/* Observatory Top Control Strip (below Mind Architecture TopNav) */}
-        <div className="z-20 flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] bg-[#090C14]/92 px-4 py-2.5 backdrop-blur-md lg:px-6">
+        {/* Observatory Top Control Strip */}
+        <div className="z-20 flex flex-wrap items-center justify-between gap-2.5 border-b border-white/[0.08] bg-black/88 md:backdrop-blur-md px-3 py-2.5 sm:px-4 lg:px-6">
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full pb-0.5">
             <button
               type="button"
               onClick={() => handleFocusDomain(null)}
-              className={`px-2.5 py-1 text-xs whitespace-nowrap shrink-0 border transition-colors ${
+              className={`min-h-[36px] sm:min-h-[30px] rounded-full px-3 py-1 text-[12px] sm:text-xs whitespace-nowrap shrink-0 border transition-colors ${
                 focusedDomain === null
-                  ? 'border-[#D4AF72]/50 bg-[#D4AF72]/15 text-[#EDE9E0]'
-                  : 'border-white/[0.07] text-[#8C95A6] hover:text-[#EDE9E0]'
+                  ? 'border-[#d4ff3a]/50 bg-[#d4ff3a]/12 text-[#d4ff3a] font-medium'
+                  : 'border-white/[0.08] text-[#9ba3b0] hover:text-[#f5f5f3]'
               }`}
             >
               All Constellations
@@ -1293,10 +1409,10 @@ export const GraphView: React.FC<GraphViewProps> = ({
                   key={dom}
                   type="button"
                   onClick={() => handleFocusDomain(isSelected ? null : dom)}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs whitespace-nowrap shrink-0 border transition-colors ${
+                  className={`inline-flex items-center gap-1.5 min-h-[36px] sm:min-h-[30px] rounded-full px-3 py-1 text-[12px] sm:text-xs whitespace-nowrap shrink-0 border transition-colors ${
                     isSelected
-                      ? 'border-white/30 bg-[#151B28] text-[#EDE9E0]'
-                      : 'border-white/[0.06] text-[#8C95A6] hover:text-[#EDE9E0] hover:border-white/15'
+                      ? 'border-white/30 bg-white/[0.1] text-[#f5f5f3] font-medium'
+                      : 'border-white/[0.07] text-[#9ba3b0] hover:text-[#f5f5f3] hover:border-white/20'
                   }`}
                 >
                   <span
@@ -1309,8 +1425,8 @@ export const GraphView: React.FC<GraphViewProps> = ({
             })}
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="flex items-center border border-white/[0.08] bg-[#07090F] p-0.5">
+          <div className="flex items-center gap-2 shrink-0 max-w-full overflow-x-auto no-scrollbar">
+            <div className="flex items-center rounded-full border border-white/[0.08] bg-[#0c0d10] p-0.5">
               {(
                 [
                   { id: 'progressive', label: 'Progressive' },
@@ -1322,10 +1438,10 @@ export const GraphView: React.FC<GraphViewProps> = ({
                   key={mode.id}
                   type="button"
                   onClick={() => setExplorationMode(mode.id)}
-                  className={`px-2.5 py-1 text-[11px] font-medium whitespace-nowrap transition-colors ${
+                  className={`min-h-[32px] sm:min-h-[26px] rounded-full px-2.5 py-1 text-[11px] font-medium whitespace-nowrap transition-colors ${
                     explorationMode === mode.id
-                      ? 'bg-[#171E2C] text-[#D4AF72]'
-                      : 'text-[#8C95A6] hover:text-[#EDE9E0]'
+                      ? 'bg-white/[0.1] text-[#d4ff3a]'
+                      : 'text-[#9ba3b0] hover:text-[#f5f5f3]'
                   }`}
                 >
                   {mode.label}
@@ -1337,10 +1453,11 @@ export const GraphView: React.FC<GraphViewProps> = ({
               type="button"
               onClick={onToggleSensitive}
               title="Toggle sensitive review items (data_quality.sensitive_review)"
-              className={`inline-flex items-center gap-1.5 border px-2.5 py-1.5 text-[11px] whitespace-nowrap transition-colors ${
+              aria-label={hideSensitive ? 'Show sensitive items' : 'Hide sensitive items'}
+              className={`inline-flex items-center gap-1.5 min-h-[34px] sm:min-h-[30px] rounded-full border px-3 py-1 text-[11px] whitespace-nowrap transition-colors ${
                 hideSensitive
-                  ? 'border-[#D4AF72]/45 bg-[#D4AF72]/12 text-[#D4AF72]'
-                  : 'border-white/[0.08] text-[#8C95A6] hover:text-[#EDE9E0]'
+                  ? 'border-[#d4ff3a]/45 bg-[#d4ff3a]/12 text-[#d4ff3a]'
+                  : 'border-white/[0.08] text-[#9ba3b0] hover:text-[#f5f5f3]'
               }`}
             >
               {hideSensitive ? (
@@ -1355,7 +1472,7 @@ export const GraphView: React.FC<GraphViewProps> = ({
           </div>
         </div>
 
-        {/* High-DPI 120fps Hardware-Accelerated Constellation Canvas */}
+        {/* On-Demand High-DPI Constellation Canvas */}
         <div
           ref={containerRef}
           className="relative flex-1 min-h-0 overflow-hidden select-none"
@@ -1379,10 +1496,10 @@ export const GraphView: React.FC<GraphViewProps> = ({
           />
 
           {/* Bottom-Left Telemetry Hover Card & Connection Layer Toggles */}
-          <div className="pointer-events-none absolute bottom-4 left-4 z-20 flex flex-col gap-2 max-w-[360px]">
+          <div className="pointer-events-none absolute bottom-3 left-3 sm:bottom-4 sm:left-4 z-20 flex flex-col gap-2 max-w-[calc(100%-178px)] sm:max-w-[340px]">
             {hoveredNode && (
-              <div className="pointer-events-auto border border-white/[0.14] bg-[#0B0E16]/95 px-4 py-3 backdrop-blur-md shadow-2xl">
-                <div className="flex items-center gap-2 text-[10px] font-mono text-[#9BA3B4]">
+              <div className="pointer-events-auto rounded-2xl border border-white/[0.14] bg-[rgba(12,13,16,0.94)] md:backdrop-blur-md px-4 py-3 shadow-2xl">
+                <div className="flex items-center gap-2 text-[10px] font-mono text-[#9ba3b0]">
                   <span
                     className="h-2 w-2 rounded-full"
                     style={{
@@ -1403,26 +1520,26 @@ export const GraphView: React.FC<GraphViewProps> = ({
                     {dataset.edgesByNodeId.get(hoveredNode.id)?.length ?? 0} edges
                   </span>
                 </div>
-                <p className="mt-1 font-sans text-sm font-semibold tracking-tight text-[#EDE9E0] leading-snug">
+                <p className="mt-1 font-display text-sm font-semibold tracking-tight text-[#f5f5f3] leading-snug">
                   {hoveredNode.title}
                 </p>
-                <p className="mt-1 text-xs text-[#9BA3B4] line-clamp-2">
+                <p className="mt-1 text-[13px] sm:text-xs text-[#9ba3b0] line-clamp-2">
                   {hoveredNode.description}
                 </p>
               </div>
             )}
 
-            <div className="pointer-events-auto border border-white/[0.1] bg-[#0A0D15]/90 backdrop-blur-md">
+            <div className="pointer-events-auto rounded-2xl border border-white/[0.1] bg-[rgba(12,13,16,0.92)] md:backdrop-blur-md overflow-hidden">
               <button
                 type="button"
                 onClick={() => setShowLegend((v) => !v)}
-                className="flex w-full items-center justify-between gap-3 px-3.5 py-2 text-[11px] font-mono text-[#9BA3B4] hover:text-[#EDE9E0]"
+                className="flex w-full min-h-[38px] sm:min-h-[32px] items-center justify-between gap-2.5 px-3.5 py-2 text-[11px] font-mono text-[#9ba3b0] hover:text-[#f5f5f3]"
               >
-                <span className="inline-flex items-center gap-1.5">
-                  <Layers className="h-3.5 w-3.5 text-[#D4AF72]" />
-                  <span>Connection Layers</span>
+                <span className="inline-flex items-center gap-1.5 truncate">
+                  <Layers className="h-3.5 w-3.5 text-[#d4ff3a] shrink-0" />
+                  <span className="truncate">Layers</span>
                 </span>
-                <span>{showLegend ? 'Hide' : 'Show'}</span>
+                <span className="shrink-0 text-[#f5f5f3]/70">{showLegend ? 'Hide' : 'Show'}</span>
               </button>
 
               {showLegend && (
@@ -1451,25 +1568,25 @@ export const GraphView: React.FC<GraphViewProps> = ({
                             [basis]: !prev[basis],
                           }))
                         }
-                        className={`flex w-full items-center justify-between gap-4 text-left text-[11px] transition-opacity ${
+                        className={`flex w-full min-h-[28px] items-center justify-between gap-3 text-left text-[11px] transition-opacity ${
                           active ? 'opacity-100' : 'opacity-40'
                         }`}
                       >
-                        <span className="flex items-center gap-2 text-[#D4CFC4] hover:text-white">
-                          <svg width="20" height="6" aria-hidden="true">
+                        <span className="flex items-center gap-2 text-[#d6d9e0] hover:text-white truncate">
+                          <svg width="18" height="6" className="shrink-0" aria-hidden="true">
                             <line
                               x1="0"
                               y1="3"
-                              x2="20"
+                              x2="18"
                               y2="3"
                               stroke={meta.color}
                               strokeWidth="1.6"
                               strokeDasharray={meta.dash === 'none' ? undefined : meta.dash}
                             />
                           </svg>
-                          <span>{meta.shortLabel}</span>
+                          <span className="truncate">{meta.shortLabel}</span>
                         </span>
-                        <span className="font-mono text-[10px] text-[#646D7E] tabular-nums">
+                        <span className="font-mono text-[10px] text-[#7c8494] tabular-nums shrink-0">
                           {count}
                         </span>
                       </button>
@@ -1481,23 +1598,23 @@ export const GraphView: React.FC<GraphViewProps> = ({
           </div>
 
           {/* Bottom-Right Observatory Navigation Controls */}
-          <div className="absolute bottom-4 right-4 z-20 flex items-center gap-1 border border-white/[0.1] bg-[#0A0D15]/90 p-1 backdrop-blur-md">
+          <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-20 flex items-center gap-0.5 sm:gap-1 rounded-full border border-white/[0.1] bg-[rgba(12,13,16,0.92)] p-1 md:backdrop-blur-md">
             <button
               type="button"
               onClick={() => zoomBy(1.26)}
               aria-label="Zoom in"
-              className="p-2 text-[#9BA3B4] hover:text-[#EDE9E0] hover:bg-white/[0.05] transition-colors"
+              className="flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-full text-[#9ba3b0] hover:text-[#f5f5f3] hover:bg-white/[0.06] transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
-            <span className="px-2 font-mono text-[11px] text-[#8C95A6] tabular-nums min-w-[46px] text-center">
+            <span className="px-1.5 sm:px-2 font-mono text-[11px] text-[#9ba3b0] tabular-nums min-w-[42px] text-center">
               {zoomPercent}%
             </span>
             <button
               type="button"
               onClick={() => zoomBy(0.79)}
               aria-label="Zoom out"
-              className="p-2 text-[#9BA3B4] hover:text-[#EDE9E0] hover:bg-white/[0.05] transition-colors"
+              className="flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-full text-[#9ba3b0] hover:text-[#f5f5f3] hover:bg-white/[0.06] transition-colors"
             >
               <Minus className="h-3.5 w-3.5" />
             </button>
@@ -1509,10 +1626,11 @@ export const GraphView: React.FC<GraphViewProps> = ({
                 onSelectNode(null);
                 velocityRef.current = { vx: 0, vy: 0 };
                 targetCameraRef.current = fitUniverseCamera();
+                scheduleRenderRef.current();
               }}
               aria-label="Reset universe view"
               title="Fit all constellations (0)"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] text-[#9BA3B4] hover:text-[#D4AF72] hover:bg-white/[0.05] transition-colors"
+              className="inline-flex h-9 sm:h-8 items-center gap-1.5 rounded-full px-2.5 text-[11px] text-[#9ba3b0] hover:text-[#d4ff3a] hover:bg-white/[0.06] transition-colors"
             >
               <Maximize2 className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Fit</span>
@@ -1522,19 +1640,19 @@ export const GraphView: React.FC<GraphViewProps> = ({
                 type="button"
                 onClick={() => handleFocusDomain(null)}
                 aria-label="Clear domain focus"
-                className="inline-flex items-center gap-1 px-2 py-1.5 text-[11px] text-[#D4AF72] hover:bg-white/[0.05]"
+                className="inline-flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-full text-[#d4ff3a] hover:bg-white/[0.06]"
               >
-                <RotateCcw className="h-3 w-3" />
+                <RotateCcw className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
 
           {/* Empty Selection Subtle Cue */}
           {!selectedNodeId && !hoveredNode && (
-            <div className="pointer-events-none absolute top-4 right-4 z-10 hidden md:flex items-center gap-2 border border-white/[0.07] bg-[#0A0D15]/80 px-3.5 py-2 text-[11px] text-[#8C95A6] backdrop-blur-sm">
-              <Compass className="h-3.5 w-3.5 text-[#D4AF72]" />
+            <div className="pointer-events-none absolute top-4 right-4 z-10 hidden md:flex items-center gap-2 rounded-full border border-white/[0.08] bg-[rgba(12,13,16,0.82)] px-3.5 py-1.5 text-[11px] text-[#9ba3b0] backdrop-blur-sm">
+              <Compass className="h-3.5 w-3.5 text-[#d4ff3a]" />
               <span>
-                Scroll to zoom · Drag with momentum · Click or double-click any star to inspect
+                Scroll to zoom · Drag with momentum · Click any star to inspect
               </span>
             </div>
           )}

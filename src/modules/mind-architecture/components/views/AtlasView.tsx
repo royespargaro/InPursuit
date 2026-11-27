@@ -92,17 +92,17 @@ export const AtlasView: React.FC<AtlasViewProps> = ({
   };
 
   return (
-    <div className="mx-auto max-w-[1440px] px-5 py-8 lg:px-10 lg:py-10">
-      {/* Editorial Section Masthead */}
-      <div className="flex flex-col gap-5 border-b border-white/[0.08] pb-7 md:flex-row md:items-end md:justify-between">
+    <div className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+      {/* Section Masthead */}
+      <div className="flex flex-col gap-4 border-b border-white/[0.08] pb-6 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#D4AF72]">
+          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[#d4ff3a]">
             Domain Encyclopedia · {coverageRows.length - 1} Disciplines
           </p>
-          <h1 className="mt-2 font-sans text-xl font-semibold tracking-tight text-[#EDE9E0] text-balance">
+          <h1 className="mt-1.5 font-display text-2xl sm:text-[26px] font-bold tracking-tight text-[#f5f5f3] text-balance">
             Intellectual Atlas
           </h1>
-          <p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-[#9BA3B4]">
+          <p className="mt-1.5 max-w-2xl text-[13px] sm:text-xs leading-relaxed text-[#9ba3b0]">
             A structured monograph across every intellectual domain in the v{dataset.raw.version} corpus, contrasting active practice against thin or brief-only areas without padding.
           </p>
         </div>
@@ -110,10 +110,10 @@ export const AtlasView: React.FC<AtlasViewProps> = ({
         <button
           type="button"
           onClick={onToggleSensitive}
-          className={`inline-flex items-center gap-2 border px-3.5 py-2 text-xs self-start transition-colors ${
+          className={`inline-flex items-center gap-2 min-h-[38px] rounded-full border px-4 py-1.5 text-[13px] sm:text-xs self-start transition-colors ${
             hideSensitive
-              ? 'border-[#D4AF72]/45 bg-[#D4AF72]/12 text-[#D4AF72]'
-              : 'border-white/[0.1] text-[#9BA3B4] hover:text-[#EDE9E0]'
+              ? 'border-[#d4ff3a]/45 bg-[#d4ff3a]/12 text-[#d4ff3a]'
+              : 'border-white/[0.1] text-[#9ba3b0] hover:text-[#f5f5f3]'
           }`}
         >
           {hideSensitive ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
@@ -121,16 +121,16 @@ export const AtlasView: React.FC<AtlasViewProps> = ({
         </button>
       </div>
 
-      {/* Asymmetric Split: Left Domain Index + Right Monograph */}
-      <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-12">
+      {/* Split Layout: Left Domain Index + Right Monograph */}
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-8">
         {/* Left Domain Navigation Rail */}
         <aside className="lg:col-span-4 xl:col-span-3">
-          <div className="border border-white/[0.08] bg-[#0B0E16]">
+          <div className="rounded-2xl border border-white/[0.08] bg-[rgba(12,13,16,0.85)] overflow-hidden">
             <div className="border-b border-white/[0.07] px-4 py-3 flex items-center justify-between">
-              <span className="font-mono text-[11px] uppercase tracking-widest text-[#8C95A6]">
+              <span className="font-mono text-[11px] uppercase tracking-wider text-[#9ba3b0]">
                 Index of Domains
               </span>
-              <span className="font-mono text-[11px] text-[#646D7E] tabular-nums">
+              <span className="font-mono text-[11px] text-[#7c8494] tabular-nums">
                 {dataset.raw.nodes.length} nodes
               </span>
             </div>
@@ -151,7 +151,7 @@ export const AtlasView: React.FC<AtlasViewProps> = ({
                     type="button"
                     onClick={() => handleSelectDomain(row.domain)}
                     className={`w-full text-left px-4 py-3 transition-colors ${
-                      isActive ? 'bg-[#131926]' : 'hover:bg-[#0F141F]'
+                      isActive ? 'bg-white/[0.07]' : 'hover:bg-white/[0.035]'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -161,8 +161,8 @@ export const AtlasView: React.FC<AtlasViewProps> = ({
                           style={{ backgroundColor: theme.color }}
                         />
                         <span
-                          className={`text-xs truncate ${
-                            isActive ? 'text-[#EDE9E0] font-semibold' : 'text-[#B9B4A9]'
+                          className={`text-[13px] sm:text-xs truncate ${
+                            isActive ? 'text-[#f5f5f3] font-semibold' : 'text-[#d6d9e0]'
                           }`}
                         >
                           {row.domain === '(no domain)'
@@ -170,22 +170,22 @@ export const AtlasView: React.FC<AtlasViewProps> = ({
                             : row.domain}
                         </span>
                       </span>
-                      <span className="font-mono text-[11px] text-[#8C95A6] tabular-nums shrink-0">
+                      <span className="font-mono text-[11px] text-[#9ba3b0] tabular-nums shrink-0">
                         {row.nodes}
                       </span>
                     </div>
 
-                    <div className="mt-2 flex h-1 w-full overflow-hidden bg-white/[0.05]">
+                    <div className="mt-2 flex h-1 w-full overflow-hidden rounded-full bg-white/[0.06]">
                       <div
-                        style={{ width: `${q3Pct}%`, backgroundColor: '#D4AF72' }}
+                        style={{ width: `${q3Pct}%`, backgroundColor: '#d4ff3a' }}
                         title={`Q3: ${row.grade_Q3}`}
                       />
                       <div
-                        style={{ width: `${q2Pct}%`, backgroundColor: '#647084' }}
+                        style={{ width: `${q2Pct}%`, backgroundColor: '#8c94a3' }}
                         title={`Q2: ${row.grade_Q2}`}
                       />
                       <div
-                        style={{ width: `${q1Pct}%`, backgroundColor: '#D9826C' }}
+                        style={{ width: `${q1Pct}%`, backgroundColor: '#ff8b3d' }}
                         title={`Q1: ${row.grade_Q1}`}
                       />
                     </div>
@@ -197,21 +197,21 @@ export const AtlasView: React.FC<AtlasViewProps> = ({
         </aside>
 
         {/* Right Domain Monograph */}
-        <div className="lg:col-span-8 xl:col-span-9 space-y-8 min-w-0">
+        <div className="lg:col-span-8 xl:col-span-9 space-y-6 min-w-0">
           {activeCoverage && (
-            <section className="border border-white/[0.08] bg-[#0B0E16] p-6 lg:p-8">
-              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/[0.07] pb-6">
-                <div>
-                  <div className="flex items-center gap-2.5 font-mono text-[11px] uppercase tracking-widest text-[#8C95A6]">
+            <section className="rounded-2xl border border-white/[0.08] bg-[rgba(12,13,16,0.85)] p-5 sm:p-6 lg:p-8">
+              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/[0.07] pb-5">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2.5 font-mono text-[11px] uppercase tracking-wider text-[#9ba3b0]">
                     <span
-                      className="h-2.5 w-2.5 rounded-full"
+                      className="h-2.5 w-2.5 rounded-full shrink-0"
                       style={{ backgroundColor: activeTheme.color }}
                     />
                     <span>Sector {activeTheme.roman}</span>
                     <span aria-hidden="true">·</span>
                     <span>{activeCoverage.source_records} source records</span>
                   </div>
-                  <h2 className="mt-2 font-sans text-base font-semibold tracking-tight text-[#EDE9E0] text-balance">
+                  <h2 className="mt-2 font-display text-lg sm:text-xl font-bold tracking-tight text-[#f5f5f3] text-balance">
                     {activeCoverage.domain === '(no domain)'
                       ? 'Unassigned Hypotheses & Recent Conversation Topics'
                       : activeCoverage.domain}
@@ -222,19 +222,19 @@ export const AtlasView: React.FC<AtlasViewProps> = ({
                   <button
                     type="button"
                     onClick={() => onFocusNodeInGraph(activeDisciplineNode.id)}
-                    className="inline-flex items-center gap-2 border border-[#D4AF72]/35 bg-[#D4AF72]/10 px-3.5 py-2 text-xs text-[#EDE9E0] hover:border-[#D4AF72]/70 transition-colors"
+                    className="inline-flex items-center gap-2 min-h-[38px] rounded-full border border-[#d4ff3a]/40 bg-[#d4ff3a]/12 px-4 py-1.5 text-[13px] sm:text-xs font-medium text-[#d4ff3a] hover:bg-[#d4ff3a]/20 transition-colors"
                   >
-                    <Compass className="h-3.5 w-3.5 text-[#D4AF72]" />
+                    <Compass className="h-3.5 w-3.5" />
                     <span>Open Constellation</span>
                   </button>
                 )}
               </div>
 
               {activeTheme.thinNotice && (
-                <div className="mt-5 flex items-start gap-3 border border-[#D4AF72]/25 bg-[#D4AF72]/[0.06] px-4 py-3 text-xs text-[#D8C7A6]">
-                  <AlertCircle className="h-4 w-4 text-[#D4AF72] shrink-0 mt-0.5" />
+                <div className="mt-5 flex items-start gap-3 rounded-xl border border-[#ff8b3d]/30 bg-[#ff8b3d]/[0.07] px-4 py-3 text-[13px] sm:text-xs text-[#ffd2b0]">
+                  <AlertCircle className="h-4 w-4 text-[#ff8b3d] shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-medium text-[#EDE9E0]">
+                    <span className="font-semibold text-[#f5f5f3]">
                       Thin domain — intentionally unpadded.{' '}
                     </span>
                     {activeTheme.thinNotice}. Remains thin until original conversations supply practice evidence.
@@ -252,8 +252,8 @@ export const AtlasView: React.FC<AtlasViewProps> = ({
                   { label: 'Inferred Edges', val: activeCoverage.inferred_edges },
                 ].map((stat) => (
                   <div key={stat.label}>
-                    <p className="text-[11px] text-[#646D7E]">{stat.label}</p>
-                    <p className="mt-1 font-mono text-2xl font-medium text-[#EDE9E0] tabular-nums">
+                    <p className="text-[11px] text-[#7c8494]">{stat.label}</p>
+                    <p className="mt-1 font-mono text-xl sm:text-2xl font-medium text-[#f5f5f3] tabular-nums">
                       {stat.val}
                     </p>
                   </div>
@@ -262,45 +262,45 @@ export const AtlasView: React.FC<AtlasViewProps> = ({
 
               <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
-                  <h3 className="font-mono text-[11px] uppercase tracking-widest text-[#646D7E]">
+                  <h3 className="font-mono text-[11px] uppercase tracking-wider text-[#7c8494]">
                     Evidence Grade Breakdown
                   </h3>
                   <div className="mt-3 grid grid-cols-4 gap-2 text-xs">
                     {[
-                      { g: 'Q4', v: activeCoverage.grade_Q4, c: '#78AD8E' },
-                      { g: 'Q3', v: activeCoverage.grade_Q3, c: '#D4AF72' },
-                      { g: 'Q2', v: activeCoverage.grade_Q2, c: '#9BA3B4' },
-                      { g: 'Q1', v: activeCoverage.grade_Q1, c: '#D9826C' },
+                      { g: 'Q4', v: activeCoverage.grade_Q4, c: '#89a8ff' },
+                      { g: 'Q3', v: activeCoverage.grade_Q3, c: '#d4ff3a' },
+                      { g: 'Q2', v: activeCoverage.grade_Q2, c: '#b4bac4' },
+                      { g: 'Q1', v: activeCoverage.grade_Q1, c: '#ff8b3d' },
                     ].map((item) => (
                       <div
                         key={item.g}
-                        className="border border-white/[0.07] bg-[#0F131C] p-3"
+                        className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3"
                       >
                         <span className="font-mono text-[11px]" style={{ color: item.c }}>
                           {item.g}
                         </span>
-                        <p className="mt-1 font-mono text-lg text-[#EDE9E0] tabular-nums">
+                        <p className="mt-1 font-mono text-lg text-[#f5f5f3] tabular-nums">
                           {item.v}
                         </p>
                       </div>
                     ))}
                   </div>
-                  <p className="mt-3 text-xs text-[#8C95A6]">
+                  <p className="mt-3 text-[13px] sm:text-xs text-[#9ba3b0]">
                     Source classes:{' '}
-                    <span className="font-mono text-[#B9B4A9]">
+                    <span className="font-mono text-[#d6d9e0]">
                       {activeCoverage.source_classes.join(' · ')}
                     </span>
                   </p>
                 </div>
 
                 <div>
-                  <h3 className="font-mono text-[11px] uppercase tracking-widest text-[#646D7E]">
+                  <h3 className="font-mono text-[11px] uppercase tracking-wider text-[#7c8494]">
                     Documented Gaps ({activeCoverage.missing.length})
                   </h3>
-                  <ul className="mt-3 space-y-1.5 text-xs text-[#9BA3B4]">
+                  <ul className="mt-3 space-y-1.5 text-[13px] sm:text-xs text-[#9ba3b0]">
                     {activeCoverage.missing.map((gap) => (
                       <li key={gap} className="flex items-start gap-2">
-                        <span className="text-[#646D7E]" aria-hidden="true">
+                        <span className="text-[#7c8494]" aria-hidden="true">
                           —
                         </span>
                         <span>{gap}</span>
@@ -314,7 +314,7 @@ export const AtlasView: React.FC<AtlasViewProps> = ({
                 <div className="mt-6 grid grid-cols-1 gap-6 border-t border-white/[0.07] pt-6 md:grid-cols-2">
                   {subdisciplines.length > 0 && (
                     <div>
-                      <h3 className="font-mono text-[11px] uppercase tracking-widest text-[#646D7E]">
+                      <h3 className="font-mono text-[11px] uppercase tracking-wider text-[#7c8494]">
                         Assistant-Proposed Subdisciplines ({subdisciplines.length})
                       </h3>
                       <div className="mt-3 space-y-2">
@@ -323,10 +323,10 @@ export const AtlasView: React.FC<AtlasViewProps> = ({
                             key={sub.id}
                             type="button"
                             onClick={() => onFocusNodeInGraph(sub.id)}
-                            className="flex w-full items-center justify-between border border-white/[0.07] bg-[#0F131C] px-3.5 py-2 text-left text-xs hover:border-[#D4AF72]/40 transition-colors"
+                            className="flex w-full min-h-[40px] items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.025] px-3.5 py-2 text-left text-[13px] sm:text-xs hover:border-[#d4ff3a]/40 transition-colors"
                           >
-                            <span className="text-[#EDE9E0]">{sub.title}</span>
-                            <span className="font-mono text-[10px] text-[#D9826C]">
+                            <span className="text-[#f5f5f3]">{sub.title}</span>
+                            <span className="font-mono text-[10px] text-[#ff8b3d]">
                               A:1 · Q1
                             </span>
                           </button>
@@ -337,7 +337,7 @@ export const AtlasView: React.FC<AtlasViewProps> = ({
 
                   {bridgeNodes.length > 0 && (
                     <div>
-                      <h3 className="font-mono text-[11px] uppercase tracking-widest text-[#646D7E]">
+                      <h3 className="font-mono text-[11px] uppercase tracking-wider text-[#7c8494]">
                         Multi-Domain Bridge Nodes ({bridgeNodes.length})
                       </h3>
                       <div className="mt-3 space-y-2">
@@ -346,18 +346,18 @@ export const AtlasView: React.FC<AtlasViewProps> = ({
                             key={b.id}
                             type="button"
                             onClick={() => onFocusNodeInGraph(b.id)}
-                            className="flex w-full items-start justify-between gap-3 border border-white/[0.07] bg-[#0F131C] px-3.5 py-2 text-left text-xs hover:border-[#D4AF72]/40 transition-colors"
+                            className="flex w-full min-h-[44px] items-start justify-between gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] px-3.5 py-2.5 text-left text-[13px] sm:text-xs hover:border-[#d4ff3a]/40 transition-colors"
                           >
                             <div>
-                              <span className="inline-flex items-center gap-1.5 font-medium text-[#EDE9E0]">
-                                <GitMerge className="h-3 w-3 text-[#D4AF72]" />
+                              <span className="inline-flex items-center gap-1.5 font-medium text-[#f5f5f3]">
+                                <GitMerge className="h-3.5 w-3.5 text-[#d4ff3a]" />
                                 {b.title}
                               </span>
-                              <p className="mt-0.5 text-[11px] text-[#8C95A6]">
+                              <p className="mt-0.5 text-[11px] text-[#9ba3b0]">
                                 {b.domains.join(' · ')}
                               </p>
                             </div>
-                            <ArrowUpRight className="h-3.5 w-3.5 text-[#646D7E] shrink-0 mt-0.5" />
+                            <ArrowUpRight className="h-3.5 w-3.5 text-[#7c8494] shrink-0 mt-0.5" />
                           </button>
                         ))}
                       </div>
@@ -369,25 +369,25 @@ export const AtlasView: React.FC<AtlasViewProps> = ({
           )}
 
           {/* Filterable Domain Entries Catalog */}
-          <section className="border border-white/[0.08] bg-[#0B0E16]">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] px-6 py-4">
+          <section className="rounded-2xl border border-white/[0.08] bg-[rgba(12,13,16,0.85)] overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] px-5 py-4 sm:px-6">
               <div>
-                <h3 className="font-sans text-sm font-semibold tracking-tight text-[#EDE9E0]">
+                <h3 className="font-display text-sm sm:text-base font-semibold tracking-tight text-[#f5f5f3]">
                   Archival Entries ({filteredMembers.length})
                 </h3>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-1 overflow-x-auto no-scrollbar border border-white/[0.08] bg-[#080A0F] p-0.5">
+              <div className="flex flex-wrap items-center gap-2.5 max-w-full">
+                <div className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-full rounded-full border border-white/[0.08] bg-black/50 p-1">
                   {availableTypes.map((t) => (
                     <button
                       key={t}
                       type="button"
                       onClick={() => setTypeFilter(t)}
-                      className={`px-2.5 py-1 text-[11px] whitespace-nowrap transition-colors ${
+                      className={`min-h-[30px] rounded-full px-3 py-1 text-[11px] whitespace-nowrap transition-colors ${
                         typeFilter === t
-                          ? 'bg-[#171E2C] text-[#EDE9E0] font-medium'
-                          : 'text-[#8C95A6] hover:text-[#EDE9E0]'
+                          ? 'bg-white/[0.1] text-[#d4ff3a] font-medium'
+                          : 'text-[#9ba3b0] hover:text-[#f5f5f3]'
                       }`}
                     >
                       {t === 'all' ? 'All Types' : t}
@@ -395,16 +395,16 @@ export const AtlasView: React.FC<AtlasViewProps> = ({
                   ))}
                 </div>
 
-                <div className="flex items-center gap-1 border border-white/[0.08] bg-[#080A0F] p-0.5">
+                <div className="flex items-center gap-1 rounded-full border border-white/[0.08] bg-black/50 p-1">
                   {(['all', 'Q3', 'Q2', 'Q1'] as const).map((g) => (
                     <button
                       key={g}
                       type="button"
                       onClick={() => setGradeFilter(g)}
-                      className={`px-2 py-1 font-mono text-[11px] transition-colors ${
+                      className={`min-h-[30px] rounded-full px-2.5 py-1 font-mono text-[11px] transition-colors ${
                         gradeFilter === g
-                          ? 'bg-[#171E2C] text-[#D4AF72]'
-                          : 'text-[#8C95A6] hover:text-[#EDE9E0]'
+                          ? 'bg-white/[0.1] text-[#d4ff3a]'
+                          : 'text-[#9ba3b0] hover:text-[#f5f5f3]'
                       }`}
                     >
                       {g === 'all' ? 'All' : g}
@@ -416,7 +416,7 @@ export const AtlasView: React.FC<AtlasViewProps> = ({
 
             <div className="divide-y divide-white/[0.05]">
               {filteredMembers.length === 0 ? (
-                <div className="px-6 py-10 text-center text-sm text-[#8C95A6]">
+                <div className="px-6 py-10 text-center text-[13px] sm:text-xs text-[#9ba3b0]">
                   No entries match the current type and evidence grade filters.
                 </div>
               ) : (
@@ -427,18 +427,18 @@ export const AtlasView: React.FC<AtlasViewProps> = ({
                   return (
                     <div
                       key={node.id}
-                      className="flex flex-col gap-3 px-6 py-4 hover:bg-[#101521] transition-colors sm:flex-row sm:items-start sm:justify-between"
+                      className="flex flex-col gap-3 px-5 py-4 sm:px-6 hover:bg-white/[0.03] transition-colors sm:flex-row sm:items-start sm:justify-between"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                           <button
                             type="button"
                             onClick={() => onFocusNodeInGraph(node.id)}
-                            className="font-medium text-sm text-[#EDE9E0] hover:text-[#D4AF72] text-left transition-colors"
+                            className="font-display font-semibold text-sm text-[#f5f5f3] hover:text-[#d4ff3a] text-left transition-colors"
                           >
                             {node.title}
                           </button>
-                          <span className="font-mono text-[11px] text-[#646D7E]">
+                          <span className="font-mono text-[11px] text-[#7c8494]">
                             {node.type}
                           </span>
                           <span
@@ -448,15 +448,15 @@ export const AtlasView: React.FC<AtlasViewProps> = ({
                             {node.evidence_grade}
                           </span>
                           {node.lifecycle && (
-                            <span className="font-mono text-[11px] text-[#9BA3B4]">
+                            <span className="font-mono text-[11px] text-[#9ba3b0]">
                               · {node.lifecycle}
                             </span>
                           )}
                         </div>
-                        <p className="mt-1 text-xs leading-relaxed text-[#9BA3B4] max-w-3xl">
+                        <p className="mt-1 text-[13px] sm:text-xs leading-relaxed text-[#9ba3b0] max-w-3xl">
                           {node.description}
                         </p>
-                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-[#646D7E]">
+                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-[#7c8494]">
                           <span>engagement: {node.engagement}</span>
                           <span>·</span>
                           <span>sources: {node.source_ids.join(', ')}</span>
@@ -468,10 +468,10 @@ export const AtlasView: React.FC<AtlasViewProps> = ({
                       <button
                         type="button"
                         onClick={() => onFocusNodeInGraph(node.id)}
-                        className="inline-flex items-center gap-1.5 border border-white/[0.08] px-3 py-1.5 text-[11px] text-[#9BA3B4] hover:border-[#D4AF72]/50 hover:text-[#D4AF72] transition-colors shrink-0 self-start"
+                        className="inline-flex items-center gap-1.5 min-h-[36px] rounded-full border border-white/[0.1] px-3.5 py-1.5 text-xs text-[#9ba3b0] hover:border-[#d4ff3a]/50 hover:text-[#d4ff3a] transition-colors shrink-0 self-start"
                       >
                         <span>Inspect in Graph</span>
-                        <ArrowUpRight className="h-3 w-3" />
+                        <ArrowUpRight className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   );

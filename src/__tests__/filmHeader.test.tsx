@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { FilmHeader, type HeroGoalSummary } from '../components/FilmHeader';
+import type { KnowledgeDataset } from '../modules/mind-architecture/types/knowledge';
+
+const DATASET_PATH = resolve(process.cwd(), 'public/assets/aistudio/knowledge_extraction_v3_2556cc71.json');
 
 const sampleGoals: HeroGoalSummary[] = [
   {
@@ -42,9 +47,10 @@ const sampleGoals: HeroGoalSummary[] = [
   },
 ];
 
-describe('FilmHeader Horizon goal strip', () => {
+describe('FilmHeader Horizon goal strip & live Mind Architecture hero', () => {
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
   });
 
   it('renders synced active goals without a layout switcher and triggers goal callbacks', () => {
@@ -96,5 +102,32 @@ describe('FilmHeader Horizon goal strip', () => {
     expect(screen.getByText('No active goals synced yet')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Set first goal →' }));
     expect(onAddGoal).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders live Architecture of Mind constellation and triggers onOpenMindArchitecture', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const raw = JSON.parse(readFileSync(DATASET_PATH, 'utf8')) as KnowledgeDataset;
+    const onOpenMindArchitecture = vi.fn();
+
+    render(
+      <FilmHeader
+        eyebrow="Thursday 12 November"
+        title="good morning"
+        subtitle="Choose what matters."
+        initialData={raw}
+        onOpenMindArchitecture={onOpenMindArchitecture}
+      />,
+    );
+
+    expect(screen.getByText('live mind')).toBeTruthy();
+    expect(screen.getByText('303 nodes · 357 links')).toBeTruthy();
+
+    const exploreBtn = screen.getByRole('button', { name: /Explore mind map/i });
+    fireEvent.click(exploreBtn);
+
+    const canvas = screen.getByLabelText('Live Architecture of Mind constellation');
+    fireEvent.click(canvas);
+
+    expect(onOpenMindArchitecture).toHaveBeenCalledTimes(2);
   });
 });

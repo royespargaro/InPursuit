@@ -110,53 +110,53 @@ export const CommandSearch: React.FC<CommandSearchProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label="Search intellectual archive"
-      className="fixed inset-0 z-[90] flex items-start justify-center bg-black/75 pt-[8vh] px-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[90] flex items-start justify-center bg-black/75 pt-[8vh] px-3 sm:px-4 md:backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl border border-white/[0.12] bg-[#0D1119] shadow-2xl overflow-hidden"
+        className="w-full max-w-2xl rounded-2xl border border-white/[0.12] bg-[#0c0d10] shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search Input Row */}
-        <div className="flex items-center gap-3 border-b border-white/[0.08] px-5 py-4">
-          <Search className="h-4 w-4 text-[#D4AF72] shrink-0" />
+        <div className="flex items-center gap-3 border-b border-white/[0.08] px-4 sm:px-5 py-3.5 sm:py-4">
+          <Search className="h-4 w-4 text-[#d4ff3a] shrink-0" />
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={`Search ${dataset.raw.nodes.length} nodes by concept, project, domain, ID, or source (e.g. M:trading)...`}
-            className="w-full bg-transparent text-sm text-[#EDE9E0] placeholder-[#646D7E] focus:outline-none"
+            placeholder={`Search ${dataset.raw.nodes.length} nodes by concept, project, domain, ID, or source...`}
+            className="w-full bg-transparent text-base sm:text-sm text-[#f5f5f3] placeholder-[#7f8794] focus:outline-none"
           />
           <button
             type="button"
             onClick={onClose}
             aria-label="Close search"
-            className="p-1 text-[#8C95A6] hover:text-[#EDE9E0] transition-colors"
+            className="p-2 text-[#9ba3b0] hover:text-[#f5f5f3] transition-colors rounded-full"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Grade Filter Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] bg-[#0A0D14] px-5 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] bg-white/[0.02] px-4 sm:px-5 py-2.5">
           <div className="flex items-center gap-1.5">
             {(['all', 'Q3', 'Q2', 'Q1'] as const).map((g) => (
               <button
                 key={g}
                 type="button"
                 onClick={() => setGradeFilter(g)}
-                className={`px-2.5 py-1 text-[11px] font-mono transition-colors ${
+                className={`rounded-full px-3 py-1 text-xs sm:text-[11px] font-mono transition-colors ${
                   gradeFilter === g
-                    ? 'bg-[#D4AF72]/18 text-[#D4AF72] border border-[#D4AF72]/40'
-                    : 'text-[#8C95A6] hover:text-[#EDE9E0] border border-transparent'
+                    ? 'bg-[#d4ff3a]/16 text-[#d4ff3a] border border-[#d4ff3a]/40'
+                    : 'text-[#9ba3b0] hover:text-[#f5f5f3] border border-transparent'
                 }`}
               >
                 {g === 'all' ? 'All Grades' : g}
               </button>
             ))}
           </div>
-          <span className="font-mono text-[11px] text-[#646D7E] tabular-nums">
+          <span className="font-mono text-[11px] text-[#7f8794] tabular-nums">
             {results.length} matching {results.length === 1 ? 'entry' : 'entries'}
             {hideSensitive ? ' · Sensitive hidden' : ''}
           </span>
@@ -166,8 +166,8 @@ export const CommandSearch: React.FC<CommandSearchProps> = ({
         <div className="max-h-[54vh] overflow-y-auto divide-y divide-white/[0.05]">
           {results.length === 0 ? (
             <div className="px-6 py-12 text-center">
-              <p className="font-sans text-sm font-semibold tracking-tight text-[#EDE9E0]">No matching archival entries</p>
-              <p className="mt-1 text-xs text-[#646D7E]">
+              <p className="font-display text-base font-semibold tracking-tight text-[#f5f5f3]">No matching archival entries</p>
+              <p className="mt-1 text-[13px] sm:text-xs text-[#7f8794]">
                 Try a concept title, domain name, project, or source ID like M:mandalart.
               </p>
             </div>
@@ -188,8 +188,8 @@ export const CommandSearch: React.FC<CommandSearchProps> = ({
                     onSelectNode(node.id, 'graph');
                     onClose();
                   }}
-                  className={`w-full text-left px-5 py-3.5 flex items-start justify-between gap-4 transition-colors ${
-                    isSelected ? 'bg-[#151B27]' : 'hover:bg-[#111621]'
+                  className={`w-full text-left px-4 sm:px-5 py-3.5 flex items-start justify-between gap-4 transition-colors ${
+                    isSelected ? 'bg-white/[0.06]' : 'hover:bg-white/[0.03]'
                   }`}
                 >
                   <div className="min-w-0 flex-1">
@@ -199,17 +199,17 @@ export const CommandSearch: React.FC<CommandSearchProps> = ({
                         className="h-2 w-2 shrink-0 rounded-full"
                         style={{ backgroundColor: theme.color }}
                       />
-                      <span className="font-medium text-sm text-[#EDE9E0] truncate">
+                      <span className="font-medium text-sm text-[#f5f5f3] truncate">
                         {node.title}
                       </span>
                       {isSensitive && (
                         <ShieldAlert
-                          className="h-3.5 w-3.5 text-[#D9826C] shrink-0"
+                          className="h-3.5 w-3.5 text-[#ff8b3d] shrink-0"
                           aria-label="Sensitive review item"
                         />
                       )}
                     </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-4 text-xs text-[#8C95A6]">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-4 text-xs text-[#9ba3b0]">
                       <span>{node.type}</span>
                       <span aria-hidden="true">·</span>
                       <span className="truncate max-w-[260px]">{domainName}</span>
@@ -218,12 +218,12 @@ export const CommandSearch: React.FC<CommandSearchProps> = ({
                         {node.evidence_grade}
                       </span>
                       <span aria-hidden="true">·</span>
-                      <span className="font-mono text-[11px] text-[#646D7E]">
+                      <span className="font-mono text-[11px] text-[#7f8794]">
                         {node.source_ids.join(', ')}
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 text-[11px] text-[#D4AF72] shrink-0 pt-0.5">
+                  <div className="flex items-center gap-1.5 text-xs sm:text-[11px] text-[#d4ff3a] shrink-0 pt-0.5">
                     <Compass className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Focus</span>
                     <ArrowRight className="h-3 w-3" />
@@ -235,7 +235,7 @@ export const CommandSearch: React.FC<CommandSearchProps> = ({
         </div>
 
         {/* Footer Hint */}
-        <div className="flex items-center justify-between border-t border-white/[0.06] bg-[#0A0D14] px-5 py-2.5 text-[11px] text-[#646D7E]">
+        <div className="flex items-center justify-between border-t border-white/[0.06] bg-white/[0.02] px-4 sm:px-5 py-2.5 text-[11px] text-[#7f8794]">
           <span>↑↓ Navigate · Enter to focus in graph · Esc to close</span>
           <span className="font-mono tabular-nums">v{dataset.raw.version} immutable IDs</span>
         </div>

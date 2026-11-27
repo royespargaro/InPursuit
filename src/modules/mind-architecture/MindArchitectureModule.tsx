@@ -14,7 +14,11 @@ import type {
   KnowledgeDataset,
   ViewId,
 } from './types/knowledge';
-import { indexDataset } from './utils/dataset';
+import {
+  DEFAULT_MIND_DATASET_URL,
+  getCachedMindBundle,
+  loadMindBundle,
+} from './utils/datasetCache';
 
 export interface MindArchitectureModuleProps {
   /** Public URL to knowledge_extraction_v3_2556cc71.json */
@@ -33,8 +37,6 @@ export interface MindArchitectureModuleProps {
   className?: string;
 }
 
-const DEFAULT_DATASET_URL =
-  '/assets/aistudio/knowledge_extraction_v3_2556cc71.json';
 const HYPOTHESIS_STORAGE_KEY = 'architecture_of_my_mind_v3_hypotheses';
 
 function loadStoredDecisions(): Record<string, HypothesisDecision> {
@@ -53,7 +55,7 @@ function loadStoredDecisions(): Record<string, HypothesisDecision> {
 }
 
 export function MindArchitectureModule({
-  datasetUrl = DEFAULT_DATASET_URL,
+  datasetUrl = DEFAULT_MIND_DATASET_URL,
   initialData,
   initialView = 'graph',
   defaultHideSensitive = true,
@@ -61,9 +63,10 @@ export function MindArchitectureModule({
   embedded = true,
   className = '',
 }: MindArchitectureModuleProps) {
-  const [dataset, setDataset] = useState<IndexedDataset | null>(() =>
-    initialData ? indexDataset(initialData) : null
-  );
+  const [dataset, setDataset] = useState<IndexedDataset | null>(() => {
+    const cached = getCachedMindBundle(datasetUrl, initialData);
+    return cached?.indexed ?? null;
+  });
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [activeView, setActiveView] = useState<ViewId>(initialView);
@@ -75,18 +78,18 @@ export function MindArchitectureModule({
   >(() => loadStoredDecisions());
 
   const loadArchive = useCallback(async () => {
-    if (initialData) {
-      setDataset(indexDataset(initialData));
+    const existing = getCachedMindBundle(datasetUrl, initialData);
+    if (existing) {
+      setDataset(existing.indexed);
       return;
     }
     setLoadError(null);
     try {
-      const response = await fetch(datasetUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch archive (${response.status})`);
+      const bundle = await loadMindBundle(datasetUrl);
+      if (!bundle) {
+        throw new Error('Unable to load intellectual archive.');
       }
-      const raw = (await response.json()) as KnowledgeDataset;
-      setDataset(indexDataset(raw));
+      setDataset(bundle.indexed);
     } catch (err) {
       setLoadError(
         err instanceof Error ? err.message : 'Unable to load intellectual archive.'
@@ -156,19 +159,19 @@ export function MindArchitectureModule({
 
   if (loadError) {
     return (
-      <div className="flex flex-1 min-h-[420px] items-center justify-center bg-[#080A0F] p-6 font-sans text-[#EDE9E0] antialiased">
-        <div className="max-w-md border border-white/[0.1] bg-[#0D1119] p-8 text-center">
-          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#D9826C]">
+      <div className="flex flex-1 min-h-[420px] items-center justify-center bg-transparent p-6 font-sans text-[#f5f5f3] antialiased">
+        <div className="max-w-md rounded-2xl border border-white/[0.1] bg-[rgba(12,13,16,0.88)] p-7 text-center">
+          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[#ff8b3d]">
             Archive Unavailable
           </p>
-          <h2 className="mt-2 font-sans text-base font-semibold tracking-tight">
+          <h2 className="mt-2 font-display text-lg font-semibold tracking-tight">
             Could not load knowledge extraction v3
           </h2>
-          <p className="mt-2 text-xs text-[#9BA3B4] leading-relaxed">{loadError}</p>
+          <p className="mt-2 text-[13px] sm:text-xs text-[#9ba3b0] leading-relaxed">{loadError}</p>
           <button
             type="button"
             onClick={() => void loadArchive()}
-            className="mt-5 border border-[#D4AF72]/45 bg-[#D4AF72]/12 px-4 py-2 text-xs text-[#EDE9E0] hover:border-[#D4AF72]/80 transition-colors"
+            className="mt-5 rounded-full border border-[#d4ff3a]/50 bg-[#d4ff3a]/12 px-5 py-2.5 text-xs font-medium text-[#d4ff3a] hover:bg-[#d4ff3a]/20 transition-colors"
           >
             Retry Loading Archive
           </button>
@@ -179,15 +182,15 @@ export function MindArchitectureModule({
 
   if (!dataset) {
     return (
-      <div className="flex flex-1 min-h-[420px] items-center justify-center bg-[#080A0F] p-6 font-sans text-[#EDE9E0] antialiased">
+      <div className="flex flex-1 min-h-[420px] items-center justify-center bg-transparent p-6 font-sans text-[#f5f5f3] antialiased">
         <div className="text-center">
-          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-[#D4AF72]">
+          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[#d4ff3a]">
             Initializing Observatory
           </p>
-          <h2 className="mt-2 font-sans text-xl font-semibold tracking-tight">
+          <h2 className="mt-2 font-display text-xl font-semibold tracking-tight">
             The Architecture of My Mind
           </h2>
-          <p className="mt-2 text-xs text-[#8C95A6]">
+          <p className="mt-2 text-[13px] sm:text-xs text-[#9ba3b0]">
             Indexing knowledge nodes, connections, and provenance sources…
           </p>
         </div>
@@ -197,12 +200,12 @@ export function MindArchitectureModule({
 
   const rootHeightClasses =
     activeView === 'graph'
-      ? 'flex-1 min-h-0 max-md:pb-[calc(68px+env(safe-area-inset-bottom))]'
-      : 'flex-1 min-h-0 max-md:pb-[calc(68px+env(safe-area-inset-bottom))]';
+      ? 'flex-1 min-h-0 max-md:pb-[calc(76px+env(safe-area-inset-bottom))]'
+      : 'flex-1 min-h-0 max-md:pb-[calc(92px+env(safe-area-inset-bottom))]';
 
   return (
     <div
-      className={`bg-[#080A0F] font-sans text-[#EDE9E0] antialiased flex flex-col ${rootHeightClasses} ${className}`}
+      className={`bg-transparent font-sans text-[#f5f5f3] antialiased flex flex-col ${rootHeightClasses} ${className}`}
     >
       <TopNav
         activeView={activeView}
