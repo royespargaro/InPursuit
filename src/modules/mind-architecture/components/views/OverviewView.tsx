@@ -18,6 +18,7 @@ import type {
   ViewId,
 } from '../../types/knowledge';
 import type { MindSyncState } from '../../context/MindWorkspaceContext';
+import { CognitiveArchitecturePanel } from '../CognitiveArchitecturePanel';
 import { computeMindInsights } from '../../services/mindBuilder';
 import {
   computeCelestialLayout,
@@ -638,6 +639,13 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           </div>
         </div>
       </section>
+
+      {/* Cognitive model: a functional lens over the shared graph, not separate memory stores */}
+      <CognitiveArchitecturePanel
+        dataset={dataset}
+        hideSensitive={hideSensitive}
+        onNavigateView={onNavigateView}
+      />
 
       {/* 4. Review Panel + 5. Recent Exploration + 6. Key Insight */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
