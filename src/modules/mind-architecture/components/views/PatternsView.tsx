@@ -48,6 +48,7 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
   hideSensitive,
   onFocusNodeInGraph,
 }) => {
+  const structuralEdgeCount = dataset.raw.edges.filter(edge => edge.basis === 'structural').length;
   const hypothesisNodes = useMemo(
     () => dataset.raw.nodes.filter((n) => n.type === 'Hypothesis'),
     [dataset]
@@ -134,7 +135,7 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
           Thinking Patterns
         </h1>
         <p className="mt-1.5 max-w-3xl text-[13px] sm:text-xs leading-relaxed text-[#9ba3b0]">
-          Reported behavioral hypotheses, the 2027 Mandalart strategic architecture, user-proposed cross-domain reasoning chains, and self-reported psychometric models.
+          Reported behavioral hypotheses, evidence-ranked goals and projects, user-proposed reasoning chains, and summary-derived self-model references. These are archive records, not validated assessments.
         </p>
       </div>
 
@@ -144,7 +145,7 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
           <div>
             <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-[#ff8b3d]">
               <AlertCircle className="h-3.5 w-3.5" />
-              <span>Unvalidated Hypotheses · 0 Structural Edges</span>
+              <span>Unvalidated Hypotheses · {structuralEdgeCount} Structural Edges</span>
             </div>
             <h2 className="mt-1.5 font-display text-base sm:text-lg font-semibold tracking-tight text-[#f5f5f3]">
               Reported Thinking & Execution Patterns ({hypothesisNodes.length})
