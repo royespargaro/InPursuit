@@ -180,10 +180,10 @@ export function PersonalOSStudio() {
           <div className="personal-os-list">
             {os.principles.length === 0 && <div className={panelClass}><h3>{l('No principles yet', 'Belum ada prinsip')}</h3><p className="personal-os-muted">{l('Start with three to five principles you are willing to be held accountable to.', 'Mulai dari tiga sampai lima prinsip yang siap kamu pertanggungjawabkan.')}</p></div>}
             {os.principles.map(item => <article className={panelClass} key={item.id}>
-              <div className="personal-os-item-head"><h3>{item.title}</h3><button className="personal-os-remove" onClick={() => patchOS({ principles: os.principles.filter(p => p.id !== item.id) })}>{l('Remove', 'Hapus')}</button></div>
-              <p>{item.statement}</p>
-              {item.reason && <p className="personal-os-muted">{item.reason}</p>}
-              {item.behaviors && <div className="personal-os-evidence"><b>{l('Behavioral test', 'Uji perilaku')}</b><span>{item.behaviors}</span></div>}
+              <div className="personal-os-item-head"><input className={fieldClass} aria-label={l('Principle title', 'Nama prinsip')} defaultValue={item.title} onBlur={e => patchOS({ principles: os.principles.map(p => p.id === item.id ? { ...p, title: e.target.value, updatedAt: new Date().toISOString() } : p) })} /><button className="personal-os-remove" onClick={() => patchOS({ principles: os.principles.filter(p => p.id !== item.id) })}>{l('Remove', 'Hapus')}</button></div>
+              <label className="personal-os-inline-field"><span>{l('Principle statement', 'Pernyataan prinsip')}</span><textarea className={fieldClass} rows={2} defaultValue={item.statement} onBlur={e => patchOS({ principles: os.principles.map(p => p.id === item.id ? { ...p, statement: e.target.value, updatedAt: new Date().toISOString() } : p) })} /></label>
+              <label className="personal-os-inline-field"><span>{l('Why it matters', 'Mengapa penting')}</span><textarea className={fieldClass} rows={2} defaultValue={item.reason} onBlur={e => patchOS({ principles: os.principles.map(p => p.id === item.id ? { ...p, reason: e.target.value, updatedAt: new Date().toISOString() } : p) })} /></label>
+              <label className="personal-os-inline-field"><span>{l('Observable behaviors', 'Perilaku yang terlihat')}</span><textarea className={fieldClass} rows={2} defaultValue={item.behaviors} onBlur={e => patchOS({ principles: os.principles.map(p => p.id === item.id ? { ...p, behaviors: e.target.value, updatedAt: new Date().toISOString() } : p) })} /></label>
               <label className="personal-os-inline-field"><span>{l('Contradictory evidence / where I fall short', 'Bukti yang bertentangan / bagian yang belum konsisten')}</span><textarea className={fieldClass} rows={2} defaultValue={item.contradictions} onBlur={e => patchOS({ principles: os.principles.map(p => p.id === item.id ? { ...p, contradictions: e.target.value, updatedAt: new Date().toISOString() } : p) })} placeholder={l('Record honestly, without self-judgment', 'Catat dengan jujur, tanpa menghakimi diri')} /></label>
             </article>)}
           </div>
@@ -289,8 +289,9 @@ export function PersonalOSStudio() {
           <div className="personal-os-list">
             {os.claims.map(claim => <article className={panelClass} key={claim.id}>
               <div className="personal-os-item-head"><span className={`personal-os-status ${claim.status}`}>{claim.status}</span><button className="personal-os-remove" onClick={() => patchOS({ claims: os.claims.filter(c => c.id !== claim.id) })}>{l('Delete', 'Hapus')}</button></div>
-              <h3>{claim.claim}</h3><p className="personal-os-muted">{claim.domain} · {claim.source} · {claim.confidence}%</p>
-              {claim.evidence && <p>{claim.evidence}</p>}
+              <label className="personal-os-inline-field"><span>{l('Claim', 'Klaim')}</span><textarea className={fieldClass} rows={2} defaultValue={claim.claim} onBlur={e => patchOS({ claims: os.claims.map(c => c.id === claim.id ? { ...c, claim: e.target.value } : c) })} /></label>
+              <p className="personal-os-muted">{claim.domain} · {claim.source} · {claim.confidence}%</p>
+              <label className="personal-os-inline-field"><span>{l('Supporting evidence', 'Bukti pendukung')}</span><textarea className={fieldClass} rows={2} defaultValue={claim.evidence} onBlur={e => patchOS({ claims: os.claims.map(c => c.id === claim.id ? { ...c, evidence: e.target.value } : c) })} /></label>
               <div className="personal-os-actions">
                 <button className={buttonClass} onClick={() => patchOS({ claims: os.claims.map(c => c.id === claim.id ? { ...c, status: 'confirmed', verifiedAt: new Date().toISOString() } : c) })}>{l('Confirm', 'Konfirmasi')}</button>
                 <button className={buttonClass} onClick={() => patchOS({ claims: os.claims.map(c => c.id === claim.id ? { ...c, status: 'disputed', verifiedAt: new Date().toISOString() } : c) })}>{l('Dispute', 'Bantah')}</button>
