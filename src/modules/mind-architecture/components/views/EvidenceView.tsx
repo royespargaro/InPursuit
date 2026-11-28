@@ -11,6 +11,8 @@ import {
   X,
 } from 'lucide-react';
 import type { HypothesisDecision, IndexedDataset } from '../../types/knowledge';
+import { useMindWorkspaceOptional } from '../../context/MindWorkspaceContext';
+import { PersonalModelView } from './PersonalModelView';
 import { BASIS_META, GRADE_META } from '../../utils/dataset';
 
 interface EvidenceViewProps {
@@ -27,7 +29,7 @@ type EvidenceTab =
   | 'hypotheses'
   | 'resolution'
   | 'orphans'
-  | 'ingestion';
+  | 'ingestion'\n  | 'personal';
 
 const INGESTION_STAGES = [
   { stage: '0. Intake', desc: 'Detect conversations.json or shards, hash each file, verify list schema.' },
@@ -49,7 +51,8 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
   onResetHypotheses,
   onFocusNodeInGraph,
 }) => {
-  const [activeTab, setActiveTab] = useState<EvidenceTab>('sources');
+  const [activeTab, setActiveTab] = useState<EvidenceTab>('personal');
+  const workspace = useMindWorkspaceOptional();
   const [sourceClassFilter, setSourceClassFilter] = useState<string>('all');
 
   const inferredEdges = useMemo(
@@ -194,6 +197,7 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar border-b border-white/[0.08] pb-3">
         {(
           [
+            { id: 'personal', label: `Personal Model (${workspace?.record.model.claims.length ?? 0})` },
             { id: 'sources', label: `Sources Registry (${dataset.raw.sources.length})` },
             { id: 'hypotheses', label: `Inferred Hypotheses (${inferredEdges.length})` },
             {
@@ -219,7 +223,7 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
         ))}
       </div>
 
-      {/* TAB 1: Sources Registry */}
+      {activeTab === 'personal' && <PersonalModelView />}\n\n      {/* TAB 1: Sources Registry */}
       {activeTab === 'sources' && (
         <section className="rounded-2xl border border-white/[0.08] bg-[rgba(12,13,16,0.85)] overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] px-5 py-4 sm:px-6">
