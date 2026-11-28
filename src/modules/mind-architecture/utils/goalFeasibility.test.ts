@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Goal } from '../../../types';
 import type { KnowledgeDataset, KnowledgeNode } from '../types/knowledge';
@@ -115,6 +117,20 @@ describe('assessGoalFeasibility', () => {
     expect(result.level).toBe('needs_definition');
     expect(result.risks.some((risk) => risk.includes('week'))).toBe(true);
     expect(result.missingInformation.some((item) => item.includes('target role'))).toBe(true);
+  });
+
+  it('surfaces the real career evidence already present in the InPursuit archive', () => {
+    const archivePath = resolve(process.cwd(), 'public/assets/aistudio/knowledge_extraction_v3_2556cc71.json');
+    const archive = JSON.parse(readFileSync(archivePath, 'utf8')) as KnowledgeDataset;
+    const result = assessGoalFeasibility(goal, archive, new Date('2026-11-28T12:00:00'));
+    const titles = result.evidence.map((item) => item.node.title);
+
+    expect(titles).toContain('Active Study Global — Sales Consultant');
+    expect(titles).toContain('Teleperformance — Customer Success / Content Moderator');
+    expect(titles).toContain('Delveasi Coffee — Manager');
+    expect(titles).toContain('English and Bahasa Indonesia');
+    expect(titles).toContain('Pursuing remote work and scholarships');
+    expect(result.level).toBe('needs_definition');
   });
 
   it('marks a defined goal with a one-week deadline as high-stretch, not impossible', () => {
