@@ -2632,11 +2632,15 @@ select:focus-visible {
 }
 
 
-/* Focused Today dashboard: keep the FilmHeader untouched and remove duplicate surfaces. */
+/* Focused Today dashboard: keep the FilmHeader untouched and remove duplicate surfaces while preserving priority controls. */
 .daily-briefing-panel,
 .stat-grid,
-.today-columns {
+.habits-panel {
   display: none !important;
+}
+
+.today-columns {
+  grid-template-columns: minmax(0, 1fr) !important;
 }
 
 .view-stack {
