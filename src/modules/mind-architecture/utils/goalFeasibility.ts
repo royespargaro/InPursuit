@@ -185,7 +185,8 @@ export function assessGoalFeasibility(
   if (!hasOutcome) missingInformation.push('Define the observable result, not just the activity or aspiration.');
   if (!hasSuccessCriteria) missingInformation.push('Add a measurable success condition so the system knows what counts as achieved.');
   if (family === 'job') {
-    missingInformation.push('Specify target role(s), minimum compensation, eligible locations/time zones and whether success means a signed offer or reaching interview stage.');
+    missingInformation.push('Choose the milestone you want by the deadline: a signed offer, a first interview, or a qualified pipeline of applications.');
+    missingInformation.push('Specify target role(s), minimum compensation, eligible locations/time zones and required working hours.');
     if (!evidence.some((item) => item.node.type === 'Experience')) missingInformation.push('Add or verify relevant work experience in your knowledge archive.');
     if (daysRemaining !== null && daysRemaining <= 7) risks.push('A signed job offer within a week depends on employer response times and interview stages outside your control.');
     if (evidence.some((item) => /remote.*role|remote.*sales/i.test(item.node.title + ' ' + item.node.description))) {
