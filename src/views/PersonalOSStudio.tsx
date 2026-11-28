@@ -289,9 +289,9 @@ export function PersonalOSStudio() {
           <div className="personal-os-list">
             {os.claims.map(claim => <article className={panelClass} key={claim.id}>
               <div className="personal-os-item-head"><span className={`personal-os-status ${claim.status}`}>{claim.status}</span><button className="personal-os-remove" onClick={() => patchOS({ claims: os.claims.filter(c => c.id !== claim.id) })}>{l('Delete', 'Hapus')}</button></div>
-              <label className="personal-os-inline-field"><span>{l('Claim', 'Klaim')}</span><textarea className={fieldClass} rows={2} defaultValue={claim.claim} onBlur={e => patchOS({ claims: os.claims.map(c => c.id === claim.id ? { ...c, claim: e.target.value } : c) })} /></label>
+              <label className="personal-os-inline-field"><span>{l('Claim', 'Klaim')}</span><textarea className={fieldClass} rows={2} defaultValue={claim.claim} onBlur={e => patchOS({ claims: os.claims.map(c => c.id === claim.id ? { ...c, claim: e.target.value, status: 'provisional', verifiedAt: undefined } : c) })} /></label>
               <p className="personal-os-muted">{claim.domain} · {claim.source} · {claim.confidence}%</p>
-              <label className="personal-os-inline-field"><span>{l('Supporting evidence', 'Bukti pendukung')}</span><textarea className={fieldClass} rows={2} defaultValue={claim.evidence} onBlur={e => patchOS({ claims: os.claims.map(c => c.id === claim.id ? { ...c, evidence: e.target.value } : c) })} /></label>
+              <label className="personal-os-inline-field"><span>{l('Supporting evidence', 'Bukti pendukung')}</span><textarea className={fieldClass} rows={2} defaultValue={claim.evidence} onBlur={e => patchOS({ claims: os.claims.map(c => c.id === claim.id ? { ...c, evidence: e.target.value, status: 'provisional', verifiedAt: undefined } : c) })} /></label>
               <div className="personal-os-actions">
                 <button className={buttonClass} onClick={() => patchOS({ claims: os.claims.map(c => c.id === claim.id ? { ...c, status: 'confirmed', verifiedAt: new Date().toISOString() } : c) })}>{l('Confirm', 'Konfirmasi')}</button>
                 <button className={buttonClass} onClick={() => patchOS({ claims: os.claims.map(c => c.id === claim.id ? { ...c, status: 'disputed', verifiedAt: new Date().toISOString() } : c) })}>{l('Dispute', 'Bantah')}</button>
