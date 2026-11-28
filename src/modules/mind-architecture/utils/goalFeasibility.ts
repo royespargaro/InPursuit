@@ -37,8 +37,9 @@ const JOB_TERMS = [
   'remote', 'job', 'career', 'employment', 'work', 'role', 'sales',
   'customer success', 'customer support', 'business development',
   'application', 'recruit', 'hiring', 'cv', 'resume', 'interview',
-  'consultant', 'account executive', 'lead generation', 'english',
-  'bahasa indonesia', 'communication',
+  'consultant', 'account executive', 'lead generation', 'english', 'spanish',
+  'bahasa indonesia', 'communication', 'manager', 'management', 'leadership',
+  'retention', 'enrolment', 'content moderation', 'customer service',
 ];
 
 const BUSINESS_TERMS = [
@@ -157,7 +158,7 @@ export function assessGoalFeasibility(
   const goalText = normalize(`${goal.title} ${goal.outcome}`);
   const terms = familyTerms(family);
   const evidence = (dataset?.nodes ?? [])
-    .filter((node) => !['Goal'].includes(node.type))
+    .filter((node) => !node.lifecycle_basis.startsWith('inpursuit_'))
     .map((node) => ({ node, score: relevanceScore(node, goalText, terms) }))
     .filter((item) => item.score >= (family === 'general' ? 3 : 2.5))
     .sort((a, b) => {
