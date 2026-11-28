@@ -58,6 +58,7 @@ import {
   addMindRelationship as addModelRelationshipRecord,
   reviewMindRelationship as reviewModelRelationshipRecord,
   captureSelfReport as captureSelfReportRecord,
+  supersedeMindClaim as supersedeMindClaimRecord,
 } from '../services/mindModel';
 import {
   isOfflineError,
@@ -102,8 +103,9 @@ export interface MindWorkspaceContextValue {
   addModelObservation: (observation: MindObservation) => void;
   createModelClaim: (input: Omit<MindClaim, 'status' | 'evidence' | 'createdAt' | 'updatedAt'>) => void;
   captureSelfReport: (input: Parameters<typeof captureSelfReportRecord>[1]) => void;
+  supersedeModelClaim: (claimId: string, replacement: Parameters<typeof supersedeMindClaimRecord>[2], evidenceLink: Parameters<typeof supersedeMindClaimRecord>[3], eventId: string, note?: string) => void;
   attachModelEvidence: (claimId: string, link: MindEvidenceLink) => void;
-  reviewModelClaim: (claimId: string, action: 'confirm' | 'challenge' | 'reject' | 'defer', eventId: string, note?: string) => void;
+  reviewModelClaim: (claimId: string, action: 'confirm' | 'challenge' | 'reject' | 'defer' | 'supersede', eventId: string, note?: string) => void;
   addModelRelationship: (relationship: MindRelationship) => void;
   reviewModelRelationship: (relationshipId: string, decision: 'accept_link' | 'reject_link', eventId: string, note?: string) => void;
   recordExploration: (nodeId: string) => void;
@@ -582,6 +584,10 @@ export function MindWorkspaceProvider({ children }: { children: React.ReactNode 
     commitRecord(prev => ({ ...prev, model: captureSelfReportRecord(prev.model, input) }));
   }, [commitRecord]);
 
+  const supersedeModelClaim = useCallback((claimId: string, replacement: Parameters<typeof supersedeMindClaimRecord>[2], evidenceLink: Parameters<typeof supersedeMindClaimRecord>[3], eventId: string, note?: string) => {
+    commitRecord(prev => ({ ...prev, model: supersedeMindClaimRecord(prev.model, claimId, replacement, evidenceLink, eventId, note) }));
+  }, [commitRecord]);
+
   const addModelSource = useCallback((source: MindSourceRecord) => {
     commitRecord(prev => ({ ...prev, model: addModelSourceRecord(prev.model, source) }));
   }, [commitRecord]);
@@ -679,6 +685,7 @@ export function MindWorkspaceProvider({ children }: { children: React.ReactNode 
       updateHypothesis,
       resetHypotheses,
       captureSelfReport,
+      supersedeModelClaim,
       addModelSource,
       addModelObservation,
       createModelClaim,
@@ -715,6 +722,7 @@ export function MindWorkspaceProvider({ children }: { children: React.ReactNode 
       updateHypothesis,
       resetHypotheses,
       captureSelfReport,
+      supersedeModelClaim,
       addModelSource,
       addModelObservation,
       createModelClaim,
