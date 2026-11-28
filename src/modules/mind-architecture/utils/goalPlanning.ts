@@ -91,7 +91,7 @@ export function buildGoalPlanBlueprint(
     };
   });
 
-  const milestones = assessment.suggestedActions.map((action, index) => ({
+  const milestones = assessment.suggestedActions.map(action => ({
     title: action.title,
     outcome: action.description,
     tasks: [action.title],
