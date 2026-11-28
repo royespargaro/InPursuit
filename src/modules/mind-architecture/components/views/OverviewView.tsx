@@ -7,7 +7,6 @@ import {
   Layers,
   Plus,
   SlidersHorizontal,
-  Sparkles,
   X,
 } from 'lucide-react';
 import type { AppData } from '../../../../types';
