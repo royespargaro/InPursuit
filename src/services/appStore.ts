@@ -331,7 +331,7 @@ function sanitizePersonalOS(value: PersonalOSData | undefined): PersonalOSData {
       domain: clampStr(String(item.domain ?? ''), 120), source: clampStr(String(item.source ?? ''), 500),
       evidence: clampStr(String(item.evidence ?? ''), 3000),
       confidence: Math.max(0, Math.min(100, Math.round(typeof item.confidence === 'number' ? item.confidence : 0))),
-      status: item.status === 'confirmed' || item.status === 'disputed' || item.status === 'outdated' ? item.status : 'provisional',
+      status: (item.status === 'confirmed' || item.status === 'disputed' || item.status === 'outdated' ? item.status : 'provisional') as PersonalOSData['claims'][number]['status'],
       createdAt: clampStr(String(item.createdAt ?? ''), 40),
       ...(isString(item.verifiedAt) ? { verifiedAt: clampStr(item.verifiedAt, 40) } : {}),
     })),
@@ -339,7 +339,7 @@ function sanitizePersonalOS(value: PersonalOSData | undefined): PersonalOSData {
       id: clampStr(String(item.id), 128), date: clampStr(String(item.date ?? ''), 20),
       prompt: clampStr(String(item.prompt ?? ''), 1000), answer: clampStr(String(item.answer ?? ''), 4000),
       interpretation: clampStr(String(item.interpretation ?? ''), 2000),
-      interpretationStatus: item.interpretationStatus === 'user-confirmed' || item.interpretationStatus === 'rejected' ? item.interpretationStatus : 'hypothesis',
+      interpretationStatus: (item.interpretationStatus === 'user-confirmed' || item.interpretationStatus === 'rejected' ? item.interpretationStatus : 'hypothesis') as PersonalOSData['reflections'][number]['interpretationStatus'],
       createdAt: clampStr(String(item.createdAt ?? ''), 40),
     })),
     capacity: {
