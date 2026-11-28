@@ -254,10 +254,16 @@ export function PersonalOSStudio() {
             const rate = Math.round((logs.length / 14) * 100);
             return <article className={panelClass} key={habit.id}>
               <div className="personal-os-item-head"><h3>{habit.name}</h3><span className="personal-os-muted">{rate}% · {l('14-day check-ins', 'check-in 14 hari')}</span></div>
+              <p className="personal-os-muted">{rate < 40 && (habit.difficulty ?? 3) >= 4
+                ? l('Adjustment signal: reduce the minimum version or remove one source of friction before adding more effort.', 'Sinyal penyesuaian: kecilkan versi minimum atau hilangkan satu hambatan sebelum menambah usaha.')
+                : rate >= 80 && (habit.difficulty ?? 3) <= 2
+                  ? l('Adjustment signal: this behavior looks stable. Consider a small increase only if it still supports an important goal.', 'Sinyal penyesuaian: perilaku ini tampak stabil. Pertimbangkan peningkatan kecil hanya jika tetap mendukung tujuan penting.')
+                  : l('Adjustment signal: keep observing. Change one variable at a time so you can learn what actually helps.', 'Sinyal penyesuaian: terus amati. Ubah satu variabel dalam satu waktu agar kamu tahu apa yang benar-benar membantu.')}</p>
               <div className="personal-os-form personal-os-two">
                 <label><span className={labelClass}>{l('Cue / trigger', 'Pemicu')}</span><input className={fieldClass} value={habit.cue ?? ''} onChange={e => updateHabit(habit.id, { cue: e.target.value })} placeholder={l('After I...', 'Setelah saya...')} /></label>
                 <label><span className={labelClass}>{l('Friction / obstacle', 'Hambatan')}</span><input className={fieldClass} value={habit.friction ?? ''} onChange={e => updateHabit(habit.id, { friction: e.target.value })} placeholder={l('What makes it harder?', 'Apa yang membuatnya sulit?')} /></label>
                 <label><span className={labelClass}>{l('Difficulty (1–5)', 'Kesulitan (1–5)')}</span><select className={fieldClass} value={habit.difficulty ?? 3} onChange={e => updateHabit(habit.id, { difficulty: Number(e.target.value) })}>{[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
+                <label><span className={labelClass}>{l('Minimum viable version', 'Versi minimum')}</span><input className={fieldClass} value={habit.minimumVersion ?? ''} onChange={e => updateHabit(habit.id, { minimumVersion: e.target.value })} placeholder={l('The smallest version that still counts', 'Versi terkecil yang tetap dihitung')} /></label>
                 <label><span className={labelClass}>{l('Recovery plan', 'Rencana pemulihan')}</span><input className={fieldClass} value={habit.recoveryPlan ?? ''} onChange={e => updateHabit(habit.id, { recoveryPlan: e.target.value })} placeholder={l('If I miss, I will...', 'Jika terlewat, saya akan...')} /></label>
               </div>
             </article>;
