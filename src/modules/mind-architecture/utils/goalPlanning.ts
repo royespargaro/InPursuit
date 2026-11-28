@@ -36,7 +36,7 @@ const REQUIREMENTS: Record<string, Array<{ name: string; terms: string[]; ration
     { name: 'Role positioning', terms: ['sales', 'customer success', 'customer support', 'account management', 'business development', 'consultant', 'manager'], rationale: 'Translate previous work into a clear match for a specific role family.' },
     { name: 'Application assets', terms: ['cv', 'resume', 'linkedin', 'portfolio', 'writing'], rationale: 'Present evidence and measurable outcomes in a recruiter-friendly format.' },
     { name: 'Hiring communication', terms: ['communication', 'english', 'interview', 'negotiation', 'language'], rationale: 'Explain achievements clearly and handle screening or interviews.' },
-    { name: 'Targeted opportunity sourcing', terms: ['research', 'recruitment', 'lead generation', 'sales', 'networking'], rationale: 'Find legitimate vacancies where location, compensation and experience fit.' },
+    { name: 'Targeted opportunity sourcing', terms: ['research', 'recruitment', 'lead generation', 'networking'], rationale: 'Find legitimate vacancies where location, compensation and experience fit.' },
   ],
   business: [
     { name: 'Customer discovery', terms: ['research', 'customer', 'market', 'interview'], rationale: 'Validate a real customer problem and willingness to pay.' },
@@ -154,11 +154,15 @@ export function createGoalPlanRecords(
     status: projectStatus,
     createdAt,
     startDate: today,
-    exitCondition: goal.successCriteria?.map((criterion) => criterion.text).filter(Boolean).join('; ') || goal.outcome,
+    exitCondition: goal.successCriteria?.map((criterion) => criterion.text).filter(Boolean).join('; ') || goal.outcome || goal.title,
   };
   const tasks = blueprint.milestones.map((milestone, index) => {
     const due = new Date(`${today}T12:00:00`);
-    due.setDate(due.getDate() + milestone.dayOffset);
+    const target = goal.targetDate ? new Date(`${goal.targetDate}T12:00:00`) : null;
+    const offset = target && !Number.isNaN(target.getTime())
+      ? Math.min(milestone.dayOffset, Math.max(0, Math.round((target.getTime() - due.getTime()) / 86_400_000)))
+      : milestone.dayOffset;
+    due.setDate(due.getDate() + offset);
     const dueDate = `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`;
     return {
       id: id(),
