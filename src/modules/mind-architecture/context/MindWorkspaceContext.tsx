@@ -16,6 +16,11 @@ import type {
   MindWorkspaceProfile,
   MindWorkspaceRecord,
   RecentExplorationEntry,
+  MindSourceRecord,
+  MindObservation,
+  MindClaim,
+  MindEvidenceLink,
+  MindRelationship,
 } from '../types/knowledge';
 import { computeCelestialLayout, indexDataset, type CelestialLayout } from '../utils/dataset';
 import {
@@ -44,6 +49,17 @@ import {
   sanitizeKnowledgeDataset,
   saveLocalMindWorkspace,
 } from '../services/mindStore';
+import {
+  addMindSource as addModelSourceRecord,
+  addMindObservation as addModelObservationRecord,
+  createMindClaim as createModelClaimRecord,
+  attachMindEvidence as attachModelEvidenceRecord,
+  reviewMindClaim as reviewModelClaimRecord,
+  addMindRelationship as addModelRelationshipRecord,
+  reviewMindRelationship as reviewModelRelationshipRecord,
+  captureSelfReport as captureSelfReportRecord,
+  supersedeMindClaim as supersedeMindClaimRecord,
+} from '../services/mindModel';
 import {
   isOfflineError,
   isQuotaExceededError,
@@ -83,6 +99,15 @@ export interface MindWorkspaceContextValue {
   importJsonDataset: (raw: unknown, title?: string) => boolean;
   updateHypothesis: (edgeId: string, decision: HypothesisDecision) => void;
   resetHypotheses: () => void;
+  addModelSource: (source: MindSourceRecord) => void;
+  addModelObservation: (observation: MindObservation) => void;
+  createModelClaim: (input: Omit<MindClaim, 'status' | 'evidence' | 'createdAt' | 'updatedAt'>) => void;
+  captureSelfReport: (input: Parameters<typeof captureSelfReportRecord>[1]) => void;
+  supersedeModelClaim: (claimId: string, replacement: Parameters<typeof supersedeMindClaimRecord>[2], evidenceLink: Parameters<typeof supersedeMindClaimRecord>[3], eventId: string, note?: string) => void;
+  attachModelEvidence: (claimId: string, link: MindEvidenceLink) => void;
+  reviewModelClaim: (claimId: string, action: 'confirm' | 'challenge' | 'reject' | 'defer', eventId: string, note?: string) => void;
+  addModelRelationship: (relationship: MindRelationship) => void;
+  reviewModelRelationship: (relationshipId: string, decision: 'accept_link' | 'reject_link', eventId: string, note?: string) => void;
   recordExploration: (nodeId: string) => void;
 }
 
@@ -555,6 +580,42 @@ export function MindWorkspaceProvider({ children }: { children: React.ReactNode 
     }));
   }, [commitRecord]);
 
+  const captureSelfReport = useCallback((input: Parameters<typeof captureSelfReportRecord>[1]) => {
+    commitRecord(prev => ({ ...prev, model: captureSelfReportRecord(prev.model, input) }));
+  }, [commitRecord]);
+
+  const supersedeModelClaim = useCallback((claimId: string, replacement: Parameters<typeof supersedeMindClaimRecord>[2], evidenceLink: Parameters<typeof supersedeMindClaimRecord>[3], eventId: string, note?: string) => {
+    commitRecord(prev => ({ ...prev, model: supersedeMindClaimRecord(prev.model, claimId, replacement, evidenceLink, eventId, note) }));
+  }, [commitRecord]);
+
+  const addModelSource = useCallback((source: MindSourceRecord) => {
+    commitRecord(prev => ({ ...prev, model: addModelSourceRecord(prev.model, source) }));
+  }, [commitRecord]);
+
+  const addModelObservation = useCallback((observation: MindObservation) => {
+    commitRecord(prev => ({ ...prev, model: addModelObservationRecord(prev.model, observation) }));
+  }, [commitRecord]);
+
+  const createModelClaim = useCallback((input: Omit<MindClaim, 'status' | 'evidence' | 'createdAt' | 'updatedAt'>) => {
+    commitRecord(prev => ({ ...prev, model: createModelClaimRecord(prev.model, input) }));
+  }, [commitRecord]);
+
+  const attachModelEvidence = useCallback((claimId: string, link: MindEvidenceLink) => {
+    commitRecord(prev => ({ ...prev, model: attachModelEvidenceRecord(prev.model, claimId, link) }));
+  }, [commitRecord]);
+
+  const reviewModelClaim = useCallback((claimId: string, action: 'confirm' | 'challenge' | 'reject' | 'defer', eventId: string, note?: string) => {
+    commitRecord(prev => ({ ...prev, model: reviewModelClaimRecord(prev.model, claimId, action, eventId, 'user', note) }));
+  }, [commitRecord]);
+
+  const addModelRelationship = useCallback((relationship: MindRelationship) => {
+    commitRecord(prev => ({ ...prev, model: addModelRelationshipRecord(prev.model, relationship) }));
+  }, [commitRecord]);
+
+  const reviewModelRelationship = useCallback((relationshipId: string, decision: 'accept_link' | 'reject_link', eventId: string, note?: string) => {
+    commitRecord(prev => ({ ...prev, model: reviewModelRelationshipRecord(prev.model, relationshipId, decision, eventId, note) }));
+  }, [commitRecord]);
+
   const activeDataset = useMemo<KnowledgeDataset | null>(() => {
     const baseDataset = record.profile.mode === 'custom' && record.customDataset
       ? record.customDataset
@@ -623,6 +684,15 @@ export function MindWorkspaceProvider({ children }: { children: React.ReactNode 
       importJsonDataset,
       updateHypothesis,
       resetHypotheses,
+      captureSelfReport,
+      supersedeModelClaim,
+      addModelSource,
+      addModelObservation,
+      createModelClaim,
+      attachModelEvidence,
+      reviewModelClaim,
+      addModelRelationship,
+      reviewModelRelationship,
       recordExploration,
     }),
     [
@@ -651,6 +721,15 @@ export function MindWorkspaceProvider({ children }: { children: React.ReactNode 
       importJsonDataset,
       updateHypothesis,
       resetHypotheses,
+      captureSelfReport,
+      supersedeModelClaim,
+      addModelSource,
+      addModelObservation,
+      createModelClaim,
+      attachModelEvidence,
+      reviewModelClaim,
+      addModelRelationship,
+      reviewModelRelationship,
       recordExploration,
     ]
   );

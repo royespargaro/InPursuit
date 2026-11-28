@@ -12,6 +12,7 @@ import type {
   RecentExplorationEntry,
 } from '../types/knowledge';
 import { createEmptyMindDataset, recomputeDerivedDatasetStats } from './mindBuilder';
+import { createEmptyMindModel, sanitizeMindModel } from './mindModel';
 
 export const MIND_STORAGE_KEY_PREFIX = 'inpursuit:mind:';
 export const MIND_STORAGE_KEY_SUFFIX = ':v1';
@@ -80,7 +81,8 @@ export function createDefaultMindWorkspaceRecord(
 ): MindWorkspaceRecord {
   const now = new Date().toISOString();
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    model: createEmptyMindModel(now),
     profile: createDefaultMindProfile('sample', ownerName),
     customDataset: null,
     hypothesisDecisions: withLegacyDecisions ? loadLegacyHypotheses() : {},
@@ -301,7 +303,8 @@ export function sanitizeMindWorkspaceRecord(
       : null;
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    model: sanitizeMindModel(obj.model),
     profile,
     customDataset,
     hypothesisDecisions: sanitizeHypothesisDecisions(obj.hypothesisDecisions),

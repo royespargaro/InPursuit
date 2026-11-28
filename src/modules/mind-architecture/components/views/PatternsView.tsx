@@ -17,25 +17,38 @@ interface PatternsViewProps {
 }
 
 const BIG_FIVE = [
-  { key: 'E', label: 'Extraversion', value: 99 },
-  { key: 'C', label: 'Conscientiousness', value: 99 },
-  { key: 'O', label: 'Openness', value: 90 },
-  { key: 'A', label: 'Agreeableness', value: 58 },
-  { key: 'N', label: 'Neuroticism', value: 33 },
+  { key: 'E', label: 'Extraversion' },
+  { key: 'C', label: 'Conscientiousness' },
+  { key: 'O', label: 'Openness' },
+  { key: 'A', label: 'Agreeableness' },
+  { key: 'N', label: 'Neuroticism' },
 ];
 
-const DISC_SCORES = [
-  { key: 'D', label: 'Dominance', value: 51, color: '#d4ff3a' },
-  { key: 'I', label: 'Influence', value: 30, color: '#89a8ff' },
-  { key: 'C', label: 'Conscientiousness', value: 13, color: '#72e3a8' },
-  { key: 'S', label: 'Steadiness', value: 6, color: '#9ba3b0' },
+const DISC_DIMENSIONS = [
+  { key: 'D', label: 'Dominance', color: '#d4ff3a' },
+  { key: 'I', label: 'Influence', color: '#89a8ff' },
+  { key: 'C', label: 'Conscientiousness', color: '#72e3a8' },
+  { key: 'S', label: 'Steadiness', color: '#9ba3b0' },
 ];
+
+function extractSummaryScores(description: string, keys: string[]): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const key of keys) {
+    const match = description.match(new RegExp(`\\b${key}\\s*(?:[:=])?\\s*(\\d{1,3})\\b`, 'i'));
+    if (match) {
+      const value = Number(match[1]);
+      if (value >= 0 && value <= 100) result[key] = value;
+    }
+  }
+  return result;
+}
 
 export const PatternsView: React.FC<PatternsViewProps> = ({
   dataset,
   hideSensitive,
   onFocusNodeInGraph,
 }) => {
+  const structuralEdgeCount = dataset.raw.edges.filter(edge => edge.basis === 'structural').length;
   const hypothesisNodes = useMemo(
     () => dataset.raw.nodes.filter((n) => n.type === 'Hypothesis'),
     [dataset]
@@ -72,24 +85,20 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
     return chains;
   }, [dataset]);
 
-  const mandalartGrid = useMemo(() => {
-    const ids = [
-      'career_pillar',
-      'education_pillar',
-      'investing_pillar',
-      'lifestyle_pillar',
-      'net_worth_and_freedom_goal',
-      'family_pillar',
-      'impact_pillar',
-      'personal_development_pillar',
-      'javabali_co',
-    ];
-    return ids.map((id) => dataset.nodeById.get(id)).filter(Boolean);
-  }, [dataset]);
+  const strategicNodes = useMemo(() => dataset.raw.nodes
+    .filter(node => node.type === 'Goal' || node.type === 'Project')
+    .filter(node => !hideSensitive || !dataset.sensitiveNodeIds.has(node.id))
+    .sort((a, b) => {
+      const rank = (grade: string) => grade === 'Q4' ? 4 : grade === 'Q3' ? 3 : grade === 'Q2' ? 2 : 1;
+      return rank(b.evidence_grade) - rank(a.evidence_grade) || b.mentions - a.mentions;
+    })
+    .slice(0, 9), [dataset, hideSensitive]);
 
   const mbtiNode = dataset.nodeById.get('mbti');
   const enneagramNode = dataset.nodeById.get('enneagram');
   const humanDesignNode = dataset.nodeById.get('human_design');
+  const bigFiveScores = extractSummaryScores(dataset.nodeById.get('big_five')?.description ?? '', BIG_FIVE.map(x => x.key));
+  const discScores = DISC_DIMENSIONS.map(item => ({ ...item, value: extractSummaryScores(dataset.nodeById.get('disc')?.description ?? '', [item.key])[item.key] } )).filter((item): item is typeof item & { value: number } => item.value !== undefined);
   const hideHumanDesign =
     hideSensitive && dataset.sensitiveNodeIds.has('human_design');
 
@@ -97,20 +106,23 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
     const cx = 120;
     const cy = 120;
     const maxR = 84;
-    return BIG_FIVE.map((dim, idx) => {
+    return BIG_FIVE.flatMap((dim, idx) => {
+      const value = bigFiveScores[dim.key];
+      if (value === undefined) return [];
       const angle = -Math.PI / 2 + (idx * 2 * Math.PI) / BIG_FIVE.length;
-      const r = (dim.value / 100) * maxR;
-      return {
+      const r = (value / 100) * maxR;
+      return [{
         ...dim,
+        value,
         x: cx + Math.cos(angle) * r,
         y: cy + Math.sin(angle) * r,
         lx: cx + Math.cos(angle) * (maxR + 20),
         ly: cy + Math.sin(angle) * (maxR + 20),
         ax: cx + Math.cos(angle) * maxR,
         ay: cy + Math.sin(angle) * maxR,
-      };
+      }];
     });
-  }, []);
+  }, [bigFiveScores]);
 
   return (
     <div className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-10 lg:py-8 space-y-8">
@@ -123,7 +135,7 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
           Thinking Patterns
         </h1>
         <p className="mt-1.5 max-w-3xl text-[13px] sm:text-xs leading-relaxed text-[#9ba3b0]">
-          Reported behavioral hypotheses, the 2027 Mandalart strategic architecture, user-proposed cross-domain reasoning chains, and self-reported psychometric models.
+          Reported behavioral hypotheses, evidence-ranked goals and projects, user-proposed reasoning chains, and summary-derived self-model references. These are archive records, not validated assessments.
         </p>
       </div>
 
@@ -133,7 +145,7 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
           <div>
             <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-[#ff8b3d]">
               <AlertCircle className="h-3.5 w-3.5" />
-              <span>Unvalidated Hypotheses · 0 Structural Edges</span>
+              <span>Unvalidated Hypotheses · {structuralEdgeCount} Structural Edges</span>
             </div>
             <h2 className="mt-1.5 font-display text-base sm:text-lg font-semibold tracking-tight text-[#f5f5f3]">
               Reported Thinking & Execution Patterns ({hypothesisNodes.length})
@@ -185,15 +197,15 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="font-mono text-[11px] uppercase tracking-wider text-[#d4ff3a]">
-                M:mandalart · 2027 Execution Cycle
+                Personal direction · archive index
               </p>
               <h2 className="mt-1 font-display text-base sm:text-lg font-semibold tracking-tight text-[#f5f5f3]">
-                Mandalart Core Matrix
+                Goals & Projects
               </h2>
             </div>
             <button
               type="button"
-              onClick={() => onFocusNodeInGraph('mandalart')}
+              onClick={() => onFocusNodeInGraph(strategicNodes[0]?.id ?? 'mandalart')}
               className="inline-flex items-center gap-1.5 min-h-[34px] rounded-full border border-[#d4ff3a]/35 bg-[#d4ff3a]/10 px-3 py-1 text-xs text-[#d4ff3a] hover:bg-[#d4ff3a]/20"
             >
               <Compass className="h-3.5 w-3.5" />
@@ -202,13 +214,12 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
           </div>
 
           <p className="mt-2 text-[13px] sm:text-xs text-[#9ba3b0]">
-            9×9 life-architecture framework centering on Net Worth & Freedom, branching into 7 pillars and Javabali Co. as the first business.
+            A quick index of strongly sourced goals and projects in this archive. This is not a live priority ranking.
           </p>
 
           <div className="mt-5 grid grid-cols-3 gap-2">
-            {mandalartGrid.map((cell) => {
-              if (!cell) return null;
-              const isCenter = cell.id === 'net_worth_and_freedom_goal';
+            {strategicNodes.map((cell) => {
+              const isCenter = false;
               return (
                 <button
                   key={cell.id}
@@ -221,7 +232,7 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
                   }`}
                 >
                   <span className="font-mono text-[10px] text-[#9ba3b0]">
-                    {isCenter ? 'CENTER' : cell.type.toUpperCase()}
+                    {cell.type.toUpperCase()}
                   </span>
                   <span className="text-[12px] sm:text-xs font-medium text-[#f5f5f3] leading-snug">
                     {cell.title}
@@ -229,6 +240,7 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
                 </button>
               );
             })}
+            {strategicNodes.length === 0 && <p className="col-span-3 py-6 text-center text-xs text-[#9ba3b0]">No goal or project records are available in this archive.</p>}
           </div>
         </section>
 
@@ -306,7 +318,7 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
                 Big Five Profile
               </button>
               <span className="font-mono text-[11px] text-[#9ba3b0]">
-                X:export · B:1, B:2
+                Summary-derived · not a test result
               </span>
             </div>
 
@@ -338,12 +350,12 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
                   strokeWidth="1"
                 />
               ))}
-              <polygon
+              {radarPoints.length === BIG_FIVE.length && <polygon
                 points={radarPoints.map((p) => `${p.x},${p.y}`).join(' ')}
                 fill="rgba(212, 255, 58, 0.16)"
                 stroke="#d4ff3a"
                 strokeWidth="1.8"
-              />
+              />}
               {radarPoints.map((p) => (
                 <g key={p.key}>
                   <circle cx={p.x} cy={p.y} r="3.5" fill="#d4ff3a" />
@@ -374,11 +386,11 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
                   DISC Breakdown
                 </button>
                 <span className="font-mono text-[11px] text-[#9ba3b0]">
-                  D51 · I30 · S6 · C13
+                  {discScores.length ? 'Summary-derived · not a test result' : 'No structured scores in source'}
                 </span>
               </div>
               <div className="space-y-2.5">
-                {DISC_SCORES.map((item) => (
+                {discScores.map((item) => (
                   <div key={item.key} className="grid grid-cols-12 items-center gap-3 text-[13px] sm:text-xs">
                     <span className="col-span-5 sm:col-span-4 text-[#9ba3b0] truncate">{item.label}</span>
                     <div className="col-span-5 sm:col-span-6 h-1.5 rounded-full bg-white/[0.07] overflow-hidden">

@@ -11,6 +11,8 @@ import {
   X,
 } from 'lucide-react';
 import type { HypothesisDecision, IndexedDataset } from '../../types/knowledge';
+import { useMindWorkspaceOptional } from '../../context/MindWorkspaceContext';
+import { PersonalModelView } from './PersonalModelView';
 import { BASIS_META, GRADE_META } from '../../utils/dataset';
 
 interface EvidenceViewProps {
@@ -27,7 +29,8 @@ type EvidenceTab =
   | 'hypotheses'
   | 'resolution'
   | 'orphans'
-  | 'ingestion';
+  | 'ingestion'
+  | 'personal';
 
 const INGESTION_STAGES = [
   { stage: '0. Intake', desc: 'Detect conversations.json or shards, hash each file, verify list schema.' },
@@ -49,7 +52,8 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
   onResetHypotheses,
   onFocusNodeInGraph,
 }) => {
-  const [activeTab, setActiveTab] = useState<EvidenceTab>('sources');
+  const [activeTab, setActiveTab] = useState<EvidenceTab>('personal');
+  const workspace = useMindWorkspaceOptional();
   const [sourceClassFilter, setSourceClassFilter] = useState<string>('all');
 
   const inferredEdges = useMemo(
@@ -107,6 +111,7 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
   };
 
   const dq = dataset.raw.data_quality;
+  const originalSourceCount = dataset.raw.sources.filter(source => source.original_available).length;
 
   return (
     <div className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-10 lg:py-8 space-y-8">
@@ -126,12 +131,12 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
       {/* Dataset Integrity & Grade Strip */}
       <section className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {[
-          { label: 'Preserved Nodes', val: dataset.raw.nodes.length, sub: '0 duplicate IDs' },
-          { label: 'Preserved Edges', val: dataset.raw.edges.length, sub: '0 dangling edges' },
+          { label: 'Preserved Nodes', val: dataset.raw.nodes.length, sub: `Duplicate IDs: ${dq.duplicate_node_ids}` },
+          { label: 'Preserved Edges', val: dataset.raw.edges.length, sub: `Dangling edges: ${dq.dangling_edges}` },
           { label: 'Q3 Practice / Multi', val: dq.evidence_grades.Q3 ?? 0, sub: 'Highest current tier' },
           { label: 'Q2 Single Summary', val: dq.evidence_grades.Q2 ?? 0, sub: 'Secondary summaries' },
           { label: 'Q1 Brief / Proposal', val: dq.evidence_grades.Q1 ?? 0, sub: 'Unexplored / proposed' },
-          { label: 'Q4 Conversations', val: dq.evidence_grades.Q4 ?? 0, sub: `0 of ${dataset.raw.sources.length} sources original` },
+          { label: 'Q4 Conversations', val: dq.evidence_grades.Q4 ?? 0, sub: `${originalSourceCount} original sources` },
         ].map((kpi) => (
           <div
             key={kpi.label}
@@ -194,6 +199,7 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar border-b border-white/[0.08] pb-3">
         {(
           [
+            { id: 'personal', label: `Personal Model (${workspace?.record.model.claims.length ?? 0})` },
             { id: 'sources', label: `Sources Registry (${dataset.raw.sources.length})` },
             { id: 'hypotheses', label: `Inferred Hypotheses (${inferredEdges.length})` },
             {
@@ -218,6 +224,8 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
           </button>
         ))}
       </div>
+
+      {activeTab === 'personal' && <PersonalModelView hideSensitive={hideSensitive} />}
 
       {/* TAB 1: Sources Registry */}
       {activeTab === 'sources' && (

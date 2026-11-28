@@ -36,7 +36,8 @@ export interface RecentExplorationEntry {
 }
 
 export interface MindWorkspaceRecord {
-  schemaVersion: 1;
+  schemaVersion: 2;
+  model: MindModel;
   profile: MindWorkspaceProfile;
   customDataset: KnowledgeDataset | null;
   hypothesisDecisions: Record<string, HypothesisDecision>;
@@ -219,4 +220,152 @@ export interface IndexedDataset {
   edgesByNodeId: Map<string, KnowledgeEdge[]>;
   domainNodes: KnowledgeNode[];
   sensitiveNodeIds: Set<string>;
+}
+
+
+/**
+ * Personal Mind Model v2.
+ *
+ * The legacy KnowledgeDataset is a navigable intellectual archive. This model is
+ * the canonical, user-owned record of what may be true about a person and why.
+ * Source and observation records are immutable; corrections are represented by
+ * appended review events and superseding claims.
+ */
+export type MindSourceKind =
+  | 'conversation'
+  | 'document'
+  | 'assessment'
+  | 'behavior_log'
+  | 'reflection'
+  | 'external_reference'
+  | 'user_entry';
+
+export type MindSourceAuthor = 'user' | 'assistant' | 'system' | 'external';
+
+export type MindObservationMethod =
+  | 'direct_behavior'
+  | 'user_report'
+  | 'documented_record'
+  | 'assessment'
+  | 'third_party_report'
+  | 'model_inference';
+
+export type MindClaimKind =
+  | 'fact'
+  | 'belief'
+  | 'value'
+  | 'preference'
+  | 'goal'
+  | 'skill'
+  | 'experience'
+  | 'behavior_pattern'
+  | 'identity_model'
+  | 'interpretation'
+  | 'memory';
+
+export type MindClaimStatus =
+  | 'candidate'
+  | 'active'
+  | 'challenged'
+  | 'rejected'
+  | 'superseded'
+  | 'expired';
+
+export type MindEpistemicBasis =
+  | 'directly_observed'
+  | 'documented'
+  | 'self_reported'
+  | 'third_party_reported'
+  | 'inferred'
+  | 'externally_sourced';
+
+export type MindEvidencePolarity = 'supports' | 'refutes' | 'qualifies';
+
+export type MindRelationshipStatus = 'proposed' | 'accepted' | 'rejected';
+
+export interface MindSourceRecord {
+  id: string;
+  kind: MindSourceKind;
+  author: MindSourceAuthor;
+  title: string;
+  locator?: string;
+  occurredAt?: string;
+  capturedAt: string;
+  contentHash?: string;
+  originalAvailable: boolean;
+  sensitivity: 'normal' | 'sensitive' | 'highly_sensitive';
+}
+
+export interface MindObservation {
+  id: string;
+  sourceId: string;
+  method: MindObservationMethod;
+  content: string;
+  excerpt?: string;
+  occurredAt?: string;
+  capturedAt: string;
+  context?: string;
+  recordedBy: 'user' | 'assistant' | 'system';
+}
+
+export interface MindEvidenceLink {
+  id: string;
+  observationId: string;
+  polarity: MindEvidencePolarity;
+  rationale?: string;
+  createdAt: string;
+}
+
+export interface MindClaim {
+  id: string;
+  statement: string;
+  kind: MindClaimKind;
+  domain: string;
+  status: MindClaimStatus;
+  epistemicBasis: MindEpistemicBasis;
+  confidence: number | null;
+  sensitivity: 'normal' | 'sensitive' | 'highly_sensitive';
+  context?: string;
+  validFrom?: string;
+  validUntil?: string;
+  evidence: MindEvidenceLink[];
+  supersedesClaimId?: string;
+  createdAt: string;
+  updatedAt: string;
+  lastReviewedAt?: string;
+}
+
+export interface MindRelationship {
+  id: string;
+  fromClaimId: string;
+  toClaimId: string;
+  predicate: string;
+  status: MindRelationshipStatus;
+  basis: 'explicit' | 'inferred';
+  confidence: number;
+  observationIds: string[];
+  createdAt: string;
+  reviewedAt?: string;
+}
+
+export interface MindReviewEvent {
+  id: string;
+  targetType: 'claim' | 'relationship';
+  targetId: string;
+  action: 'confirm' | 'challenge' | 'reject' | 'defer' | 'correct' | 'supersede' | 'accept_link' | 'reject_link';
+  previousStatus: string;
+  nextStatus: string;
+  note?: string;
+  actor: 'user' | 'assistant' | 'system';
+  createdAt: string;
+}
+
+export interface MindModel {
+  schemaVersion: 2;
+  sources: MindSourceRecord[];
+  observations: MindObservation[];
+  claims: MindClaim[];
+  relationships: MindRelationship[];
+  reviewEvents: MindReviewEvent[];
+  updatedAt: string;
 }

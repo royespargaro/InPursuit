@@ -89,7 +89,8 @@ describe('Multi-user Mind Architecture workspace store & builder', () => {
       recentExplorations: [{ nodeId: added.nodeId, title: 'First Principles' }],
     });
 
-    expect(sanitized.schemaVersion).toBe(1);
+    expect(sanitized.schemaVersion).toBe(2);
+    expect(sanitized.model.claims).toEqual([]);
     expect(sanitized.hypothesisDecisions).toEqual({ edge_1: 'confirmed' });
     expect(sanitized.recentExplorations).toHaveLength(1);
 
