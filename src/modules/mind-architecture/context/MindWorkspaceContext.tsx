@@ -556,25 +556,22 @@ export function MindWorkspaceProvider({ children }: { children: React.ReactNode 
   }, [commitRecord]);
 
   const activeDataset = useMemo<KnowledgeDataset | null>(() => {
-    if (record.profile.mode === 'custom' && record.customDataset) {
-      // Execution entities are a live derived layer; user-authored knowledge is preserved.
-      return appData
-        ? mergeExecutionSnapshotIntoDataset(record.customDataset, appData)
-        : record.customDataset;
-    }
-    return sampleDataset;
+    const baseDataset = record.profile.mode === 'custom' && record.customDataset
+      ? record.customDataset
+      : sampleDataset;
+    // Execution entities are always a live derived layer, in both sample and custom modes.
+    // This makes newly created goals visible in the constellation without a manual sync action.
+    return baseDataset && appData
+      ? mergeExecutionSnapshotIntoDataset(baseDataset, appData)
+      : baseDataset;
   }, [record.profile.mode, record.customDataset, sampleDataset, appData]);
 
   const bundle = useMemo(() => {
     if (!activeDataset) return null;
-    if (record.profile.mode === 'sample') {
-      const cached = getCachedMindBundle(DEFAULT_MIND_DATASET_URL, activeDataset);
-      if (cached) return { indexed: cached.indexed, layout: cached.layout };
-    }
     const indexed = indexDataset(activeDataset);
     const layout = computeCelestialLayout(indexed);
     return { indexed, layout };
-  }, [activeDataset, record.profile.mode]);
+  }, [activeDataset]);
 
   const recordExploration = useCallback(
     (nodeId: string) => {
