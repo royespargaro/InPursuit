@@ -17,19 +17,31 @@ interface PatternsViewProps {
 }
 
 const BIG_FIVE = [
-  { key: 'E', label: 'Extraversion', value: 99 },
-  { key: 'C', label: 'Conscientiousness', value: 99 },
-  { key: 'O', label: 'Openness', value: 90 },
-  { key: 'A', label: 'Agreeableness', value: 58 },
-  { key: 'N', label: 'Neuroticism', value: 33 },
+  { key: 'E', label: 'Extraversion' },
+  { key: 'C', label: 'Conscientiousness' },
+  { key: 'O', label: 'Openness' },
+  { key: 'A', label: 'Agreeableness' },
+  { key: 'N', label: 'Neuroticism' },
 ];
 
-const DISC_SCORES = [
-  { key: 'D', label: 'Dominance', value: 51, color: '#d4ff3a' },
-  { key: 'I', label: 'Influence', value: 30, color: '#89a8ff' },
-  { key: 'C', label: 'Conscientiousness', value: 13, color: '#72e3a8' },
-  { key: 'S', label: 'Steadiness', value: 6, color: '#9ba3b0' },
+const DISC_DIMENSIONS = [
+  { key: 'D', label: 'Dominance', color: '#d4ff3a' },
+  { key: 'I', label: 'Influence', color: '#89a8ff' },
+  { key: 'C', label: 'Conscientiousness', color: '#72e3a8' },
+  { key: 'S', label: 'Steadiness', color: '#9ba3b0' },
 ];
+
+function extractSummaryScores(description: string, keys: string[]): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const key of keys) {
+    const match = description.match(new RegExp(`\\b${key}\\s*(?:[:=])?\\s*(\\d{1,3})\\b`, 'i'));
+    if (match) {
+      const value = Number(match[1]);
+      if (value >= 0 && value <= 100) result[key] = value;
+    }
+  }
+  return result;
+}
 
 export const PatternsView: React.FC<PatternsViewProps> = ({
   dataset,
@@ -90,6 +102,8 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
   const mbtiNode = dataset.nodeById.get('mbti');
   const enneagramNode = dataset.nodeById.get('enneagram');
   const humanDesignNode = dataset.nodeById.get('human_design');
+  const bigFiveScores = extractSummaryScores(dataset.nodeById.get('big_five')?.description ?? '', BIG_FIVE.map(x => x.key));
+  const discScores = DISC_DIMENSIONS.map(item => ({ ...item, value: extractSummaryScores(dataset.nodeById.get('disc')?.description ?? '', [item.key])[item.key] } )).filter((item): item is typeof item & { value: number } => item.value !== undefined);
   const hideHumanDesign =
     hideSensitive && dataset.sensitiveNodeIds.has('human_design');
 
@@ -97,20 +111,23 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
     const cx = 120;
     const cy = 120;
     const maxR = 84;
-    return BIG_FIVE.map((dim, idx) => {
+    return BIG_FIVE.flatMap((dim, idx) => {
+      const value = bigFiveScores[dim.key];
+      if (value === undefined) return [];
       const angle = -Math.PI / 2 + (idx * 2 * Math.PI) / BIG_FIVE.length;
-      const r = (dim.value / 100) * maxR;
-      return {
+      const r = (value / 100) * maxR;
+      return [{
         ...dim,
+        value,
         x: cx + Math.cos(angle) * r,
         y: cy + Math.sin(angle) * r,
         lx: cx + Math.cos(angle) * (maxR + 20),
         ly: cy + Math.sin(angle) * (maxR + 20),
         ax: cx + Math.cos(angle) * maxR,
         ay: cy + Math.sin(angle) * maxR,
-      };
+      }];
     });
-  }, []);
+  }, [bigFiveScores]);
 
   return (
     <div className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-10 lg:py-8 space-y-8">
@@ -306,7 +323,7 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
                 Big Five Profile
               </button>
               <span className="font-mono text-[11px] text-[#9ba3b0]">
-                X:export · B:1, B:2
+                Summary-derived · not a test result
               </span>
             </div>
 
@@ -338,12 +355,12 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
                   strokeWidth="1"
                 />
               ))}
-              <polygon
+              {radarPoints.length === BIG_FIVE.length && <polygon
                 points={radarPoints.map((p) => `${p.x},${p.y}`).join(' ')}
                 fill="rgba(212, 255, 58, 0.16)"
                 stroke="#d4ff3a"
                 strokeWidth="1.8"
-              />
+              />}
               {radarPoints.map((p) => (
                 <g key={p.key}>
                   <circle cx={p.x} cy={p.y} r="3.5" fill="#d4ff3a" />
@@ -374,11 +391,11 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
                   DISC Breakdown
                 </button>
                 <span className="font-mono text-[11px] text-[#9ba3b0]">
-                  D51 · I30 · S6 · C13
+                  {discScores.length ? 'Summary-derived · not a test result' : 'No structured scores in source'}
                 </span>
               </div>
               <div className="space-y-2.5">
-                {DISC_SCORES.map((item) => (
+                {discScores.map((item) => (
                   <div key={item.key} className="grid grid-cols-12 items-center gap-3 text-[13px] sm:text-xs">
                     <span className="col-span-5 sm:col-span-4 text-[#9ba3b0] truncate">{item.label}</span>
                     <div className="col-span-5 sm:col-span-6 h-1.5 rounded-full bg-white/[0.07] overflow-hidden">
