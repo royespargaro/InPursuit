@@ -11,7 +11,7 @@ import type { MindClaim, MindObservation, MindSourceRecord } from '../modules/mi
 const now='2026-11-28T04:00:00.000Z';
 const source:MindSourceRecord={id:'s1',kind:'conversation',author:'user',title:'User statement',capturedAt:now,originalAvailable:true,sensitivity:'normal'};
 const observation:MindObservation={id:'o1',sourceId:'s1',method:'user_report',content:'I plan backwards from long-term goals.',capturedAt:now,recordedBy:'user'};
-const claim:Omit<MindClaim,'status'|'evidence'|'createdAt'|'updatedAt'>={id:'c1',statement:'The user prefers backward planning.',kind:'preference',domain:'Planning',epistemicBasis:'self_reported',confidence:.8};
+const claim:Omit<MindClaim,'status'|'evidence'|'createdAt'|'updatedAt'>={id:'c1',statement:'The user prefers backward planning.',kind:'preference',domain:'Planning',epistemicBasis:'self_reported',confidence:.8,sensitivity:'normal'};
 
 describe('Personal Mind Model v2',()=>{
   it('creates a clean personal model without importing sample archive data',()=>{
