@@ -7,6 +7,7 @@ interface GoalFeasibilityModalProps {
   assessment: GoalFeasibilityAssessment;
   onClose: () => void;
   onCreatePlan: () => void;
+  onEditGoal: () => void;
 }
 
 const levelStyles: Record<GoalFeasibilityAssessment['level'], string> = {
@@ -16,7 +17,7 @@ const levelStyles: Record<GoalFeasibilityAssessment['level'], string> = {
   insufficient_evidence: 'border-[#89a8ff]/25 bg-[#89a8ff]/[0.07] text-[#b9c8ff]',
 };
 
-export function GoalFeasibilityModal({ assessment, onClose, onCreatePlan }: GoalFeasibilityModalProps) {
+export function GoalFeasibilityModal({ assessment, onClose, onCreatePlan, onEditGoal }: GoalFeasibilityModalProps) {
   const { l } = useLanguage();
   const daysLabel = assessment.daysRemaining === null
     ? l('No deadline', 'Tanpa tenggat')
@@ -116,7 +117,10 @@ export function GoalFeasibilityModal({ assessment, onClose, onCreatePlan }: Goal
         </div>
       </div>
       <div className="mt-5 flex flex-col-reverse gap-2 border-t border-white/[0.08] pt-4 sm:flex-row sm:justify-between">
-        <Button variant="outline" onClick={onClose}><X size={14} />{l('Close', 'Tutup')}</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={onClose}><X size={14} />{l('Close', 'Tutup')}</Button>
+          <Button variant="outline" onClick={onEditGoal}>{l('Refine goal', 'Perjelas tujuan')}</Button>
+        </div>
         <Button variant="solid" onClick={onCreatePlan}><ArrowRight size={14} />{l('Create suggested project & tasks', 'Buat proyek dan tugas yang disarankan')}</Button>
       </div>
     </Modal>
