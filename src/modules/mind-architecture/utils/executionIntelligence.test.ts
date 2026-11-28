@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AppData } from '../../../types';
 import type { KnowledgeDataset, KnowledgeEdge, KnowledgeNode } from '../types/knowledge';
-import { createEmptyMindDataset } from '../services/mindBuilder';
+import { createEmptyMindDataset, mergeExecutionSnapshotIntoDataset } from '../services/mindBuilder';
 import { computeExecutionIntelligence, getGoalKnowledgeNodeId } from './executionIntelligence';
 
 function makeNode(id: string, title: string, type: string): KnowledgeNode {
@@ -135,6 +135,22 @@ describe('computeExecutionIntelligence', () => {
     );
 
     expect(result?.activeGoals[0].requiredSkills.map((skill) => skill.id)).toEqual(['skill-sales']);
+  });
+
+  it('refreshes execution nodes without duplicating them or deleting user knowledge', () => {
+    const base = createEmptyMindDataset();
+    base.nodes = [makeNode('my-concept', 'My own concept', 'Concept')];
+
+    const first = mergeExecutionSnapshotIntoDataset(base, makeAppData());
+    const second = mergeExecutionSnapshotIntoDataset(first, makeAppData());
+
+    expect(second.nodes.some((node) => node.id === 'my-concept')).toBe(true);
+    expect(second.nodes.some((node) => node.id === 'task_task-1')).toBe(true);
+    expect(second.nodes.filter((node) => node.id === 'goal_goal-1')).toHaveLength(1);
+    expect(second.edges.some((edge) => edge.relationship === 'supports' && edge.source === 'hab_habit-1')).toBe(true);
+    expect(second.edges.some((edge) => edge.relationship === 'advances' && edge.source === 'task_task-1')).toBe(true);
+    expect(second.nodes).toHaveLength(first.nodes.length);
+    expect(second.edges).toHaveLength(first.edges.length);
   });
 
   it('respects the sensitive-node filter when mapping capabilities', () => {
