@@ -555,6 +555,34 @@ export function MindWorkspaceProvider({ children }: { children: React.ReactNode 
     }));
   }, [commitRecord]);
 
+  const addModelSource = useCallback((source: MindSourceRecord) => {
+    commitRecord(prev => ({ ...prev, model: addModelSourceRecord(prev.model, source) }));
+  }, [commitRecord]);
+
+  const addModelObservation = useCallback((observation: MindObservation) => {
+    commitRecord(prev => ({ ...prev, model: addModelObservationRecord(prev.model, observation) }));
+  }, [commitRecord]);
+
+  const createModelClaim = useCallback((input: Omit<MindClaim, 'status' | 'evidence' | 'createdAt' | 'updatedAt'>) => {
+    commitRecord(prev => ({ ...prev, model: createModelClaimRecord(prev.model, input) }));
+  }, [commitRecord]);
+
+  const attachModelEvidence = useCallback((claimId: string, link: MindEvidenceLink) => {
+    commitRecord(prev => ({ ...prev, model: attachModelEvidenceRecord(prev.model, claimId, link) }));
+  }, [commitRecord]);
+
+  const reviewModelClaim = useCallback((claimId: string, action: 'confirm' | 'challenge' | 'reject' | 'defer', eventId: string, note?: string) => {
+    commitRecord(prev => ({ ...prev, model: reviewModelClaimRecord(prev.model, claimId, action, eventId, 'user', note) }));
+  }, [commitRecord]);
+
+  const addModelRelationship = useCallback((relationship: MindRelationship) => {
+    commitRecord(prev => ({ ...prev, model: addModelRelationshipRecord(prev.model, relationship) }));
+  }, [commitRecord]);
+
+  const reviewModelRelationship = useCallback((relationshipId: string, decision: 'accept_link' | 'reject_link', eventId: string, note?: string) => {
+    commitRecord(prev => ({ ...prev, model: reviewModelRelationshipRecord(prev.model, relationshipId, decision, eventId, note) }));
+  }, [commitRecord]);
+
   const activeDataset = useMemo<KnowledgeDataset | null>(() => {
     const baseDataset = record.profile.mode === 'custom' && record.customDataset
       ? record.customDataset
