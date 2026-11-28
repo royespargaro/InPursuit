@@ -1200,6 +1200,11 @@ export default function App() {
         <GoalFeasibilityModal
           assessment={goalAssessment}
           onClose={() => setGoalAssessment(null)}
+          onEditGoal={() => {
+            const goalId = goalAssessment.goalId;
+            setGoalAssessment(null);
+            openModal('goal', goalId);
+          }}
           onCreatePlan={() => {
             const goal = data.goals.find(item => item.id === goalAssessment.goalId);
             if (!goal) {
