@@ -11,6 +11,7 @@ import { getTodayHabitCount, getWeeklyHabitCount } from '../utils/habitUtils';
 import { getGoalProgress } from '../utils/intelligence';
 import { MAX_ACTIVE_PROJECTS } from '../utils/projectLimits';
 import { buildTodaySchedule } from '../utils/todayScheduler';
+import { buildDailyBriefing } from '../utils/dailyBriefing';
 
 const DAY_LABELS_ID: Record<string, string> = {
   mon: 'Sen',
@@ -252,6 +253,11 @@ export function TodayView({
   const doneActions = doneHabits + dailyTasksDone;
   const completion = totalActions === 0 ? 0 : Math.round((doneActions / totalActions) * 100);
 
+  const briefing = useMemo(
+    () => buildDailyBriefing(data, priorityTasks, overdueTasks, doneHabits, scheduledHabitsCount),
+    [data, priorityTasks, overdueTasks, doneHabits, scheduledHabitsCount],
+  );
+
   const visibleTabTasks =
     taskTab === 'today'
       ? todayTasks
@@ -345,6 +351,58 @@ export function TodayView({
         onAddGoal={onAddGoal}
         onOpenMindArchitecture={onOpenMindArchitecture}
       />
+
+      <section className="panel daily-briefing-panel" aria-label={l('Daily intelligence briefing', 'Ringkasan kecerdasan harian')}>
+        <div className="panel-head">
+          <div>
+            <div className="eyebrow">{l('daily intelligence · based on your plan', 'intelijen harian · berdasarkan rencanamu')}</div>
+            <h2>{l('What matters today', 'Apa yang penting hari ini')}</h2>
+          </div>
+          {onOpenMindArchitecture && (
+            <button type="button" className="text-action" onClick={onOpenMindArchitecture}>
+              {l('Open Mind Architecture', 'Buka Arsitektur Pikiran')} <ArrowUpRight size={13} />
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.025] p-4">
+            <div className="eyebrow">{l('lead action', 'aksi utama')}</div>
+            <p className="mt-2 text-sm font-semibold text-[#f5f5f3]">
+              {briefing.focusTask?.title ?? l('Choose one meaningful priority', 'Pilih satu prioritas yang berarti')}
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-[#9ba3b0]">
+              {briefing.goal
+                ? l(`Advances your goal: ${briefing.goal.title}`, `Memajukan tujuan: ${briefing.goal.title}`)
+                : briefing.project
+                  ? l(`Linked to project: ${briefing.project.title}`, `Terhubung ke proyek: ${briefing.project.title}`)
+                  : l('Based on the priorities you selected.', 'Berdasarkan prioritas yang kamu pilih.')}
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.025] p-4">
+            <div className="eyebrow">{l('attention signal', 'sinyal perhatian')}</div>
+            <p className="mt-2 text-sm font-semibold text-[#f5f5f3]">
+              {briefing.overdueCount > 0
+                ? l(`${briefing.overdueCount} overdue tasks`, `${briefing.overdueCount} tugas terlambat`)
+                : l('No overdue tasks', 'Tidak ada tugas terlambat')}
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-[#9ba3b0]">
+              {briefing.recommendation === 'resolve_overdue'
+                ? l('Review, reschedule or remove overdue work before adding more commitments.', 'Tinjau, jadwalkan ulang, atau hapus tugas terlambat sebelum menambah komitmen.')
+                : l('Keep the day focused; avoid adding work that does not support your priorities.', 'Jaga fokus hari ini; hindari menambah pekerjaan yang tidak mendukung prioritas.')}
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.025] p-4">
+            <div className="eyebrow">{l('habit momentum', 'momentum kebiasaan')}</div>
+            <p className="mt-2 text-sm font-semibold text-[#f5f5f3]">
+              {briefing.completedHabits}/{briefing.scheduledHabits} {l('scheduled habits completed', 'kebiasaan terjadwal selesai')}
+            </p>
+            <div className="stat-mini mt-3"><span style={{ width: `${briefing.habitCompletion}%` }} /></div>
+            <p className="mt-1 text-xs leading-relaxed text-[#9ba3b0]">
+              {l('Consistency is a signal of execution, not proof of goal achievement.', 'Konsistensi adalah sinyal eksekusi, bukan bukti tercapainya tujuan.')}
+            </p>
+          </div>
+        </div>
+      </section>
 
       {showOnboarding && (
         <OnboardingCard
