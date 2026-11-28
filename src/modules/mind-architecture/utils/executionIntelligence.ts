@@ -63,12 +63,13 @@ export function computeExecutionIntelligence(
   dataset: KnowledgeDataset,
   decisions: Record<string, HypothesisDecision>,
   hideSensitive = true,
+  sensitiveNodeIds: ReadonlySet<string> = new Set(),
   now = new Date(),
 ): ExecutionIntelligence | null {
   if (!appData) return null;
 
   const today = localDateKey(now);
-  const skillNodes = dataset.nodes.filter((node) => node.type.toLowerCase() === 'skill');
+  const skillNodes = dataset.nodes.filter((node) => node.type.toLowerCase() === 'skill' && (!hideSensitive || !sensitiveNodeIds.has(node.id)));
   const skillById = new Map(skillNodes.map((node) => [node.id, node]));
   const skillsByGoal = new Map<string, KnowledgeNode[]>();
 
@@ -103,9 +104,7 @@ export function computeExecutionIntelligence(
         projects,
         tasks,
         activeHabits,
-        requiredSkills: (skillsByGoal.get(getGoalKnowledgeNodeId(goal.id)) ?? []).filter(
-          (skill) => !hideSensitive || !skill.domains.some((domain) => domain.toLowerCase() === 'sensitive'),
-        ),
+        requiredSkills: skillsByGoal.get(getGoalKnowledgeNodeId(goal.id)) ?? [],
         completedTasks: tasks.filter((task) => task.status === 'done').length,
         openTasks: tasks.filter((task) => task.status === 'todo').length,
         overdueTasks: tasks.filter((task) => task.status === 'todo' && task.dueDate && task.dueDate < today).length,
