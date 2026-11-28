@@ -148,6 +148,54 @@ select:focus-visible {
   padding: 0 11px 11px;
 }
 
+.workspace-subnav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin: 0 0 24px;
+  padding: 0 0 12px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.workspace-subnav::-webkit-scrollbar {
+  display: none;
+}
+
+.workspace-subnav-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #aeb5c0;
+  font-size: 12px;
+  white-space: nowrap;
+  transition: 0.16s;
+}
+
+.workspace-subnav-item:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.035);
+  color: #fff;
+}
+
+.workspace-subnav-item.active {
+  border-color: rgba(212, 255, 58, 0.2);
+  background: rgba(212, 255, 58, 0.08);
+  color: var(--lime);
+}
+
+.workspace-subnav-item small {
+  color: var(--muted);
+  font: 10px 'JetBrains Mono', monospace;
+}
+
 .side-nav {
   display: grid;
   gap: 4px;
@@ -1743,6 +1791,18 @@ select:focus-visible {
   .content-wrap {
     padding: 18px 14px calc(112px + env(safe-area-inset-bottom));
   }
+
+  .workspace-subnav {
+    gap: 4px;
+    margin-bottom: 18px;
+    padding-bottom: 9px;
+  }
+
+  .workspace-subnav-item {
+    min-height: 40px;
+    padding: 0 11px;
+  }
+
 
   .section-title {
     align-items: center;
