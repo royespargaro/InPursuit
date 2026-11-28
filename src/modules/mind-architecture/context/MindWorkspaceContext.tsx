@@ -57,6 +57,7 @@ import {
   reviewMindClaim as reviewModelClaimRecord,
   addMindRelationship as addModelRelationshipRecord,
   reviewMindRelationship as reviewModelRelationshipRecord,
+  captureSelfReport as captureSelfReportRecord,
 } from '../services/mindModel';
 import {
   isOfflineError,
@@ -100,6 +101,7 @@ export interface MindWorkspaceContextValue {
   addModelSource: (source: MindSourceRecord) => void;
   addModelObservation: (observation: MindObservation) => void;
   createModelClaim: (input: Omit<MindClaim, 'status' | 'evidence' | 'createdAt' | 'updatedAt'>) => void;
+  captureSelfReport: (input: Parameters<typeof captureSelfReportRecord>[1]) => void;
   attachModelEvidence: (claimId: string, link: MindEvidenceLink) => void;
   reviewModelClaim: (claimId: string, action: 'confirm' | 'challenge' | 'reject' | 'defer', eventId: string, note?: string) => void;
   addModelRelationship: (relationship: MindRelationship) => void;
@@ -576,6 +578,10 @@ export function MindWorkspaceProvider({ children }: { children: React.ReactNode 
     }));
   }, [commitRecord]);
 
+  const captureSelfReport = useCallback((input: Parameters<typeof captureSelfReportRecord>[1]) => {
+    commitRecord(prev => ({ ...prev, model: captureSelfReportRecord(prev.model, input) }));
+  }, [commitRecord]);
+
   const addModelSource = useCallback((source: MindSourceRecord) => {
     commitRecord(prev => ({ ...prev, model: addModelSourceRecord(prev.model, source) }));
   }, [commitRecord]);
@@ -672,6 +678,8 @@ export function MindWorkspaceProvider({ children }: { children: React.ReactNode 
       importJsonDataset,
       updateHypothesis,
       resetHypotheses,
+      captureSelfReport,
+      captureSelfReport,
       addModelSource,
       addModelObservation,
       createModelClaim,
