@@ -866,7 +866,10 @@ export function TodayView({
         <section className="panel tasks-panel">
         <div className="panel-head">
           <div><div className="eyebrow">{l('make progress visible', 'buat progres terlihat')}</div><h2>{l('Tasks', 'Tugas')}</h2></div>
-          <Button variant="solid" onClick={onAddTask}><Plus size={15} /> {l('Add task', 'Tambah tugas')}</Button>
+          <div className="project-title-actions">
+            <button type="button" className="text-action" onClick={() => setShowTaskManager(false)}>{l('Collapse', 'Tutup')}</button>
+            <Button variant="solid" onClick={onAddTask}><Plus size={15} /> {l('Add task', 'Tambah tugas')}</Button>
+          </div>
         </div>
 
         <div className="task-tabs" role="tablist" aria-label={l('Filter tasks', 'Saring tugas')}>
