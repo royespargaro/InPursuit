@@ -46,7 +46,6 @@ interface OverviewViewProps {
   onContinueExploring: (preferredNodeId?: string) => void;
   onNavigateView: (view: ViewId) => void;
   onOpenCustomize: (initialTab?: 'setup' | 'node' | 'edge' | 'notes') => void;
-  onSeedFromGoals?: () => void;
 }
 
 const SYNC_STATUS_LABELS: Record<MindSyncState, string> = {
@@ -85,7 +84,6 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   onContinueExploring,
   onNavigateView,
   onOpenCustomize,
-  onSeedFromGoals,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -485,10 +483,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             <span>Add Entry</span>
           </button>
 
-          {canSeedFromGoals && onSeedFromGoals && (
-            <button type="button" onClick={onSeedFromGoals} className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.04] px-4 py-2 text-xs font-medium text-[#c2c8d2] hover:border-[#d4ff3a]/40 hover:text-[#d4ff3a] transition-colors whitespace-nowrap shrink-0">
-              <Layers className="h-3.5 w-3.5" /><span>Sync execution map</span>
-            </button>
+          {canSeedFromGoals && (
+            <span className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-[#72e3a8]/20 bg-[#72e3a8]/[0.05] px-4 py-2 text-xs text-[#72e3a8] whitespace-nowrap shrink-0">
+              <Layers className="h-3.5 w-3.5" /><span>Execution map auto-synced</span>
+            </span>
           )}
           <button
             type="button"
@@ -591,15 +589,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                   Start mapping your own ideas, disciplines, and questions
                 </h2>
                 <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
-                  {canSeedFromGoals && onSeedFromGoals && (
-                    <button
-                      type="button"
-                      onClick={onSeedFromGoals}
-                      className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-[#d4ff3a] px-4 py-2 text-xs font-semibold text-black hover:bg-[#e2ff6e] transition-colors"
-                    >
-                      <Sparkles className="h-3.5 w-3.5" />
-                      <span>Seed from InPursuit Goals</span>
-                    </button>
+                  {canSeedFromGoals && (
+                    <p className="max-w-xs text-[11px] leading-relaxed text-[#9ba3b0]">
+                      Your goals and execution data sync into this constellation automatically.
+                    </p>
                   )}
                   <button
                     type="button"
