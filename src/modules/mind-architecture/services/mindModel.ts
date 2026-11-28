@@ -78,7 +78,7 @@ export function sanitizeMindModel(raw: unknown): MindModel {
     const supersedesClaimId=id(x.supersedesClaimId);
     claims.push({id:cid,statement,kind:en(x.kind,CLAIM_KINDS,'fact'),domain:str(x.domain,100)||'Unclassified',
       status:en(x.status,CLAIM_STATUSES,'candidate'),epistemicBasis:en(x.epistemicBasis,BASES,'self_reported'),
-      confidence:num(x.confidence),...(optional(x.context,1000)?{context:optional(x.context,1000)}:{}),
+      confidence:num(x.confidence),sensitivity:x.sensitivity==='highly_sensitive'||x.sensitivity==='sensitive'?x.sensitivity:'normal',...(optional(x.context,1000)?{context:optional(x.context,1000)}:{}),
       ...(optional(x.validFrom,40)?{validFrom:iso(x.validFrom,now)}:{}),
       ...(optional(x.validUntil,40)?{validUntil:iso(x.validUntil,now)}:{}),evidence,
       ...(supersedesClaimId?{supersedesClaimId}:{}),createdAt:iso(x.createdAt,now),updatedAt:iso(x.updatedAt,now),
