@@ -9,6 +9,7 @@ import type {
   Priority,
   Project,
   ProjectStatus,
+  PersonalOSData,
   Status,
   SyncMeta,
   TaskStatus,
@@ -93,6 +94,7 @@ export function createDefaultData(): AppData {
     habitLogs: [],
     dailyPlans: [],
     dailyReviews: [],
+    personalOS: { principles: [], decisions: [], claims: [], reflections: [], capacity: { dailyMinutes: 360, focusMinutes: 90, taskEstimates: {} } },
   };
 }
 
@@ -295,6 +297,59 @@ export function stripUndefinedDeep<T>(value: T): T {
   return value;
 }
 
+
+function sanitizePersonalOS(value: PersonalOSData | undefined): PersonalOSData {
+  const raw = value && typeof value === 'object' ? value : {} as PersonalOSData;
+  const cleanList = <T extends { id: string }>(items: unknown, mapper: (item: Record<string, unknown>) => T): T[] =>
+    (Array.isArray(items) ? items : [])
+      .filter((item): item is Record<string, unknown> => isRecord(item) && isString(item.id))
+      .slice(-500)
+      .map(mapper);
+  const capacity = isRecord(raw.capacity) ? raw.capacity : {};
+  const estimates = isRecord(capacity.taskEstimates) ? capacity.taskEstimates : {};
+  const taskEstimates = Object.fromEntries(Object.entries(estimates)
+    .filter(([key, n]) => isString(key) && typeof n === 'number' && Number.isFinite(n))
+    .slice(0, 1000)
+    .map(([key, n]) => [key, Math.max(5, Math.min(1440, Math.round(n as number)))]));
+  return {
+    principles: cleanList(raw.principles, item => ({
+      id: clampStr(String(item.id), 128), title: clampStr(String(item.title ?? ''), 160),
+      statement: clampStr(String(item.statement ?? ''), 2000), reason: clampStr(String(item.reason ?? ''), 2000),
+      behaviors: clampStr(String(item.behaviors ?? ''), 2000), contradictions: clampStr(String(item.contradictions ?? ''), 2000),
+      createdAt: clampStr(String(item.createdAt ?? ''), 40), updatedAt: clampStr(String(item.updatedAt ?? ''), 40),
+    })),
+    decisions: cleanList(raw.decisions, item => ({
+      id: clampStr(String(item.id), 128), title: clampStr(String(item.title ?? ''), 240),
+      context: clampStr(String(item.context ?? ''), 3000), options: clampStr(String(item.options ?? ''), 3000),
+      choice: clampStr(String(item.choice ?? ''), 2000), assumptions: clampStr(String(item.assumptions ?? ''), 3000),
+      prediction: clampStr(String(item.prediction ?? ''), 2000), reviewAt: clampStr(String(item.reviewAt ?? ''), 20),
+      outcome: clampStr(String(item.outcome ?? ''), 3000), createdAt: clampStr(String(item.createdAt ?? ''), 40),
+      ...(isString(item.reviewedAt) ? { reviewedAt: clampStr(item.reviewedAt, 40) } : {}),
+    })),
+    claims: cleanList(raw.claims, item => ({
+      id: clampStr(String(item.id), 128), claim: clampStr(String(item.claim ?? ''), 2000),
+      domain: clampStr(String(item.domain ?? ''), 120), source: clampStr(String(item.source ?? ''), 500),
+      evidence: clampStr(String(item.evidence ?? ''), 3000),
+      confidence: Math.max(0, Math.min(100, Math.round(typeof item.confidence === 'number' ? item.confidence : 0))),
+      status: item.status === 'confirmed' || item.status === 'disputed' || item.status === 'outdated' ? item.status : 'provisional',
+      createdAt: clampStr(String(item.createdAt ?? ''), 40),
+      ...(isString(item.verifiedAt) ? { verifiedAt: clampStr(item.verifiedAt, 40) } : {}),
+    })),
+    reflections: cleanList(raw.reflections, item => ({
+      id: clampStr(String(item.id), 128), date: clampStr(String(item.date ?? ''), 20),
+      prompt: clampStr(String(item.prompt ?? ''), 1000), answer: clampStr(String(item.answer ?? ''), 4000),
+      interpretation: clampStr(String(item.interpretation ?? ''), 2000),
+      interpretationStatus: item.interpretationStatus === 'user-confirmed' || item.interpretationStatus === 'rejected' ? item.interpretationStatus : 'hypothesis',
+      createdAt: clampStr(String(item.createdAt ?? ''), 40),
+    })),
+    capacity: {
+      dailyMinutes: Math.max(30, Math.min(1440, Math.round(typeof capacity.dailyMinutes === 'number' ? capacity.dailyMinutes : 360))),
+      focusMinutes: Math.max(15, Math.min(240, Math.round(typeof capacity.focusMinutes === 'number' ? capacity.focusMinutes : 90))),
+      taskEstimates,
+    },
+  };
+}
+
 export function sanitizeAppData(data: AppData): AppData {
   const lifeAreas = dedupeById(data.lifeAreas)
     .slice(0, WORKSPACE_LIMITS.lifeAreas)
@@ -358,6 +413,7 @@ export function sanitizeAppData(data: AppData): AppData {
         dueDate: clampStr(task.dueDate, 20),
         createdAt: clampStr(task.createdAt, 40),
         completedAt: task.completedAt ? clampStr(task.completedAt, 40) : null,
+      ...(typeof task.estimatedMinutes === 'number' && Number.isFinite(task.estimatedMinutes) ? { estimatedMinutes: Math.max(5, Math.min(1440, Math.round(task.estimatedMinutes))) } : {}),
       };
       if (targetQuantity !== undefined) cleanTask.targetQuantity = targetQuantity;
       else delete cleanTask.targetQuantity;
@@ -448,6 +504,7 @@ export function sanitizeAppData(data: AppData): AppData {
     habitLogs,
     dailyPlans,
     dailyReviews,
+    personalOS: sanitizePersonalOS(data.personalOS),
   };
   if (typeof data.syncVersion === 'number' && Number.isInteger(data.syncVersion) && data.syncVersion >= 0) {
     normalized.syncVersion = data.syncVersion;
@@ -834,6 +891,35 @@ export interface DetailedMergeResult {
   archivedExcessCount: number;
 }
 
+
+function mergePersonalOS(base: PersonalOSData | undefined, local: PersonalOSData | undefined, remote: PersonalOSData | undefined, preferLocal: boolean): PersonalOSData {
+  const empty: PersonalOSData = { principles: [], decisions: [], claims: [], reflections: [], capacity: { dailyMinutes: 360, focusMinutes: 90, taskEstimates: {} } };
+  const b = base ?? empty, l = local ?? empty, r = remote ?? empty;
+  const choose = <T>(bv: T, lv: T, rv: T): T => {
+    if (JSON.stringify(lv) === JSON.stringify(rv)) return lv;
+    if (JSON.stringify(lv) === JSON.stringify(bv)) return rv;
+    if (JSON.stringify(rv) === JSON.stringify(bv)) return lv;
+    return preferLocal ? lv : rv;
+  };
+  const taskKeys = new Set([...Object.keys(b.capacity.taskEstimates), ...Object.keys(l.capacity.taskEstimates), ...Object.keys(r.capacity.taskEstimates)]);
+  const taskEstimates: Record<string, number> = {};
+  for (const key of taskKeys) {
+    const value = choose(b.capacity.taskEstimates[key], l.capacity.taskEstimates[key], r.capacity.taskEstimates[key]);
+    if (typeof value === 'number') taskEstimates[key] = value;
+  }
+  return {
+    principles: mergeKeyedCollection(b.principles, l.principles, r.principles, x => x.id, preferLocal),
+    decisions: mergeKeyedCollection(b.decisions, l.decisions, r.decisions, x => x.id, preferLocal),
+    claims: mergeKeyedCollection(b.claims, l.claims, r.claims, x => x.id, preferLocal),
+    reflections: mergeKeyedCollection(b.reflections, l.reflections, r.reflections, x => x.id, preferLocal),
+    capacity: {
+      dailyMinutes: choose(b.capacity.dailyMinutes, l.capacity.dailyMinutes, r.capacity.dailyMinutes),
+      focusMinutes: choose(b.capacity.focusMinutes, l.capacity.focusMinutes, r.capacity.focusMinutes),
+      taskEstimates,
+    },
+  };
+}
+
 export function threeWayMergeWorkspaceDetailed(
   base: AppData,
   local: AppData,
@@ -894,6 +980,7 @@ export function threeWayMergeWorkspaceDetailed(
     habitLogs,
     dailyPlans,
     dailyReviews,
+    personalOS: mergePersonalOS(base.personalOS, local.personalOS, remote.personalOS, preferLocalOnConflict),
     updatedAt: new Date().toISOString(),
   });
 
@@ -1148,6 +1235,7 @@ export function mergeWorkspaceDataDetailed(
     habitLogs,
     dailyPlans: [...planMap.values()],
     dailyReviews: [...reviewMap.values()],
+    personalOS: mergePersonalOS(cloud.personalOS, local.personalOS, cloud.personalOS, true),
     updatedAt: new Date().toISOString(),
   });
 
