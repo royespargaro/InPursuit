@@ -51,6 +51,13 @@ describe('buildDailyBriefing', () => {
     expect(result.habitCompletion).toBe(67);
   });
 
+  it('does not treat a completed priority as the next action', () => {
+    const completed = { ...task, status: 'done' as const };
+    const result = buildDailyBriefing(data, [completed], [], 0, 0);
+    expect(result.focusTask).toBeNull();
+    expect(result.recommendation).toBe('choose_focus');
+  });
+
   it('prioritizes reviewing overdue work without inventing new tasks', () => {
     const result = buildDailyBriefing(data, [], [task], 0, 0);
     expect(result.focusTask).toBeNull();
