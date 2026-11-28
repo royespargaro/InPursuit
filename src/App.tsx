@@ -9,6 +9,7 @@ import { useHabits } from './context/HabitContext';
 import { useMindWorkspaceOptional } from './modules/mind-architecture/context/MindWorkspaceContext';
 import { GoalFeasibilityModal } from './components/GoalFeasibilityModal';
 import { assessGoalFeasibility, type GoalFeasibilityAssessment } from './modules/mind-architecture/utils/goalFeasibility';
+import { buildGoalPlanBlueprint, createGoalPlanRecords } from './modules/mind-architecture/utils/goalPlanning';
 
 
 
@@ -1198,6 +1199,7 @@ export default function App() {
 
       {goalAssessment && (
         <GoalFeasibilityModal
+          goal={data.goals.find(item => item.id === goalAssessment.goalId)!}
           assessment={goalAssessment}
           onClose={() => setGoalAssessment(null)}
           onEditGoal={() => {
@@ -1205,53 +1207,33 @@ export default function App() {
             setGoalAssessment(null);
             openModal('goal', goalId);
           }}
-          onCreatePlan={() => {
+          onCreatePlan={(includeHabits) => {
             const goal = data.goals.find(item => item.id === goalAssessment.goalId);
             if (!goal) {
               setGoalAssessment(null);
               notify(l('Goal was not found. Reopen it to reassess.', 'Tujuan tidak ditemukan. Buka kembali untuk menilai ulang.'));
               return;
             }
-            const now = new Date();
-            const createdAt = now.toISOString();
-            const projectId = uid();
-            const maxOffset = goalAssessment.daysRemaining === null
-              ? 7
-              : Math.max(0, Math.min(7, goalAssessment.daysRemaining));
-            const projectStatus: Project['status'] = activeProjects.length < MAX_ACTIVE_PROJECTS ? 'active' : 'planned';
-            const project: Project = {
-              id: projectId,
-              goalId: goal.id,
-              title: `Execution plan · ${goal.title}`,
-              description: 'A first-pass plan generated from the goal feasibility review. Adjust tasks as new information arrives.',
-              dueDate: goal.targetDate || '',
-              status: projectStatus,
-              createdAt,
-              startDate: today,
-            };
-            const tasks: Task[] = goalAssessment.suggestedActions.map((action, index) => {
-              const due = new Date(`${today}T12:00:00`);
-              due.setDate(due.getDate() + Math.min(action.daysFromStart, maxOffset));
-              const dueDate = `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`;
-              return {
-                id: uid(),
-                projectId,
-                title: action.title,
-                dueDate,
-                priority: index < 2 ? 'high' : 'medium',
-                status: 'todo',
-                createdAt,
-                completedAt: null,
-              };
+            const blueprint = buildGoalPlanBlueprint(goal, goalAssessment);
+            if (!includeHabits) blueprint.habits = [];
+            const records = createGoalPlanRecords(goal, blueprint, {
+              now: new Date(),
+              today,
+              projectStatus: activeProjects.length < MAX_ACTIVE_PROJECTS ? 'active' : 'planned',
+              id: uid,
             });
             updateData(current => ({
               ...current,
-              projects: [...current.projects, project],
-              tasks: [...current.tasks, ...tasks],
+              projects: [...current.projects, records.project],
+              tasks: [...current.tasks, ...records.tasks],
+              habits: [...current.habits, ...records.habits],
             }));
             setGoalAssessment(null);
             setView('projects');
-            notify(l('Execution plan created and linked to your goal', 'Rencana eksekusi dibuat dan dihubungkan ke tujuanmu'));
+            notify(l(
+              `Plan created: 1 project, ${records.tasks.length} tasks, ${records.habits.length} habits`,
+              `Rencana dibuat: 1 proyek, ${records.tasks.length} tugas, ${records.habits.length} kebiasaan`,
+            ));
           }}
         />
       )}
