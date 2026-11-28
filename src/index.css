@@ -2630,3 +2630,92 @@ select:focus-visible {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+
+/* Focused Today dashboard: keep the FilmHeader untouched and remove duplicate surfaces while preserving priority controls. */
+.daily-briefing-panel,
+.stat-grid,
+.habits-panel {
+  display: none !important;
+}
+
+.today-columns {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.view-stack {
+  gap: 22px;
+}
+
+.today-queue-panel,
+.tasks-panel {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: rgba(10, 11, 14, 0.76);
+}
+
+.today-queue-panel {
+  gap: 14px;
+}
+
+.today-queue-panel .panel-head,
+.tasks-panel .panel-head {
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.today-queue-panel .panel-head h2,
+.tasks-panel .panel-head h2 {
+  margin-top: 4px;
+  letter-spacing: -0.025em;
+}
+
+.today-queue-list,
+.task-table {
+  gap: 2px;
+}
+
+.today-queue-list .task-row,
+.task-table .task-row {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.today-queue-list .task-row:last-child,
+.task-table .task-row:last-child {
+  border-bottom: 0;
+}
+
+.tasks-panel {
+  gap: 14px;
+}
+
+.tasks-panel .task-tabs {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.today-bottom {
+  margin-top: -4px;
+  padding-top: 4px;
+}
+
+@media (max-width: 767px) {
+  .view-stack {
+    gap: 16px;
+  }
+
+  .today-queue-panel,
+  .tasks-panel {
+    padding: 15px;
+  }
+
+  .today-queue-panel .panel-head {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .today-queue-panel .project-title-actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+}
