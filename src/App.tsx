@@ -1207,7 +1207,7 @@ export default function App() {
             setGoalAssessment(null);
             openModal('goal', goalId);
           }}
-          onCreatePlan={() => {
+          onCreatePlan={(includeHabits) => {
             const goal = data.goals.find(item => item.id === goalAssessment.goalId);
             if (!goal) {
               setGoalAssessment(null);
@@ -1215,6 +1215,7 @@ export default function App() {
               return;
             }
             const blueprint = buildGoalPlanBlueprint(goal, goalAssessment);
+            if (!includeHabits) blueprint.habits = [];
             const records = createGoalPlanRecords(goal, blueprint, {
               now: new Date(),
               today,
