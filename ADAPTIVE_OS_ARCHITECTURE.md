@@ -73,6 +73,7 @@ Events should include an ID, user scope, timestamp, source, entity reference and
 
 - Connect Mind Architecture Overview to the live InPursuit execution workspace.
 - Show active goals, projects, open/overdue tasks and habit alignment.
+- Generate a deterministic Daily Intelligence Briefing from selected priorities, goal/project links, overdue work and scheduled habit completion.
 - Recognize only explicit/user-suggested or user-confirmed Goal ↔ Skill relationships.
 - Surface explainable structural recommendations without creating or mutating user data.
 - Keep the existing constellation, dark theme and lime accent.
