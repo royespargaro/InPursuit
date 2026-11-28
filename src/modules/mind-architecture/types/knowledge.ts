@@ -36,7 +36,8 @@ export interface RecentExplorationEntry {
 }
 
 export interface MindWorkspaceRecord {
-  schemaVersion: 1;
+  schemaVersion: 2;
+  model: MindModel;
   profile: MindWorkspaceProfile;
   customDataset: KnowledgeDataset | null;
   hypothesisDecisions: Record<string, HypothesisDecision>;
