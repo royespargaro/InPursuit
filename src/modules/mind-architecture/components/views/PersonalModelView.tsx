@@ -2,7 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Check, CircleHelp, Plus, ShieldAlert, X } from 'lucide-react';
 import { useMindWorkspaceOptional } from '../../context/MindWorkspaceContext';
 import { createMindId } from '../../services/mindBuilder';
-import type { MindClaimKind } from '../../types/knowledge';
+import type { MindClaim, MindClaimKind } from '../../types/knowledge';
 
 const KINDS: { value: MindClaimKind; label: string }[] = [
   {value:'fact',label:'Fact / personal record'},{value:'belief',label:'Belief'},{value:'value',label:'Value'},
@@ -25,7 +25,7 @@ export function PersonalModelView({ hideSensitive }: { hideSensitive: boolean })
     const claims=visibleClaims;
     return [claims.length,claims.filter(x=>x.status==='candidate').length,claims.filter(x=>x.status==='active').length,claims.filter(x=>x.status==='challenged').length];
   },[visibleClaims]);
-  const saveCorrection=(event:FormEvent<HTMLFormElement>, claim: (typeof model.claims)[number])=>{
+  const saveCorrection=(event:FormEvent<HTMLFormElement>, claim: MindClaim)=>{
     event.preventDefault();
     if(!workspace||!correctionText.trim())return;
     const now=new Date().toISOString(), sourceId=createMindId('src'), observationId=createMindId('obs'), claimId=createMindId('clm');
