@@ -29,7 +29,8 @@ type EvidenceTab =
   | 'hypotheses'
   | 'resolution'
   | 'orphans'
-  | 'ingestion'\n  | 'personal';
+  | 'ingestion'
+  | 'personal';
 
 const INGESTION_STAGES = [
   { stage: '0. Intake', desc: 'Detect conversations.json or shards, hash each file, verify list schema.' },
@@ -224,7 +225,9 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
         ))}
       </div>
 
-      {activeTab === 'personal' && <PersonalModelView hideSensitive={hideSensitive} />}\n\n      {/* TAB 1: Sources Registry */}
+      {activeTab === 'personal' && <PersonalModelView hideSensitive={hideSensitive} />}
+
+      {/* TAB 1: Sources Registry */}
       {activeTab === 'sources' && (
         <section className="rounded-2xl border border-white/[0.08] bg-[rgba(12,13,16,0.85)] overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] px-5 py-4 sm:px-6">
