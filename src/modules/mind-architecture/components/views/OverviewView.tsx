@@ -467,6 +467,11 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             <span>Add Entry</span>
           </button>
 
+          {canSeedFromGoals && onSeedFromGoals && (
+            <button type="button" onClick={onSeedFromGoals} className="inline-flex min-h-[40px] items-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.04] px-4 py-2 text-xs font-medium text-[#c2c8d2] hover:border-[#d4ff3a]/40 hover:text-[#d4ff3a] transition-colors whitespace-nowrap shrink-0">
+              <Layers className="h-3.5 w-3.5" /><span>Sync execution map</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onContinueExploring(lastExploredId)}
@@ -666,6 +671,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         dataset={dataset.raw}
         decisions={hypothesisDecisions}
         hideSensitive={hideSensitive}
+        sensitiveNodeIds={dataset.sensitiveNodeIds}
         onFocusNode={(nodeId) => onFocusNodeInGraph(nodeId, 'graph')}
       />
 
