@@ -184,7 +184,7 @@ export function PersonalOSStudio() {
               <p>{item.statement}</p>
               {item.reason && <p className="personal-os-muted">{item.reason}</p>}
               {item.behaviors && <div className="personal-os-evidence"><b>{l('Behavioral test', 'Uji perilaku')}</b><span>{item.behaviors}</span></div>}
-              <label className="personal-os-inline-field"><span>{l('Contradictory evidence / where I fall short', 'Bukti yang bertentangan / bagian yang belum konsisten')}</span><textarea className={fieldClass} rows={2} value={item.contradictions} onChange={e => patchOS({ principles: os.principles.map(p => p.id === item.id ? { ...p, contradictions: e.target.value, updatedAt: new Date().toISOString() } : p) })} placeholder={l('Record honestly, without self-judgment', 'Catat dengan jujur, tanpa menghakimi diri')} /></label>
+              <label className="personal-os-inline-field"><span>{l('Contradictory evidence / where I fall short', 'Bukti yang bertentangan / bagian yang belum konsisten')}</span><textarea className={fieldClass} rows={2} defaultValue={item.contradictions} onBlur={e => patchOS({ principles: os.principles.map(p => p.id === item.id ? { ...p, contradictions: e.target.value, updatedAt: new Date().toISOString() } : p) })} placeholder={l('Record honestly, without self-judgment', 'Catat dengan jujur, tanpa menghakimi diri')} /></label>
             </article>)}
           </div>
         </div>
@@ -239,7 +239,7 @@ export function PersonalOSStudio() {
               {item.context && <p>{item.context}</p>}<div className="personal-os-evidence"><b>{l('Chosen', 'Dipilih')}</b><span>{item.choice}</span></div>
               {item.assumptions && <p className="personal-os-muted">{l('Assumptions', 'Asumsi')}: {item.assumptions}</p>}
               {item.prediction && <p className="personal-os-muted">{l('Predicted', 'Prediksi')}: {item.prediction}</p>}
-              <label className="personal-os-inline-field"><span>{l('Actual outcome / review', 'Hasil aktual / evaluasi')} {item.reviewAt && `· ${item.reviewAt}`}</span><textarea className={fieldClass} rows={2} value={item.outcome} onChange={e => saveDecisionOutcome(item, e.target.value)} placeholder={l('What actually happened?', 'Apa yang benar-benar terjadi?')} /></label>
+              <label className="personal-os-inline-field"><span>{l('Actual outcome / review', 'Hasil aktual / evaluasi')} {item.reviewAt && `· ${item.reviewAt}`}</span><textarea className={fieldClass} rows={2} defaultValue={item.outcome} onBlur={e => saveDecisionOutcome(item, e.target.value)} placeholder={l('What actually happened?', 'Apa yang benar-benar terjadi?')} /></label>
             </article>)}
             {os.decisions.length === 0 && <div className={panelClass}><p className="personal-os-muted">{l('Your decision history starts with the next meaningful choice.', 'Riwayat keputusan dimulai dari pilihan penting berikutnya.')}</p></div>}
           </div>
@@ -251,7 +251,7 @@ export function PersonalOSStudio() {
           <div className={panelClass}><div className="eyebrow">{l('behavior engine', 'mesin perilaku')}</div><h3>{l('Design the behavior, not just the streak.', 'Rancang perilakunya, bukan hanya streak.')}</h3><p className="personal-os-muted">{l('For each habit, define its cue, friction, difficulty and recovery plan. Completion data is evidence; it is not a judgment.', 'Untuk setiap kebiasaan, tentukan pemicu, hambatan, kesulitan, dan rencana pemulihan. Data penyelesaian adalah bukti, bukan penghakiman.')}</p></div>
           {data.habits.filter(h => h.active).map(habit => {
             const logs = data.habitLogs.filter(log => log.habitId === habit.id && log.date >= new Date(Date.now() - 13 * 86400000).toISOString().slice(0,10) && log.status === 'done');
-            const rate = Math.round((logs.length / 14) * 100);
+            const rate = Math.min(100, Math.round((new Set(logs.map(log => log.date)).size / 14) * 100));
             return <article className={panelClass} key={habit.id}>
               <div className="personal-os-item-head"><h3>{habit.name}</h3><span className="personal-os-muted">{rate}% · {l('14-day check-ins', 'check-in 14 hari')}</span></div>
               <p className="personal-os-muted">{rate < 40 && (habit.difficulty ?? 3) >= 4
@@ -260,11 +260,11 @@ export function PersonalOSStudio() {
                   ? l('Adjustment signal: this behavior looks stable. Consider a small increase only if it still supports an important goal.', 'Sinyal penyesuaian: perilaku ini tampak stabil. Pertimbangkan peningkatan kecil hanya jika tetap mendukung tujuan penting.')
                   : l('Adjustment signal: keep observing. Change one variable at a time so you can learn what actually helps.', 'Sinyal penyesuaian: terus amati. Ubah satu variabel dalam satu waktu agar kamu tahu apa yang benar-benar membantu.')}</p>
               <div className="personal-os-form personal-os-two">
-                <label><span className={labelClass}>{l('Cue / trigger', 'Pemicu')}</span><input className={fieldClass} value={habit.cue ?? ''} onChange={e => updateHabit(habit.id, { cue: e.target.value })} placeholder={l('After I...', 'Setelah saya...')} /></label>
-                <label><span className={labelClass}>{l('Friction / obstacle', 'Hambatan')}</span><input className={fieldClass} value={habit.friction ?? ''} onChange={e => updateHabit(habit.id, { friction: e.target.value })} placeholder={l('What makes it harder?', 'Apa yang membuatnya sulit?')} /></label>
+                <label><span className={labelClass}>{l('Cue / trigger', 'Pemicu')}</span><input className={fieldClass} defaultValue={habit.cue ?? ''} onBlur={e => updateHabit(habit.id, { cue: e.target.value })} placeholder={l('After I...', 'Setelah saya...')} /></label>
+                <label><span className={labelClass}>{l('Friction / obstacle', 'Hambatan')}</span><input className={fieldClass} defaultValue={habit.friction ?? ''} onBlur={e => updateHabit(habit.id, { friction: e.target.value })} placeholder={l('What makes it harder?', 'Apa yang membuatnya sulit?')} /></label>
                 <label><span className={labelClass}>{l('Difficulty (1–5)', 'Kesulitan (1–5)')}</span><select className={fieldClass} value={habit.difficulty ?? 3} onChange={e => updateHabit(habit.id, { difficulty: Number(e.target.value) })}>{[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
-                <label><span className={labelClass}>{l('Minimum viable version', 'Versi minimum')}</span><input className={fieldClass} value={habit.minimumVersion ?? ''} onChange={e => updateHabit(habit.id, { minimumVersion: e.target.value })} placeholder={l('The smallest version that still counts', 'Versi terkecil yang tetap dihitung')} /></label>
-                <label><span className={labelClass}>{l('Recovery plan', 'Rencana pemulihan')}</span><input className={fieldClass} value={habit.recoveryPlan ?? ''} onChange={e => updateHabit(habit.id, { recoveryPlan: e.target.value })} placeholder={l('If I miss, I will...', 'Jika terlewat, saya akan...')} /></label>
+                <label><span className={labelClass}>{l('Minimum viable version', 'Versi minimum')}</span><input className={fieldClass} defaultValue={habit.minimumVersion ?? ''} onBlur={e => updateHabit(habit.id, { minimumVersion: e.target.value })} placeholder={l('The smallest version that still counts', 'Versi terkecil yang tetap dihitung')} /></label>
+                <label><span className={labelClass}>{l('Recovery plan', 'Rencana pemulihan')}</span><input className={fieldClass} defaultValue={habit.recoveryPlan ?? ''} onBlur={e => updateHabit(habit.id, { recoveryPlan: e.target.value })} placeholder={l('If I miss, I will...', 'Jika terlewat, saya akan...')} /></label>
               </div>
             </article>;
           })}
