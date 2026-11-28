@@ -551,6 +551,11 @@ export function addMindSource(
   });
 }
 
+function createExecutionEdgeId(relationship: string, source: string, target: string): string {
+  const safe = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 72);
+  return `edge_ip_${safe(relationship)}_${safe(source)}_${safe(target)}`;
+}
+
 export function buildDatasetFromInPursuitGoals(appData: AppData): KnowledgeDataset {
   const todayStr = new Date().toISOString().slice(0, 10);
   const srcId = createMindId('src_ip');
@@ -631,7 +636,7 @@ export function buildDatasetFromInPursuitGoals(appData: AppData): KnowledgeDatas
 
     if (areaMeta) {
       edges.push({
-        id: createMindId('edge'),
+        id: createExecutionEdgeId('anchors_goal', areaMeta.nodeId, gNodeId),
         source: areaMeta.nodeId,
         target: gNodeId,
         relationship: 'anchors_goal',
@@ -676,10 +681,10 @@ export function buildDatasetFromInPursuitGoals(appData: AppData): KnowledgeDatas
 
     if (gMeta) {
       edges.push({
-        id: createMindId('edge'),
-        source: gMeta.nodeId,
-        target: pNodeId,
-        relationship: 'executes_via',
+        id: createExecutionEdgeId('delivers', pNodeId, gMeta.nodeId),
+        source: pNodeId,
+        target: gMeta.nodeId,
+        relationship: 'delivers',
         basis: 'explicit',
         explanation: `${proj.title} is an execution phase for this goal.`,
         confidence: 'high',
@@ -694,9 +699,63 @@ export function buildDatasetFromInPursuitGoals(appData: AppData): KnowledgeDatas
     }
   }
 
+  const projectNodeIdByProjectId = new Map<string, string>();
+  for (const project of appData.projects.slice(0, 40)) {
+    projectNodeIdByProjectId.set(project.id, `proj_${project.id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 48)}`);
+  }
+
+  // Tasks become first-class execution nodes and retain their project provenance.
+  for (const task of appData.tasks.slice(0, 100)) {
+    const taskNodeId = `task_${task.id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 48)}`;
+    const projectNodeId = task.projectId ? projectNodeIdByProjectId.get(task.projectId) : undefined;
+    const parentProject = task.projectId ? appData.projects.find((project) => project.id === task.projectId) : undefined;
+    const parentGoal = parentProject?.goalId ? appData.goals.find((goal) => goal.id === parentProject.goalId) : undefined;
+    const parentArea = parentGoal?.lifeAreaId ? appData.lifeAreas.find((area) => area.id === parentGoal.lifeAreaId) : undefined;
+    nodes.push({
+      id: taskNodeId,
+      title: task.title,
+      type: 'Task',
+      domains: parentArea ? [parentArea.name] : [],
+      level: 4,
+      engagement: task.status === 'done' ? 'practiced' : 'active',
+      lifecycle: task.status,
+      lifecycle_basis: 'inpursuit_task',
+      description: `Task status: ${task.status}`,
+      source_ids: [srcId],
+      evidence_classes: ['E3_workspace_goal'],
+      confidence: 'high',
+      mentions: 1,
+      aliases: [],
+      evidence_grade: task.status === 'done' ? 'Q3' : 'Q2',
+      first_observed_at: task.createdAt.slice(0, 10),
+      last_observed_at: task.completedAt?.slice(0, 10) ?? todayStr,
+      observation_ids: [],
+      question_ids: [],
+    });
+    if (projectNodeId) {
+      edges.push({
+        id: createExecutionEdgeId('advances', taskNodeId, projectNodeId),
+        source: taskNodeId,
+        target: projectNodeId,
+        relationship: 'advances',
+        basis: 'explicit',
+        explanation: `${task.title} advances its linked project.`,
+        confidence: 'high',
+        source_ids: [srcId],
+        evidence_classes: ['E3_workspace_goal'],
+        assertion_level: 'asserted',
+        claim_scope: 'personal',
+        review_status: 'verified',
+        presentation_rule: 'Directly linked from InPursuit',
+        external_citation: null,
+      });
+    }
+  }
+
   for (const habit of appData.habits.filter((h) => h.active).slice(0, 20)) {
     const hNodeId = `hab_${habit.id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 48)}`;
-    const firstArea = appData.lifeAreas[0]?.name;
+    const linkedGoal = habit.goalId ? goalNodeIdByGoalId.get(habit.goalId) : undefined;
+    const firstArea = linkedGoal?.domain ?? appData.lifeAreas[0]?.name;
     nodes.push({
       id: hNodeId,
       title: habit.name,
@@ -718,6 +777,25 @@ export function buildDatasetFromInPursuitGoals(appData: AppData): KnowledgeDatas
       observation_ids: [],
       question_ids: [],
     });
+
+    if (linkedGoal) {
+      edges.push({
+        id: createExecutionEdgeId('supports', hNodeId, linkedGoal.nodeId),
+        source: hNodeId,
+        target: linkedGoal.nodeId,
+        relationship: 'supports',
+        basis: 'explicit',
+        explanation: `${habit.name} is explicitly linked to this goal in InPursuit.`,
+        confidence: 'high',
+        source_ids: [srcId],
+        evidence_classes: ['E3_workspace_goal'],
+        assertion_level: 'asserted',
+        claim_scope: 'personal',
+        review_status: 'verified',
+        presentation_rule: 'Directly linked from InPursuit',
+        external_citation: null,
+      });
+    }
   }
 
   return recomputeDerivedDatasetStats({
@@ -727,6 +805,29 @@ export function buildDatasetFromInPursuitGoals(appData: AppData): KnowledgeDatas
     edges,
   });
 }
+
+/**
+ * Refreshes the generated InPursuit execution layer while preserving the user's
+ * independently authored knowledge nodes, edges and sources.
+ */
+export function mergeExecutionSnapshotIntoDataset(baseDataset: KnowledgeDataset, appData: AppData): KnowledgeDataset {
+  const snapshot = buildDatasetFromInPursuitGoals(appData);
+  const generatedNodeIds = new Set(snapshot.nodes.map((node) => node.id));
+  const retainedNodes = baseDataset.nodes.filter(
+    (node) => !node.lifecycle_basis.startsWith('inpursuit_') && !generatedNodeIds.has(node.id),
+  );
+  const retainedSources = baseDataset.sources.filter((source) => source.source_type !== 'inpursuit_workspace');
+  const retainedEdges = baseDataset.edges.filter((edge) =>
+    !edge.id.startsWith('edge_ip_') && !edge.source_ids.some((id) => id.startsWith('src_ip_')),
+  );
+  return recomputeDerivedDatasetStats({
+    ...baseDataset,
+    sources: [...snapshot.sources, ...retainedSources],
+    nodes: [...retainedNodes, ...snapshot.nodes],
+    edges: [...retainedEdges, ...snapshot.edges],
+  });
+}
+
 
 export interface ExtractedMindBatch {
   domains: string[];
