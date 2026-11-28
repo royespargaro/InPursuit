@@ -61,6 +61,7 @@ describe('Personal Mind Model v2',()=>{
     });
     expect(clean.observations).toHaveLength(0);
     expect(clean.claims[0].evidence).toHaveLength(0);
+    expect(clean.claims[0].status).toBe('candidate');
     expect(clean.relationships).toHaveLength(0);
   });
   it('clamps confidence to a normalized 0..1 range',()=>{
