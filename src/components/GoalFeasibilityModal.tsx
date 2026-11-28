@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, BrainCircuit, CalendarClock, CheckCircle2, CircleHelp, Target, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, BrainCircuit, CalendarClock, CircleHelp, Target, X } from 'lucide-react';
 import type { GoalFeasibilityAssessment } from '../modules/mind-architecture/utils/goalFeasibility';
 import { useLanguage } from '../context/LanguageContext';
 import { Button, Modal } from './ui';
