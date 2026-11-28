@@ -84,20 +84,14 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
     return chains;
   }, [dataset]);
 
-  const mandalartGrid = useMemo(() => {
-    const ids = [
-      'career_pillar',
-      'education_pillar',
-      'investing_pillar',
-      'lifestyle_pillar',
-      'net_worth_and_freedom_goal',
-      'family_pillar',
-      'impact_pillar',
-      'personal_development_pillar',
-      'javabali_co',
-    ];
-    return ids.map((id) => dataset.nodeById.get(id)).filter(Boolean);
-  }, [dataset]);
+  const strategicNodes = useMemo(() => dataset.raw.nodes
+    .filter(node => node.type === 'Goal' || node.type === 'Project')
+    .filter(node => !hideSensitive || !dataset.sensitiveNodeIds.has(node.id))
+    .sort((a, b) => {
+      const rank = (grade: string) => grade === 'Q4' ? 4 : grade === 'Q3' ? 3 : grade === 'Q2' ? 2 : 1;
+      return rank(b.evidence_grade) - rank(a.evidence_grade) || b.mentions - a.mentions;
+    })
+    .slice(0, 9), [dataset, hideSensitive]);
 
   const mbtiNode = dataset.nodeById.get('mbti');
   const enneagramNode = dataset.nodeById.get('enneagram');
@@ -202,15 +196,15 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="font-mono text-[11px] uppercase tracking-wider text-[#d4ff3a]">
-                M:mandalart · 2027 Execution Cycle
+                Personal direction · archive index
               </p>
               <h2 className="mt-1 font-display text-base sm:text-lg font-semibold tracking-tight text-[#f5f5f3]">
-                Mandalart Core Matrix
+                Goals & Projects
               </h2>
             </div>
             <button
               type="button"
-              onClick={() => onFocusNodeInGraph('mandalart')}
+              onClick={() => onFocusNodeInGraph(strategicNodes[0]?.id ?? 'mandalart')
               className="inline-flex items-center gap-1.5 min-h-[34px] rounded-full border border-[#d4ff3a]/35 bg-[#d4ff3a]/10 px-3 py-1 text-xs text-[#d4ff3a] hover:bg-[#d4ff3a]/20"
             >
               <Compass className="h-3.5 w-3.5" />
@@ -219,13 +213,12 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
           </div>
 
           <p className="mt-2 text-[13px] sm:text-xs text-[#9ba3b0]">
-            9×9 life-architecture framework centering on Net Worth & Freedom, branching into 7 pillars and Javabali Co. as the first business.
+            A quick index of strongly sourced goals and projects in this archive. This is not a live priority ranking.
           </p>
 
           <div className="mt-5 grid grid-cols-3 gap-2">
-            {mandalartGrid.map((cell) => {
-              if (!cell) return null;
-              const isCenter = cell.id === 'net_worth_and_freedom_goal';
+            {strategicNodes.map((cell) => {
+              const isCenter = false;
               return (
                 <button
                   key={cell.id}
@@ -238,7 +231,7 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
                   }`}
                 >
                   <span className="font-mono text-[10px] text-[#9ba3b0]">
-                    {isCenter ? 'CENTER' : cell.type.toUpperCase()}
+                    {cell.type.toUpperCase()}
                   </span>
                   <span className="text-[12px] sm:text-xs font-medium text-[#f5f5f3] leading-snug">
                     {cell.title}
@@ -246,6 +239,7 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
                 </button>
               );
             })}
+            {strategicNodes.length === 0 && <p className="col-span-3 py-6 text-center text-xs text-[#9ba3b0]">No goal or project records are available in this archive.</p>}
           </div>
         </section>
 
