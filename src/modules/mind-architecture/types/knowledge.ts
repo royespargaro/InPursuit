@@ -324,6 +324,7 @@ export interface MindClaim {
   status: MindClaimStatus;
   epistemicBasis: MindEpistemicBasis;
   confidence: number;
+  sensitivity: 'normal' | 'sensitive' | 'highly_sensitive';
   context?: string;
   validFrom?: string;
   validUntil?: string;
