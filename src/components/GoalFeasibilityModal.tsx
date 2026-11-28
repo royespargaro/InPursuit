@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { AlertTriangle, ArrowRight, BrainCircuit, CalendarClock, CircleHelp, Target, X } from 'lucide-react';
 import type { Goal } from '../types';
 import type { GoalFeasibilityAssessment } from '../modules/mind-architecture/utils/goalFeasibility';
@@ -9,7 +10,7 @@ interface GoalFeasibilityModalProps {
   goal: Goal;
   assessment: GoalFeasibilityAssessment;
   onClose: () => void;
-  onCreatePlan: () => void;
+  onCreatePlan: (includeHabits: boolean) => void;
   onEditGoal: () => void;
 }
 
@@ -22,6 +23,7 @@ const levelStyles: Record<GoalFeasibilityAssessment['level'], string> = {
 
 export function GoalFeasibilityModal({ goal, assessment, onClose, onCreatePlan, onEditGoal }: GoalFeasibilityModalProps) {
   const blueprint = buildGoalPlanBlueprint(goal, assessment);
+  const [includeHabits, setIncludeHabits] = useState(blueprint.habits.length > 0);
   const { l } = useLanguage();
   const daysLabel = assessment.daysRemaining === null
     ? l('No deadline', 'Tanpa tenggat')
@@ -148,13 +150,19 @@ export function GoalFeasibilityModal({ goal, assessment, onClose, onCreatePlan, 
                 <p className="mt-1 text-[10px] leading-relaxed text-[#9ba3b0]">{milestone.outcome}</p>
               </div>
             ))}
-            {blueprint.habits.length ? blueprint.habits.map((habit) => (
-              <div key={habit.name} className="rounded-lg border border-[#d4ff3a]/20 bg-[#d4ff3a]/[0.035] p-3">
-                <p className="text-xs font-medium text-[#f5f5f3]">{habit.name} · {habit.frequency}</p>
-                <p className="mt-1 text-[10px] text-[#9ba3b0]">{habit.rationale}</p>
-                <p className="mt-1 text-[10px] text-[#7f8794]">{l('Minimum version: ', 'Versi minimum: ')}{habit.minimumVersion}</p>
-              </div>
-            )) : <p className="text-[10px] text-[#9ba3b0]">{l('No habit is recommended automatically. Repetition is not necessary for every goal.', 'Tidak ada kebiasaan yang direkomendasikan otomatis. Tidak semua tujuan membutuhkan rutinitas.')}</p>}
+            {blueprint.habits.length ? <>
+              {blueprint.habits.map((habit) => (
+                <div key={habit.name} className="rounded-lg border border-[#d4ff3a]/20 bg-[#d4ff3a]/[0.035] p-3">
+                  <p className="text-xs font-medium text-[#f5f5f3]">{habit.name} · {habit.frequency}</p>
+                  <p className="mt-1 text-[10px] text-[#9ba3b0]">{habit.rationale}</p>
+                  <p className="mt-1 text-[10px] text-[#7f8794]">{l('Minimum version: ', 'Versi minimum: ')}{habit.minimumVersion}</p>
+                </div>
+              ))}
+              <label className="flex items-start gap-2 text-[11px] text-[#b4bac4]">
+                <input type="checkbox" checked={includeHabits} onChange={(event) => setIncludeHabits(event.target.checked)} className="mt-0.5 accent-[#d4ff3a]" />
+                {l('Add this recurring habit to my active habits', 'Tambahkan kebiasaan berulang ini ke daftar kebiasaan aktif')}
+              </label>
+            </> : <p className="text-[10px] text-[#9ba3b0]">{l('No habit is recommended automatically. Repetition is not necessary for every goal.', 'Tidak ada kebiasaan yang direkomendasikan otomatis. Tidak semua tujuan membutuhkan rutinitas.')}</p>}
           </div>
           <ul className="mt-3 space-y-1">
             {blueprint.planningNotes.map((note) => <li key={note} className="text-[10px] leading-relaxed text-[#7f8794]">• {note}</li>)}
@@ -170,7 +178,7 @@ export function GoalFeasibilityModal({ goal, assessment, onClose, onCreatePlan, 
           <Button variant="outline" onClick={onClose}><X size={14} />{l('Close', 'Tutup')}</Button>
           <Button variant="outline" onClick={onEditGoal}>{l('Refine goal', 'Perjelas tujuan')}</Button>
         </div>
-        <Button variant="solid" onClick={onCreatePlan}><ArrowRight size={14} />{l('Create project, tasks & habits', 'Buat proyek, tugas & kebiasaan')}</Button>
+        <Button variant="solid" onClick={() => onCreatePlan(includeHabits)}><ArrowRight size={14} />{l('Create project, tasks & habits', 'Buat proyek, tugas & kebiasaan')}</Button>
       </div>
     </Modal>
   );
