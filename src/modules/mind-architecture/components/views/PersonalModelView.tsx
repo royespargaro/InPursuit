@@ -46,7 +46,7 @@ export function PersonalModelView({ hideSensitive }: { hideSensitive: boolean })
     workspace.captureSelfReport({
       source:{id:sourceId,kind:'user_entry',author:'user',title:'Direct self-report',capturedAt:now,originalAvailable:true,sensitivity:'normal'},
       observation:{id:observationId,sourceId,method:'user_report',content:statement.trim(),capturedAt:now,recordedBy:'user'},
-      claim:{id:claimId,statement:statement.trim(),kind,domain:domain.trim()||'Unclassified',epistemicBasis:'self_reported',confidence:.65,validFrom:now},
+      claim:{id:claimId,statement:statement.trim(),kind,domain:domain.trim()||'Unclassified',epistemicBasis:'self_reported',confidence:null,sensitivity:'normal',validFrom:now},
       evidenceId:createMindId('evd'),
     });
     setStatement('');
