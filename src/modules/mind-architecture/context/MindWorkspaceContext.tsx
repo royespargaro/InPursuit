@@ -16,6 +16,11 @@ import type {
   MindWorkspaceProfile,
   MindWorkspaceRecord,
   RecentExplorationEntry,
+  MindSourceRecord,
+  MindObservation,
+  MindClaim,
+  MindEvidenceLink,
+  MindRelationship,
 } from '../types/knowledge';
 import { computeCelestialLayout, indexDataset, type CelestialLayout } from '../utils/dataset';
 import {
@@ -44,6 +49,15 @@ import {
   sanitizeKnowledgeDataset,
   saveLocalMindWorkspace,
 } from '../services/mindStore';
+import {
+  addMindSource as addModelSourceRecord,
+  addMindObservation as addModelObservationRecord,
+  createMindClaim as createModelClaimRecord,
+  attachMindEvidence as attachModelEvidenceRecord,
+  reviewMindClaim as reviewModelClaimRecord,
+  addMindRelationship as addModelRelationshipRecord,
+  reviewMindRelationship as reviewModelRelationshipRecord,
+} from '../services/mindModel';
 import {
   isOfflineError,
   isQuotaExceededError,
@@ -83,6 +97,13 @@ export interface MindWorkspaceContextValue {
   importJsonDataset: (raw: unknown, title?: string) => boolean;
   updateHypothesis: (edgeId: string, decision: HypothesisDecision) => void;
   resetHypotheses: () => void;
+  addModelSource: (source: MindSourceRecord) => void;
+  addModelObservation: (observation: MindObservation) => void;
+  createModelClaim: (input: Omit<MindClaim, 'status' | 'evidence' | 'createdAt' | 'updatedAt'>) => void;
+  attachModelEvidence: (claimId: string, link: MindEvidenceLink) => void;
+  reviewModelClaim: (claimId: string, action: 'confirm' | 'challenge' | 'reject' | 'defer', eventId: string, note?: string) => void;
+  addModelRelationship: (relationship: MindRelationship) => void;
+  reviewModelRelationship: (relationshipId: string, decision: 'accept_link' | 'reject_link', eventId: string, note?: string) => void;
   recordExploration: (nodeId: string) => void;
 }
 
@@ -651,6 +672,13 @@ export function MindWorkspaceProvider({ children }: { children: React.ReactNode 
       importJsonDataset,
       updateHypothesis,
       resetHypotheses,
+      addModelSource,
+      addModelObservation,
+      createModelClaim,
+      attachModelEvidence,
+      reviewModelClaim,
+      addModelRelationship,
+      reviewModelRelationship,
       recordExploration,
     }),
     [
@@ -679,6 +707,13 @@ export function MindWorkspaceProvider({ children }: { children: React.ReactNode 
       importJsonDataset,
       updateHypothesis,
       resetHypotheses,
+      addModelSource,
+      addModelObservation,
+      createModelClaim,
+      attachModelEvidence,
+      reviewModelClaim,
+      addModelRelationship,
+      reviewModelRelationship,
       recordExploration,
     ]
   );
