@@ -748,7 +748,6 @@ export default function App() {
             >
               <span className="nav-item-icon"><Icon name={item.icon} size={17} /></span>
               <span className="nav-item-label">{item.label}</span>
-              {item.count !== undefined && <small>{item.count}</small>}
             </button>
           ))}
         </nav>
