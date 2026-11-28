@@ -771,13 +771,23 @@ export function summarizeWorkspace(data: AppData): WorkspaceSummary {
 }
 
 export function hasMeaningfulWorkspaceData(data: AppData): boolean {
+  const personalOS = data.personalOS;
   if (
     data.goals.length > 0 ||
     data.projects.length > 0 ||
     data.tasks.length > 0 ||
     data.habitLogs.length > 0 ||
     data.dailyPlans.length > 0 ||
-    data.dailyReviews.length > 0
+    data.dailyReviews.length > 0 ||
+    Boolean(personalOS && (
+      personalOS.principles.length > 0 ||
+      personalOS.decisions.length > 0 ||
+      personalOS.claims.length > 0 ||
+      personalOS.reflections.length > 0 ||
+      personalOS.capacity.dailyMinutes !== 360 ||
+      personalOS.capacity.focusMinutes !== 90 ||
+      Object.keys(personalOS.capacity.taskEstimates).length > 0
+    ))
   ) {
     return true;
   }
