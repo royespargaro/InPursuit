@@ -10,6 +10,7 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
+import type { AppData } from '../../../../types';
 import type {
   HypothesisDecision,
   IndexedDataset,
@@ -20,6 +21,7 @@ import type {
 import type { MindSyncState } from '../../context/MindWorkspaceContext';
 import { CognitiveArchitecturePanel } from '../CognitiveArchitecturePanel';
 import { ContextualRetrievalPanel } from '../ContextualRetrievalPanel';
+import { ExecutionIntelligencePanel } from '../ExecutionIntelligencePanel';
 import { computeMindInsights } from '../../services/mindBuilder';
 import {
   computeCelestialLayout,
@@ -30,6 +32,7 @@ import {
 
 interface OverviewViewProps {
   dataset: IndexedDataset;
+  executionData: AppData | null;
   layout?: CelestialLayout | null;
   profile: MindWorkspaceProfile;
   syncState: MindSyncState;
@@ -68,6 +71,7 @@ function formatRelativeTime(iso: string): string {
 
 export const OverviewView: React.FC<OverviewViewProps> = ({
   dataset,
+  executionData,
   layout: externalLayout,
   profile,
   syncState,
@@ -654,6 +658,15 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         hideSensitive={hideSensitive}
         hypothesisDecisions={hypothesisDecisions}
         onFocusNodeInGraph={(nodeId) => onFocusNodeInGraph(nodeId, 'graph')}
+      />
+
+      {/* Live bridge between the knowledge graph and the execution workspace */}
+      <ExecutionIntelligencePanel
+        appData={executionData}
+        dataset={dataset.raw}
+        decisions={hypothesisDecisions}
+        hideSensitive={hideSensitive}
+        onFocusNode={(nodeId) => onFocusNodeInGraph(nodeId, 'graph')}
       />
 
       {/* 4. Review Panel + 5. Recent Exploration + 6. Key Insight */}
