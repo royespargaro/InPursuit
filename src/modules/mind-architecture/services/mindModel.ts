@@ -143,11 +143,11 @@ export function attachMindEvidence(model: MindModel, claimId: string, link: Mind
   if (!claim || claim.evidence.some(x=>x.id===link.id)) return model;
   return {...model,claims:model.claims.map(x=>x.id===claimId?{...x,evidence:[...x.evidence,link],updatedAt:link.createdAt}:x),updatedAt:link.createdAt};
 }
-export function reviewMindClaim(model: MindModel, claimId: string, action: 'confirm'|'challenge'|'reject'|'defer'|'supersede', eventId: string, actor: MindReviewEvent['actor']='user', note?: string, now=new Date().toISOString()): MindModel {
+export function reviewMindClaim(model: MindModel, claimId: string, action: 'confirm'|'challenge'|'reject'|'defer', eventId: string, actor: MindReviewEvent['actor']='user', note?: string, now=new Date().toISOString()): MindModel {
   const claim=model.claims.find(x=>x.id===claimId);
   if (!claim || model.reviewEvents.some(x=>x.id===eventId)) return model;
   if (action==='confirm' && !claim.evidence.some(x=>x.polarity==='supports')) return model;
-  const nextStatus: MindClaimStatus=action==='confirm'?'active':action==='challenge'?'challenged':action==='reject'?'rejected':action==='supersede'?'superseded':'candidate';
+  const nextStatus: MindClaimStatus=action==='confirm'?'active':action==='challenge'?'challenged':action==='reject'?'rejected':'candidate';
   const event: MindReviewEvent={id:eventId,targetType:'claim',targetId:claimId,action,previousStatus:claim.status,nextStatus,
     ...(note?.trim()?{note:note.trim().slice(0,1000)}:{}),actor,createdAt:now};
   return {...model,claims:model.claims.map(x=>x.id===claimId?{...x,status:nextStatus,lastReviewedAt:now,updatedAt:now}:x),
