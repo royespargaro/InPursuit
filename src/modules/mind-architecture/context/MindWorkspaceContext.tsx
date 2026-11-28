@@ -8,6 +8,7 @@ import React, {
   useState,
 } from 'react';
 import { HabitContext } from '../../../context/HabitContext';
+import type { AppData } from '../../../types';
 import type {
   HypothesisDecision,
   IndexedDataset,
@@ -63,6 +64,7 @@ export interface MindWorkspaceContextValue {
   isLoadingSample: boolean;
   syncState: MindSyncState;
   syncNotice: string | null;
+  executionData: AppData | null;
   canSeedFromGoals: boolean;
   retryLoadSample: () => Promise<void>;
   updateProfile: (patch: Partial<Pick<MindWorkspaceProfile, 'title' | 'subtitle'>>) => void;
@@ -602,6 +604,7 @@ export function MindWorkspaceProvider({ children }: { children: React.ReactNode 
       isLoadingSample,
       syncState,
       syncNotice,
+      executionData: appData,
       canSeedFromGoals,
       retryLoadSample: fetchSampleArchive,
       updateProfile,
@@ -629,6 +632,7 @@ export function MindWorkspaceProvider({ children }: { children: React.ReactNode 
       isLoadingSample,
       syncState,
       syncNotice,
+      appData,
       canSeedFromGoals,
       fetchSampleArchive,
       updateProfile,
