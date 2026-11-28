@@ -754,7 +754,8 @@ export function buildDatasetFromInPursuitGoals(appData: AppData): KnowledgeDatas
 
   for (const habit of appData.habits.filter((h) => h.active).slice(0, 20)) {
     const hNodeId = `hab_${habit.id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 48)}`;
-    const firstArea = appData.lifeAreas[0]?.name;
+    const linkedGoal = habit.goalId ? goalNodeIdByGoalId.get(habit.goalId) : undefined;
+    const firstArea = linkedGoal?.domain ?? appData.lifeAreas[0]?.name;
     nodes.push({
       id: hNodeId,
       title: habit.name,
@@ -777,7 +778,6 @@ export function buildDatasetFromInPursuitGoals(appData: AppData): KnowledgeDatas
       question_ids: [],
     });
 
-    const linkedGoal = habit.goalId ? goalNodeIdByGoalId.get(habit.goalId) : undefined;
     if (linkedGoal) {
       edges.push({
         id: createExecutionEdgeId('supports', hNodeId, linkedGoal.nodeId),
@@ -812,7 +812,10 @@ export function buildDatasetFromInPursuitGoals(appData: AppData): KnowledgeDatas
  */
 export function mergeExecutionSnapshotIntoDataset(baseDataset: KnowledgeDataset, appData: AppData): KnowledgeDataset {
   const snapshot = buildDatasetFromInPursuitGoals(appData);
-  const retainedNodes = baseDataset.nodes.filter((node) => !node.lifecycle_basis.startsWith('inpursuit_'));
+  const generatedNodeIds = new Set(snapshot.nodes.map((node) => node.id));
+  const retainedNodes = baseDataset.nodes.filter(
+    (node) => !node.lifecycle_basis.startsWith('inpursuit_') && !generatedNodeIds.has(node.id),
+  );
   const retainedSources = baseDataset.sources.filter((source) => source.source_type !== 'inpursuit_workspace');
   const retainedEdges = baseDataset.edges.filter((edge) =>
     !edge.id.startsWith('edge_ip_') && !edge.source_ids.some((id) => id.startsWith('src_ip_')),
