@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  addMindObservation, addMindSource, attachMindEvidence, captureSelfReport,
+  addMindObservation, addMindSource, captureSelfReport,
   createEmptyMindModel, createMindClaim, reviewMindClaim, sanitizeMindModel,
 } from '../modules/mind-architecture/services/mindModel';
 import {
