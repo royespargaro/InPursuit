@@ -305,7 +305,7 @@ function sanitizePersonalOS(value: PersonalOSData | undefined): PersonalOSData {
       .filter((item): item is Record<string, unknown> => isRecord(item) && isString(item.id))
       .slice(-500)
       .map(mapper);
-  const capacity = isRecord(raw.capacity) ? raw.capacity : {};
+  const capacity: Record<string, unknown> = isRecord(raw.capacity) ? raw.capacity : {};
   const estimates = isRecord(capacity.taskEstimates) ? capacity.taskEstimates : {};
   const taskEstimates = Object.fromEntries(Object.entries(estimates)
     .filter(([key, n]) => isString(key) && typeof n === 'number' && Number.isFinite(n))
