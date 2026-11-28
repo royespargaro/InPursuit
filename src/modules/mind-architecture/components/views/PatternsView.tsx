@@ -204,7 +204,7 @@ export const PatternsView: React.FC<PatternsViewProps> = ({
             </div>
             <button
               type="button"
-              onClick={() => onFocusNodeInGraph(strategicNodes[0]?.id ?? 'mandalart')
+              onClick={() => onFocusNodeInGraph(strategicNodes[0]?.id ?? 'mandalart')}
               className="inline-flex items-center gap-1.5 min-h-[34px] rounded-full border border-[#d4ff3a]/35 bg-[#d4ff3a]/10 px-3 py-1 text-xs text-[#d4ff3a] hover:bg-[#d4ff3a]/20"
             >
               <Compass className="h-3.5 w-3.5" />
