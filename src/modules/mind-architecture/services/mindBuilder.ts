@@ -551,6 +551,11 @@ export function addMindSource(
   });
 }
 
+function createExecutionEdgeId(relationship: string, source: string, target: string): string {
+  const safe = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 72);
+  return `edge_ip_${safe(relationship)}_${safe(source)}_${safe(target)}`;
+}
+
 export function buildDatasetFromInPursuitGoals(appData: AppData): KnowledgeDataset {
   const todayStr = new Date().toISOString().slice(0, 10);
   const srcId = createMindId('src_ip');
@@ -631,7 +636,7 @@ export function buildDatasetFromInPursuitGoals(appData: AppData): KnowledgeDatas
 
     if (areaMeta) {
       edges.push({
-        id: createMindId('edge'),
+        id: createExecutionEdgeId('anchors_goal', areaMeta.nodeId, gNodeId),
         source: areaMeta.nodeId,
         target: gNodeId,
         relationship: 'anchors_goal',
@@ -676,7 +681,7 @@ export function buildDatasetFromInPursuitGoals(appData: AppData): KnowledgeDatas
 
     if (gMeta) {
       edges.push({
-        id: createMindId('edge'),
+        id: createExecutionEdgeId('delivers', gMeta.nodeId, pNodeId),
         source: gMeta.nodeId,
         target: pNodeId,
         relationship: 'delivers',
@@ -729,7 +734,7 @@ export function buildDatasetFromInPursuitGoals(appData: AppData): KnowledgeDatas
     });
     if (projectNodeId) {
       edges.push({
-        id: createMindId('edge'),
+        id: createExecutionEdgeId('advances', taskNodeId, projectNodeId),
         source: taskNodeId,
         target: projectNodeId,
         relationship: 'advances',
@@ -775,7 +780,7 @@ export function buildDatasetFromInPursuitGoals(appData: AppData): KnowledgeDatas
     const linkedGoal = habit.goalId ? goalNodeIdByGoalId.get(habit.goalId) : undefined;
     if (linkedGoal) {
       edges.push({
-        id: createMindId('edge'),
+        id: createExecutionEdgeId('supports', hNodeId, linkedGoal.nodeId),
         source: hNodeId,
         target: linkedGoal.nodeId,
         relationship: 'supports',
@@ -800,6 +805,26 @@ export function buildDatasetFromInPursuitGoals(appData: AppData): KnowledgeDatas
     edges,
   });
 }
+
+/**
+ * Refreshes the generated InPursuit execution layer while preserving the user's
+ * independently authored knowledge nodes, edges and sources.
+ */
+export function mergeExecutionSnapshotIntoDataset(baseDataset: KnowledgeDataset, appData: AppData): KnowledgeDataset {
+  const snapshot = buildDatasetFromInPursuitGoals(appData);
+  const retainedNodes = baseDataset.nodes.filter((node) => !node.lifecycle_basis.startsWith('inpursuit_'));
+  const retainedSources = baseDataset.sources.filter((source) => source.source_type !== 'inpursuit_workspace');
+  const retainedEdges = baseDataset.edges.filter((edge) =>
+    !edge.id.startsWith('edge_ip_') && !edge.source_ids.some((id) => id.startsWith('src_ip_')),
+  );
+  return recomputeDerivedDatasetStats({
+    ...baseDataset,
+    sources: [...snapshot.sources, ...retainedSources],
+    nodes: [...retainedNodes, ...snapshot.nodes],
+    edges: [...retainedEdges, ...snapshot.edges],
+  });
+}
+
 
 export interface ExtractedMindBatch {
   domains: string[];
