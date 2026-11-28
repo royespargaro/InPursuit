@@ -41,10 +41,15 @@ export function rankContextualNodes(
   if (!context || !visible(contextNodeId, dataset, hideSensitive)) return [];
 
   const domains = new Set(context.domains);
+  const rejectedDirectNodeIds = new Set<string>();
   const adjacency = new Map<string, Array<{ edge: KnowledgeEdge; nextId: string }>>();
 
   for (const edge of dataset.raw.edges) {
-    if (decisions[edge.id] === 'rejected') continue;
+    if (decisions[edge.id] === 'rejected') {
+      if (edge.source === contextNodeId) rejectedDirectNodeIds.add(edge.target);
+      if (edge.target === contextNodeId) rejectedDirectNodeIds.add(edge.source);
+      continue;
+    }
     if (!visible(edge.source, dataset, hideSensitive) || !visible(edge.target, dataset, hideSensitive)) continue;
     if (!dataset.nodeById.has(edge.source) || !dataset.nodeById.has(edge.target)) continue;
     const add = (from: string, nextId: string) => {
@@ -105,7 +110,7 @@ export function rankContextualNodes(
 
   // Shared-domain candidates are a low-priority fallback, clearly labelled as such.
   for (const node of dataset.raw.nodes) {
-    if (node.id === contextNodeId || best.has(node.id) || !visible(node.id, dataset, hideSensitive)) continue;
+    if (node.id === contextNodeId || best.has(node.id) || rejectedDirectNodeIds.has(node.id) || !visible(node.id, dataset, hideSensitive)) continue;
     const overlap = node.domains.filter((domain) => domains.has(domain));
     if (overlap.length === 0) continue;
     best.set(node.id, {
