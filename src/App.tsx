@@ -114,6 +114,7 @@ export default function App() {
   const [localWorkspaceActive, setLocalWorkspaceActive] = useState<boolean>(readLocalModeFlag);
   const [today, setToday] = useState<string>(() => localDateKey());
   const [view, setView] = useState<View>('today');
+  const [lastPlanView, setLastPlanView] = useState<'goals' | 'projects' | 'habits'>('goals');
   const [modal, setModal] = useState<'task' | 'goal' | 'project' | 'habit' | 'review' | 'settings' | 'areas' | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [reviewDate, setReviewDate] = useState<string>(() => localDateKey());
@@ -133,6 +134,12 @@ export default function App() {
 
   const importRef = useRef<HTMLInputElement>(null);
   const toastTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (view === 'goals' || view === 'projects' || view === 'habits') {
+      setLastPlanView(view);
+    }
+  }, [view]);
 
   useEffect(() => {
     setOnboardingDismissed(readOnboardingDismissed(onboardingScope));
@@ -684,7 +691,7 @@ export default function App() {
   ];
   const handlePrimaryNavigation = (destination: PrimaryView) => {
     if (destination === 'plan') {
-      setView(isPlanView ? view : 'goals');
+      setView(isPlanView ? view : lastPlanView);
       return;
     }
     setView(destination);
