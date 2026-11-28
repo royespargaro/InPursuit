@@ -8,6 +8,7 @@ interface ExecutionIntelligencePanelProps {
   dataset: KnowledgeDataset;
   decisions: Record<string, HypothesisDecision>;
   hideSensitive: boolean;
+  sensitiveNodeIds: ReadonlySet<string>;
   onFocusNode: (nodeId: string) => void;
 }
 
@@ -18,9 +19,10 @@ export function ExecutionIntelligencePanel({
   dataset,
   decisions,
   hideSensitive,
+  sensitiveNodeIds,
   onFocusNode,
 }: ExecutionIntelligencePanelProps) {
-  const intelligence = computeExecutionIntelligence(appData, dataset, decisions, hideSensitive);
+  const intelligence = computeExecutionIntelligence(appData, dataset, decisions, hideSensitive, sensitiveNodeIds);
 
   if (!intelligence) {
     return (
