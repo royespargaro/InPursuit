@@ -344,9 +344,6 @@ export function MindArchitectureModule({
             onOpenCustomize={(tab = 'setup') =>
               setEditorState({ isOpen: true, tab, editingNode: null })
             }
-            onSeedFromGoals={
-              useSharedWorkspace ? workspace!.seedFromInPursuitGoals : undefined
-            }
           />
         )}
 

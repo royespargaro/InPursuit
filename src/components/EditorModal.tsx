@@ -57,6 +57,7 @@ export function EditorModal({
 
   const [title, setTitle] = useState(existingTask?.title ?? existingGoal?.title ?? existingProject?.title ?? existingHabit?.name ?? '');
   const [description, setDescription] = useState(existingProject?.description ?? existingGoal?.outcome ?? '');
+  const [successCriteriaText, setSuccessCriteriaText] = useState(existingGoal?.successCriteria?.map(item => item.text).join('\n') ?? '');
   const [dueDate, setDueDate] = useState(initialDueDate);
   const [priority, setPriority] = useState<Priority>(existingTask?.priority ?? 'medium');
   const [targetQuantity, setTargetQuantity] = useState<string>(
@@ -202,6 +203,14 @@ export function EditorModal({
         targetDate: dueDate,
         status: goalStatus,
         createdAt: existingGoal?.createdAt ?? now,
+        successCriteria: successCriteriaText
+          .split('\n')
+          .map(text => text.trim())
+          .filter(Boolean)
+          .map(text => {
+            const previous = existingGoal?.successCriteria?.find(item => item.text === text);
+            return previous ?? { id: createId(), text, done: false };
+          }),
       });
     }
     if (kind === 'project') {
@@ -272,6 +281,14 @@ export function EditorModal({
 
         {kind === 'goal' && (
           <>
+            <Field label={l('Success criteria (one per line)', 'Kriteria keberhasilan (satu per baris)')}>
+              <textarea
+                rows={2}
+                value={successCriteriaText}
+                onChange={e => setSuccessCriteriaText(e.target.value)}
+                placeholder={l('e.g. Receive a signed offer from a remote employer', 'mis. Menerima tawaran kerja tertulis dari perusahaan remote')}
+              />
+            </Field>
             <Field label={l('Life area', 'Area hidup')}>
               <div className="inline-select-row">
                 <select value={lifeAreaId} onChange={e => setLifeAreaId(e.target.value)}>
