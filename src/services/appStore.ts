@@ -504,8 +504,8 @@ export function sanitizeAppData(data: AppData): AppData {
     habitLogs,
     dailyPlans,
     dailyReviews,
-    personalOS: sanitizePersonalOS(data.personalOS),
   };
+  if (data.personalOS) normalized.personalOS = sanitizePersonalOS(data.personalOS);
   if (typeof data.syncVersion === 'number' && Number.isInteger(data.syncVersion) && data.syncVersion >= 0) {
     normalized.syncVersion = data.syncVersion;
   }
