@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AppData } from '../../../types';
-import type { KnowledgeDataset, KnowledgeEdge, KnowledgeNode } from '../types/knowledge';
+import type { KnowledgeEdge, KnowledgeNode } from '../types/knowledge';
 import { createEmptyMindDataset, mergeExecutionSnapshotIntoDataset } from '../services/mindBuilder';
 import { computeExecutionIntelligence, getGoalKnowledgeNodeId } from './executionIntelligence';
 
