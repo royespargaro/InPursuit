@@ -105,7 +105,7 @@ export interface MindWorkspaceContextValue {
   captureSelfReport: (input: Parameters<typeof captureSelfReportRecord>[1]) => void;
   supersedeModelClaim: (claimId: string, replacement: Parameters<typeof supersedeMindClaimRecord>[2], evidenceLink: Parameters<typeof supersedeMindClaimRecord>[3], eventId: string, note?: string) => void;
   attachModelEvidence: (claimId: string, link: MindEvidenceLink) => void;
-  reviewModelClaim: (claimId: string, action: 'confirm' | 'challenge' | 'reject' | 'defer' | 'supersede', eventId: string, note?: string) => void;
+  reviewModelClaim: (claimId: string, action: 'confirm' | 'challenge' | 'reject' | 'defer', eventId: string, note?: string) => void;
   addModelRelationship: (relationship: MindRelationship) => void;
   reviewModelRelationship: (relationshipId: string, decision: 'accept_link' | 'reject_link', eventId: string, note?: string) => void;
   recordExploration: (nodeId: string) => void;
