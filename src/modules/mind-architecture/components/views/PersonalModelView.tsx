@@ -17,12 +17,28 @@ export function PersonalModelView({ hideSensitive }: { hideSensitive: boolean })
   const [statement,setStatement]=useState('');
   const [domain,setDomain]=useState('Personal');
   const [kind,setKind]=useState<MindClaimKind>('preference');
+  const [correctionFor,setCorrectionFor]=useState<string|null>(null);
+  const [correctionText,setCorrectionText]=useState('');
   const model=workspace?.record.model;
   const visibleClaims = useMemo(() => (model?.claims ?? []).filter(claim => !hideSensitive || claim.sensitivity === 'normal'), [model, hideSensitive]);
   const counts=useMemo(()=>{
     const claims=visibleClaims;
     return [claims.length,claims.filter(x=>x.status==='candidate').length,claims.filter(x=>x.status==='active').length,claims.filter(x=>x.status==='challenged').length];
   },[visibleClaims]);
+  const saveCorrection=(event:FormEvent<HTMLFormElement>, claim: (typeof model.claims)[number])=>{
+    event.preventDefault();
+    if(!workspace||!correctionText.trim())return;
+    const now=new Date().toISOString(), sourceId=createMindId('src'), observationId=createMindId('obs'), claimId=createMindId('clm');
+    workspace.addModelSource({id:sourceId,kind:'user_entry',author:'user',title:'User correction',capturedAt:now,originalAvailable:true,sensitivity:claim.sensitivity});
+    workspace.addModelObservation({id:observationId,sourceId,method:'user_report',content:correctionText.trim(),capturedAt:now,recordedBy:'user'});
+    workspace.supersedeModelClaim(claim.id,{
+      id:claimId,statement:correctionText.trim(),kind:claim.kind,domain:claim.domain,
+      epistemicBasis:'self_reported',confidence:null,sensitivity:claim.sensitivity,validFrom:now,supersedesClaimId:claim.id,
+    },{id:createMindId('evd'),observationId,polarity:'supports',rationale:'User-provided correction; evidence of the updated self-report, not independent proof.',createdAt:now},
+    createMindId('rev'),'User supplied a replacement claim.');
+    setCorrectionFor(null);
+    setCorrectionText('');
+  };
   const capture=(event:FormEvent<HTMLFormElement>)=>{
     event.preventDefault();
     if(!workspace||!statement.trim())return;
@@ -69,7 +85,12 @@ export function PersonalModelView({ hideSensitive }: { hideSensitive: boolean })
           <button onClick={()=>workspace.reviewModelClaim(claim.id,'confirm',createMindId('rev'),'I confirm this reflects my current self-understanding.')} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-emerald-400/30 px-3 text-[11px] text-emerald-300"><Check size={13}/> Confirm current</button>
           <button onClick={()=>workspace.reviewModelClaim(claim.id,'challenge',createMindId('rev'),'This claim needs further evidence or qualification.')} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-amber-400/30 px-3 text-[11px] text-amber-300"><ShieldAlert size={13}/> Challenge</button>
           <button onClick={()=>workspace.reviewModelClaim(claim.id,'reject',createMindId('rev'),'I reject this claim.')} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-rose-400/30 px-3 text-[11px] text-rose-300"><X size={13}/> Reject</button>
+          <button onClick={()=>{setCorrectionFor(claim.id);setCorrectionText(claim.statement);}} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-white/[0.15] px-3 text-[11px] text-[#d6d9e0]">Correct / replace</button>
         </div>}
+        {correctionFor===claim.id && <form onSubmit={event=>saveCorrection(event,claim)} className="mt-3 grid gap-2 border-t border-white/[0.07] pt-3">
+          <label className="grid gap-1 text-xs text-[#9ba3b0]">Replacement statement<textarea required rows={3} value={correctionText} onChange={event=>setCorrectionText(event.target.value)} className="w-full rounded-lg border border-white/[0.12] bg-black/20 p-3 text-sm text-[#f5f5f3]"/></label>
+          <div className="flex gap-2"><button className="min-h-8 rounded-lg bg-[#d4ff3a] px-3 text-[11px] font-semibold text-[#10120b]">Save correction</button><button type="button" onClick={()=>setCorrectionFor(null)} className="min-h-8 rounded-lg border border-white/[0.12] px-3 text-[11px] text-[#9ba3b0]">Cancel</button></div>
+        </form>}
       </article>)}
     </section>
   </div>;
