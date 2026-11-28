@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addMindObservation, addMindSource, captureSelfReport,
-  createEmptyMindModel, createMindClaim, reviewMindClaim, sanitizeMindModel,
+  createEmptyMindModel, createMindClaim, reviewMindClaim, sanitizeMindModel, supersedeMindClaim,
 } from '../modules/mind-architecture/services/mindModel';
 import {
   createDefaultMindWorkspaceRecord, sanitizeMindWorkspaceRecord,
@@ -63,6 +63,21 @@ describe('Personal Mind Model v2',()=>{
     expect(clean.claims[0].evidence).toHaveLength(0);
     expect(clean.claims[0].status).toBe('candidate');
     expect(clean.relationships).toHaveLength(0);
+  });
+
+  it('corrects a claim by creating a replacement and preserving supersede history',()=>{
+    let model=captureSelfReport(createEmptyMindModel(now),{source,observation,claim,evidenceId:'ev1'});
+    const correctionSource:MindSourceRecord={...source,id:'s2',title:'Correction',capturedAt:now};
+    const correctionObservation:MindObservation={...observation,id:'o2',sourceId:'s2',content:'I plan backwards only for long-range projects.'};
+    model=addMindSource(model,correctionSource);
+    model=addMindObservation(model,correctionObservation);
+    model=supersedeMindClaim(model,'c1',{
+      id:'c2',statement:'The user uses backward planning for long-range projects.',kind:'preference',
+      domain:'Planning',epistemicBasis:'self_reported',confidence:null,sensitivity:'normal',supersedesClaimId:'c1',
+    },{id:'ev2',observationId:'o2',polarity:'supports',createdAt:now},'r2','User clarified the scope.',now);
+    expect(model.claims.find(x=>x.id==='c1')?.status).toBe('superseded');
+    expect(model.claims.find(x=>x.id==='c2')).toMatchObject({status:'candidate',supersedesClaimId:'c1'});
+    expect(model.reviewEvents.at(-1)).toMatchObject({action:'supersede',targetId:'c1',nextStatus:'superseded'});
   });
   it('clamps confidence to a normalized 0..1 range',()=>{
     const clean=sanitizeMindModel({claims:[{...claim,confidence:5,createdAt:now,updatedAt:now}]});
