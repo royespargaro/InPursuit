@@ -2792,3 +2792,15 @@ select:focus-visible {
   .personal-os-tabs button { padding:9px 11px; }
   .personal-os-capacity-meter { gap:8px; }
 }
+
+
+.task-manager-trigger {
+  display:flex; width:100%; align-items:center; justify-content:space-between; gap:16px;
+  padding:14px 16px; border:1px solid rgba(255,255,255,.1); background:rgba(10,11,14,.58);
+  color:#e5e7eb; text-align:left; transition:border-color .16s,background .16s;
+}
+.task-manager-trigger:hover { border-color:rgba(212,255,58,.35); background:rgba(212,255,58,.035); }
+.task-manager-trigger span { display:grid; gap:4px; }
+.task-manager-trigger b { font-size:12px; font-weight:600; }
+.task-manager-trigger small { color:var(--muted); font:10px 'JetBrains Mono',monospace; }
+.task-manager-trigger > svg { color:var(--lime); flex:none; }
