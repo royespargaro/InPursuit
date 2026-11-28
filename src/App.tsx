@@ -114,6 +114,7 @@ export default function App() {
   const [localWorkspaceActive, setLocalWorkspaceActive] = useState<boolean>(readLocalModeFlag);
   const [today, setToday] = useState<string>(() => localDateKey());
   const [view, setView] = useState<View>('today');
+  const [lastPlanView, setLastPlanView] = useState<'goals' | 'projects' | 'habits'>('goals');
   const [modal, setModal] = useState<'task' | 'goal' | 'project' | 'habit' | 'review' | 'settings' | 'areas' | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [reviewDate, setReviewDate] = useState<string>(() => localDateKey());
@@ -133,6 +134,12 @@ export default function App() {
 
   const importRef = useRef<HTMLInputElement>(null);
   const toastTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (view === 'goals' || view === 'projects' || view === 'habits') {
+      setLastPlanView(view);
+    }
+  }, [view]);
 
   useEffect(() => {
     setOnboardingDismissed(readOnboardingDismissed(onboardingScope));
@@ -668,6 +675,27 @@ export default function App() {
     { id: 'review', label: l('Review', 'Evaluasi'), icon: 'review' },
     { id: 'mind', label: l('Mind Architecture', 'Arsitektur Pikiran'), mobileLabel: l('Mind', 'Pikiran'), icon: 'mind' },
   ];
+  type PrimaryView = 'today' | 'plan' | 'review' | 'mind';
+  const isPlanView = view === 'goals' || view === 'projects' || view === 'habits';
+  const activePrimaryView: PrimaryView = isPlanView ? 'plan' : view;
+  const primaryNav: Array<{
+    id: PrimaryView;
+    label: string;
+    mobileLabel?: string;
+    icon: 'today' | 'goals' | 'review' | 'mind';
+  }> = [
+    { id: 'today', label: l('Today', 'Hari Ini'), icon: 'today' },
+    { id: 'plan', label: l('Plan', 'Rencana'), icon: 'goals' },
+    { id: 'review', label: l('Review', 'Evaluasi'), icon: 'review' },
+    { id: 'mind', label: l('Mind', 'Pikiran'), icon: 'mind' },
+  ];
+  const handlePrimaryNavigation = (destination: PrimaryView) => {
+    if (destination === 'plan') {
+      setView(isPlanView ? view : lastPlanView);
+      return;
+    }
+    setView(destination);
+  };
   const currentTitle = nav.find(n => n.id === view)?.label ?? l('Today', 'Hari Ini');
 
   if (!authReady) {
@@ -710,13 +738,13 @@ export default function App() {
         </a>
         <div className="side-label">{l('workspace', 'ruang kerja')}</div>
         <nav className="side-nav" aria-label={l('Workspace views', 'Menu ruang kerja')}>
-          {nav.map(item => (
+          {primaryNav.map(item => (
             <button
               key={item.id}
               type="button"
-              onClick={() => setView(item.id)}
-              className={cx('nav-item', view === item.id && 'active')}
-              aria-current={view === item.id ? 'page' : undefined}
+              onClick={() => handlePrimaryNavigation(item.id)}
+              className={cx('nav-item', activePrimaryView === item.id && 'active')}
+              aria-current={activePrimaryView === item.id ? 'page' : undefined}
             >
               <span className="nav-item-icon"><Icon name={item.icon} size={17} /></span>
               <span className="nav-item-label">{item.label}</span>
@@ -799,6 +827,28 @@ export default function App() {
 
         <input ref={importRef} type="file" accept="application/json" hidden onChange={e => void handleImportSelect(e.target.files?.[0])} />
         <div className={cx('content-wrap', view === 'mind' && 'content-wrap--full')}>
+          {isPlanView && (
+            <nav className="workspace-subnav" aria-label={l('Plan sections', 'Bagian perencanaan')}>
+              {(['goals', 'projects', 'habits'] as const).map(section => {
+                const item = nav.find(entry => entry.id === section)!;
+                return (
+                  <button
+                    key={section}
+                    type="button"
+                    onClick={() => setView(section)}
+                    className={cx('workspace-subnav-item', view === section && 'active')}
+                    aria-current={view === section ? 'page' : undefined}
+                  >
+                    <Icon name={item.icon} size={15} />
+                    <span>{item.label}</span>
+                    {section === 'goals' && <small>{activeGoals.length}</small>}
+                    {section === 'projects' && <small>{activeProjects.length}</small>}
+                  </button>
+                );
+              })}
+            </nav>
+          )}
+
           {user && incompatibleSchema !== null && (
             <div className="schema-recovery-banner" role="alert">
               <div>
@@ -936,13 +986,13 @@ export default function App() {
       </main>
 
       <nav className="mobile-nav" aria-label={l('Primary navigation', 'Navigasi utama')}>
-        {nav.map(item => (
+        {primaryNav.map(item => (
           <button
             key={item.id}
             type="button"
-            onClick={() => setView(item.id)}
-            className={cx('mobile-nav-item', view === item.id && 'active')}
-            aria-current={view === item.id ? 'page' : undefined}
+            onClick={() => handlePrimaryNavigation(item.id)}
+            className={cx('mobile-nav-item', activePrimaryView === item.id && 'active')}
+            aria-current={activePrimaryView === item.id ? 'page' : undefined}
           >
             <span className="mobile-nav-icon"><Icon name={item.icon} size={19} /></span>
             <span className="mobile-nav-label">{item.mobileLabel ?? item.label}</span>
