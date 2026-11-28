@@ -163,7 +163,10 @@ export function assessGoalFeasibility(
     .filter((item) => item.score >= (family === 'general' ? 3 : 2.5))
     .sort((a, b) => {
       const gradeWeight = (grade: EvidenceGrade) => grade === 'Q4' ? 4 : grade === 'Q3' ? 3 : grade === 'Q2' ? 2 : 1;
-      return b.score * gradeWeight(b.node.evidence_grade) - a.score * gradeWeight(a.node.evidence_grade);
+      const categoryWeight = (node: KnowledgeNode) => node.type === 'Experience' ? 2 : node.type === 'Skill' ? 1 : 0;
+      const scoreA = a.score * gradeWeight(a.node.evidence_grade) + categoryWeight(a.node);
+      const scoreB = b.score * gradeWeight(b.node.evidence_grade) + categoryWeight(b.node);
+      return scoreB - scoreA;
     })
     .slice(0, 8)
     .map(({ node }) => ({
