@@ -329,29 +329,47 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       const inFocus = focusedDomain === 'all' || pos.primaryDomain === focusedDomain;
       const nx = toX(pos.x);
       const ny = toY(pos.y);
+      const executionColors: Record<string, string> = {
+        Goal: '#d4ff3a',
+        Project: '#ff8b3d',
+        Task: '#89a8ff',
+        Habit: '#72e3a8',
+      };
+      const executionColor = executionColors[pos.node.type];
+      const isGoalAnchor = pos.node.type === 'Goal';
       const baseR =
-        pos.node.type === 'Discipline'
+        pos.node.type === 'Discipline' || isGoalAnchor
           ? 5.2
-          : pos.node.evidence_grade === 'Q3' || pos.node.evidence_grade === 'Q4'
-            ? 3.1
-            : 2.1;
+          : executionColor
+            ? 3.8
+            : pos.node.evidence_grade === 'Q3' || pos.node.evidence_grade === 'Q4'
+              ? 3.1
+              : 2.1;
       const nr = focusedDomain === 'all' ? baseR : baseR * 1.25;
       const isHovered = hoveredNode?.id === pos.node.id;
+      const nodeColor = isHovered ? '#d4ff3a' : executionColor ?? pos.color;
 
-      ctx.globalAlpha = inFocus ? (isHovered ? 1 : pos.node.type === 'Discipline' ? 0.96 : 0.85) : 0.14;
-      if (pos.node.type === 'Discipline' || isHovered) {
-        ctx.fillStyle = isHovered ? '#d4ff3a' : pos.color;
-        ctx.globalAlpha = isHovered ? 0.32 : 0.16;
+      ctx.globalAlpha = inFocus ? (isHovered ? 1 : pos.node.type === 'Discipline' || isGoalAnchor ? 0.96 : 0.85) : 0.14;
+      if (pos.node.type === 'Discipline' || isHovered || isGoalAnchor) {
+        ctx.fillStyle = nodeColor;
+        ctx.globalAlpha = isHovered || isGoalAnchor ? 0.24 : 0.16;
         ctx.beginPath();
-        ctx.arc(nx, ny, nr * 2.7, 0, Math.PI * 2);
+        ctx.arc(nx, ny, nr * (isGoalAnchor ? 3.8 : 2.7), 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = inFocus ? 1 : 0.14;
       }
 
-      ctx.fillStyle = isHovered ? '#d4ff3a' : pos.color;
+      ctx.fillStyle = nodeColor;
       ctx.beginPath();
       ctx.arc(nx, ny, isHovered ? nr * 1.45 : nr, 0, Math.PI * 2);
       ctx.fill();
+      if (executionColor && !isHovered) {
+        ctx.beginPath();
+        ctx.arc(nx, ny, nr * 1.8, 0, Math.PI * 2);
+        ctx.strokeStyle = `${executionColor}88`;
+        ctx.lineWidth = isGoalAnchor ? 1.2 : 0.7;
+        ctx.stroke();
+      }
 
       if (inFocus) {
         projected.push({
@@ -548,6 +566,12 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             className="block h-full w-full cursor-pointer"
           />
 
+          <div className="pointer-events-none absolute bottom-3 left-4 flex flex-wrap gap-2 rounded-lg border border-white/[0.08] bg-black/65 px-2.5 py-1.5 font-mono text-[9px] text-[#9ba3b0]">
+            <span className="inline-flex items-center gap-1"><i className="h-1.5 w-1.5 rounded-full bg-[#d4ff3a]" />Goal</span>
+            <span className="inline-flex items-center gap-1"><i className="h-1.5 w-1.5 rounded-full bg-[#ff8b3d]" />Project</span>
+            <span className="inline-flex items-center gap-1"><i className="h-1.5 w-1.5 rounded-full bg-[#89a8ff]" />Task</span>
+            <span className="inline-flex items-center gap-1"><i className="h-1.5 w-1.5 rounded-full bg-[#72e3a8]" />Habit</span>
+          </div>
           {hoveredNode && (
             <div className="pointer-events-none absolute left-4 top-4 max-w-[85%] rounded-lg border border-white/[0.14] bg-black/90 px-3 py-2 text-xs">
               <p className="font-medium text-[#f5f5f3] truncate">{hoveredNode.title}</p>
