@@ -12,16 +12,17 @@ const KINDS: { value: MindClaimKind; label: string }[] = [
 ];
 const STATUS: Record<string,string>={candidate:'Needs review',active:'Current self-model',challenged:'Conflicting evidence',rejected:'Rejected',superseded:'Superseded',expired:'Expired'};
 
-export function PersonalModelView() {
+export function PersonalModelView({ hideSensitive }: { hideSensitive: boolean }) {
   const workspace=useMindWorkspaceOptional();
   const [statement,setStatement]=useState('');
   const [domain,setDomain]=useState('Personal');
   const [kind,setKind]=useState<MindClaimKind>('preference');
   const model=workspace?.record.model;
+  const visibleClaims = useMemo(() => (model?.claims ?? []).filter(claim => !hideSensitive || claim.sensitivity === 'normal'), [model, hideSensitive]);
   const counts=useMemo(()=>{
-    const claims=model?.claims??[];
+    const claims=visibleClaims;
     return [claims.length,claims.filter(x=>x.status==='candidate').length,claims.filter(x=>x.status==='active').length,claims.filter(x=>x.status==='challenged').length];
-  },[model]);
+  },[visibleClaims]);
   const capture=(event:FormEvent<HTMLFormElement>)=>{
     event.preventDefault();
     if(!workspace||!statement.trim())return;
@@ -58,11 +59,11 @@ export function PersonalModelView() {
     </section>
     <section className="space-y-3">
       <div><h2 className="font-display text-lg font-semibold text-[#f5f5f3]">Claims ledger</h2><p className="text-xs text-[#9ba3b0]">Newest first · {model.reviewEvents.length} append-only review events</p></div>
-      {model.claims.length===0?<div className="rounded-2xl border border-dashed border-white/[0.14] p-8 text-center"><CircleHelp className="mx-auto mb-3 text-[#9ba3b0]" size={22}/><p className="text-sm font-medium text-[#f5f5f3]">No personal claims captured yet</p><p className="mt-1 text-xs text-[#9ba3b0]">The model starts empty. It will not silently import personality scores or assumptions from the sample archive.</p></div>:
-      [...model.claims].reverse().map(claim=><article key={claim.id} className="rounded-2xl border border-white/[0.08] bg-[rgba(12,13,16,0.85)] p-4 sm:p-5">
+      {visibleClaims.length===0?<div className="rounded-2xl border border-dashed border-white/[0.14] p-8 text-center"><CircleHelp className="mx-auto mb-3 text-[#9ba3b0]" size={22}/><p className="text-sm font-medium text-[#f5f5f3]">No personal claims captured yet</p><p className="mt-1 text-xs text-[#9ba3b0]">The model starts empty. It will not silently import personality scores or assumptions from the sample archive.</p></div>:
+      [...visibleClaims].reverse().map(claim=><article key={claim.id} className="rounded-2xl border border-white/[0.08] bg-[rgba(12,13,16,0.85)] p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2"><span className="rounded-full border border-white/[0.12] px-2.5 py-1 font-mono text-[10px] uppercase text-[#aeb5c2]">{STATUS[claim.status]}</span><span className="font-mono text-[10px] text-[#7c8494]">{claim.kind.replaceAll('_',' ')} · {claim.domain}</span></div>
         <p className="mt-3 text-sm leading-relaxed text-[#f5f5f3]">{claim.statement}</p>
-        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[#9ba3b0]"><span>Basis: {claim.epistemicBasis.replaceAll('_',' ')}</span><span>Evidence: {claim.evidence.length}</span><span>Confidence: {Math.round(claim.confidence*100)}% · provisional estimate</span><span>{new Date(claim.createdAt).toLocaleDateString()}</span></div>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[#9ba3b0]"><span>Basis: {claim.epistemicBasis.replaceAll('_',' ')}</span><span>Evidence: {claim.evidence.length}</span><span>Confidence: {Math.round(claim.confidence*100)}% · provisional estimate · {claim.sensitivity}</span><span>{new Date(claim.createdAt).toLocaleDateString()}</span></div>
         {claim.evidence.map(link=>{const obs=model.observations.find(x=>x.id===link.observationId);const src=obs&&model.sources.find(x=>x.id===obs.sourceId);return <div key={link.id} className="mt-3 border-l-2 border-[#d4ff3a]/50 bg-white/[0.025] px-3 py-2"><p className="text-xs leading-relaxed text-[#c8ced8]">{obs?.content??'Observation unavailable'}</p><p className="mt-1 font-mono text-[9px] text-[#7c8494]">{src?.title??'Unknown source'} · {obs?.method.replaceAll('_',' ')}</p></div>;})}
         {!['rejected','superseded','expired'].includes(claim.status)&&<div className="mt-4 flex flex-wrap gap-2 border-t border-white/[0.07] pt-3">
           <button onClick={()=>workspace.reviewModelClaim(claim.id,'confirm',createMindId('rev'),'I confirm this reflects my current self-understanding.')} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-emerald-400/30 px-3 text-[11px] text-emerald-300"><Check size={13}/> Confirm current</button>
