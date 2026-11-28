@@ -1233,7 +1233,7 @@ export default function App() {
               `Plan created: 1 project, ${records.tasks.length} tasks, ${records.habits.length} habits`,
               `Rencana dibuat: 1 proyek, ${records.tasks.length} tugas, ${records.habits.length} kebiasaan`,
             ));
-          }}}
+          }}
         />
       )}
       {toast && <div className="toast" role="status"><CheckCircle2 size={16} />{toast}</div>}
