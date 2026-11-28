@@ -26,7 +26,7 @@ import {
 import {
   addMindEdge,
   addMindSource,
-  buildDatasetFromInPursuitGoals,
+  mergeExecutionSnapshotIntoDataset,
   cloneDatasetForCustomization,
   createEmptyMindDataset,
   deleteMindEdge,
@@ -391,17 +391,20 @@ export function MindWorkspaceProvider({ children }: { children: React.ReactNode 
 
   const seedFromInPursuitGoals = useCallback(() => {
     if (!appData) return;
-    const seeded = buildDatasetFromInPursuitGoals(appData);
-    commitRecord(() => {
-      const customProfile = createDefaultMindProfile('custom', ownerName);
+    commitRecord((prev) => {
+      const base = prev.profile.mode === 'custom' && prev.customDataset
+        ? prev.customDataset
+        : createEmptyMindDataset();
+      const customProfile = prev.profile.mode === 'custom'
+        ? prev.profile
+        : createDefaultMindProfile('custom', ownerName);
       return {
-        ...createDefaultMindWorkspaceRecord(ownerName, false),
+        ...prev,
         profile: {
           ...customProfile,
-          subtitle:
-            'Living personal architecture synced from your InPursuit life areas, goals, phases, and routines.',
+          subtitle: 'Living personal architecture connected to your goals, projects, tasks and habits.',
         },
-        customDataset: seeded,
+        customDataset: mergeExecutionSnapshotIntoDataset(base, appData),
       };
     });
   }, [appData, commitRecord, ownerName]);
@@ -555,10 +558,13 @@ export function MindWorkspaceProvider({ children }: { children: React.ReactNode 
 
   const activeDataset = useMemo<KnowledgeDataset | null>(() => {
     if (record.profile.mode === 'custom' && record.customDataset) {
-      return record.customDataset;
+      // Execution entities are a live derived layer; user-authored knowledge is preserved.
+      return appData
+        ? mergeExecutionSnapshotIntoDataset(record.customDataset, appData)
+        : record.customDataset;
     }
     return sampleDataset;
-  }, [record.profile.mode, record.customDataset, sampleDataset]);
+  }, [record.profile.mode, record.customDataset, sampleDataset, appData]);
 
   const bundle = useMemo(() => {
     if (!activeDataset) return null;
