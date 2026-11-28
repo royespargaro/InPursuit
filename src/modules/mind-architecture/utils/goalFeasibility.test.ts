@@ -95,6 +95,9 @@ function dataset(nodes: KnowledgeNode[]): KnowledgeDataset {
       multi_domain_nodes: 0,
       nodes_without_domain: 0,
       assistant_proposed_nodes: 0,
+      brief_only_nodes: 0,
+      possible_duplicates: 0,
+      sensitive_review: [],
     },
   } as KnowledgeDataset;
 }
