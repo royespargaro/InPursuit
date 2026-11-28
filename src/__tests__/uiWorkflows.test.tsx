@@ -231,6 +231,9 @@ describe('UI workflow & regression tests', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Move Undated Task higher' }));
     expect(onPriorities).toHaveBeenCalledWith(['t-nodate', 't-future']);
 
+    // Open the secondary task manager before switching its filters
+    fireEvent.click(screen.getByRole('button', { name: /Open full task list/ }));
+
     // Switch to Upcoming tab
     fireEvent.click(screen.getByRole('tab', { name: /Upcoming/ }));
     expect(screen.getAllByText('Future Top3 Task').length).toBeGreaterThan(0);

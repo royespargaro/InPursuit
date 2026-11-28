@@ -120,9 +120,19 @@ export function TodayView({
   const [taskTab, setTaskTab] = useState<TaskTab>('today');
   const [showAllOverdue, setShowAllOverdue] = useState(false);
   const [queueExpanded, setQueueExpanded] = useState(false);
+  const [showTaskManager, setShowTaskManager] = useState(false);
   const [roughDay, setRoughDay] = useState(false);
 
   const schedule = useMemo(() => buildTodaySchedule(data, today), [data, today]);
+  const capacityMinutes = data.personalOS?.capacity?.dailyMinutes ?? 360;
+  const plannedWorkMinutes = useMemo(
+    () => schedule.scheduledTasks.filter(task => task.status === 'todo').reduce(
+      (sum, task) => sum + (data.personalOS?.capacity?.taskEstimates?.[task.id] ?? task.estimatedMinutes ?? 30), 0,
+    ),
+    [schedule.scheduledTasks, data.personalOS],
+  );
+  const capacityLoad = Math.round((plannedWorkMinutes / Math.max(1, capacityMinutes)) * 100);
+
   const activePhaseIds = useMemo(
     () => new Set(schedule.activePhaseProjects.map(p => p.id)),
     [schedule.activePhaseProjects],
@@ -351,6 +361,16 @@ export function TodayView({
         onAddGoal={onAddGoal}
         onOpenMindArchitecture={onOpenMindArchitecture}
       />
+
+      <section className="capacity-signal" aria-label={l('Planned workload capacity', 'Kapasitas beban rencana')}>
+        <div className="capacity-signal-copy">
+          <span className="eyebrow">{l('capacity check', 'cek kapasitas')}</span>
+          <b>{l('Your planned workload', 'Beban kerja terencana')}</b>
+          <small>{plannedWorkMinutes} / {capacityMinutes} {l('minutes estimated', 'menit estimasi')}</small>
+        </div>
+        <div className="capacity-signal-track"><span className={capacityLoad > 100 ? 'over' : ''} style={{ width: `${Math.min(100, capacityLoad)}%` }} /></div>
+        <strong className={capacityLoad > 100 ? 'over' : ''}>{capacityLoad}%</strong>
+      </section>
 
       <section className="panel daily-briefing-panel" aria-label={l('Daily intelligence briefing', 'Ringkasan kecerdasan harian')}>
         <div className="panel-head">
@@ -842,10 +862,14 @@ export function TodayView({
         </section>
       </div>
 
-      <section className="panel tasks-panel">
+      {showTaskManager ? (
+        <section className="panel tasks-panel">
         <div className="panel-head">
           <div><div className="eyebrow">{l('make progress visible', 'buat progres terlihat')}</div><h2>{l('Tasks', 'Tugas')}</h2></div>
-          <Button variant="solid" onClick={onAddTask}><Plus size={15} /> {l('Add task', 'Tambah tugas')}</Button>
+          <div className="project-title-actions">
+            <button type="button" className="text-action" onClick={() => setShowTaskManager(false)}>{l('Collapse', 'Tutup')}</button>
+            <Button variant="solid" onClick={onAddTask}><Plus size={15} /> {l('Add task', 'Tambah tugas')}</Button>
+          </div>
         </div>
 
         <div className="task-tabs" role="tablist" aria-label={l('Filter tasks', 'Saring tugas')}>
@@ -997,6 +1021,12 @@ export function TodayView({
           </div>
         )}
       </section>
+      ) : (
+        <button type="button" className="task-manager-trigger" onClick={() => setShowTaskManager(true)}>
+          <span><b>{l('Open full task list', 'Buka daftar tugas lengkap')}</b><small>{data.tasks.filter(task => task.status === 'todo').length} {l('open tasks · filters and overdue recovery', 'tugas terbuka · filter dan pemulihan keterlambatan')}</small></span>
+          <ArrowUpRight size={16} />
+        </button>
+      )}
 
       <div className="today-bottom">
         <span><span className="status-dot" /> {l(`${dailyTasksDone} tasks completed today`, `${dailyTasksDone} tugas selesai hari ini`)}</span>

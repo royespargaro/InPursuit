@@ -79,6 +79,7 @@ export interface Task {
   completedAt: string | null;
   targetQuantity?: number;
   completedQuantity?: number;
+  estimatedMinutes?: number;
   importId?: string;
   sourceQuote?: string;
 }
@@ -95,6 +96,10 @@ export interface Habit {
   timeBlock?: { start: string; end: string };
   minimumVersion?: string;
   goalId?: ID | null;
+  cue?: string;
+  friction?: string;
+  difficulty?: number;
+  recoveryPlan?: string;
   importId?: string;
   sourceQuote?: string;
 }
@@ -119,6 +124,66 @@ export interface DailyReview {
   energy: number;
 }
 
+
+export interface PersonalPrinciple {
+  id: ID;
+  title: string;
+  statement: string;
+  reason: string;
+  behaviors: string;
+  contradictions: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DecisionEntry {
+  id: ID;
+  title: string;
+  context: string;
+  options: string;
+  choice: string;
+  assumptions: string;
+  prediction: string;
+  reviewAt: string;
+  outcome: string;
+  createdAt: string;
+  reviewedAt?: string;
+}
+
+export interface KnowledgeClaim {
+  id: ID;
+  claim: string;
+  domain: string;
+  source: string;
+  evidence: string;
+  confidence: number;
+  status: 'provisional' | 'confirmed' | 'disputed' | 'outdated';
+  createdAt: string;
+  verifiedAt?: string;
+}
+
+export interface GuidedReflection {
+  id: ID;
+  date: string;
+  prompt: string;
+  answer: string;
+  interpretation: string;
+  interpretationStatus: 'hypothesis' | 'user-confirmed' | 'rejected';
+  createdAt: string;
+}
+
+export interface PersonalOSData {
+  principles: PersonalPrinciple[];
+  decisions: DecisionEntry[];
+  claims: KnowledgeClaim[];
+  reflections: GuidedReflection[];
+  capacity: {
+    dailyMinutes: number;
+    focusMinutes: number;
+    taskEstimates: Record<string, number>;
+  };
+}
+
 export interface AppData {
   schemaVersion: 3;
   syncVersion?: number;
@@ -130,6 +195,7 @@ export interface AppData {
   habitLogs: HabitLog[];
   dailyPlans: DailyPlan[];
   dailyReviews: DailyReview[];
+  personalOS?: PersonalOSData;
   updatedAt?: string;
 }
 

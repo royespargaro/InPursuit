@@ -4,6 +4,7 @@ import { Button, Empty, prettyDate, Progress, SectionTitle } from '../components
 import { useLanguage } from '../context/LanguageContext';
 import type { AppData } from '../types';
 import { getWeeklyReflectionSummary } from '../utils/intelligence';
+import { PersonalOSStudio } from './PersonalOSStudio';
 
 interface ReviewViewProps {
   data: AppData;
@@ -176,6 +177,7 @@ export function ReviewView({ data, today, onWrite, onDeleteReview }: ReviewViewP
         </div>
         <Button variant="outline" onClick={() => onWrite(today)}>{l('Reflect now', 'Refleksi sekarang')} <ArrowUpRight size={14} /></Button>
       </section>
+      <PersonalOSStudio />
     </div>
   );
 }
