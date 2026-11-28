@@ -110,7 +110,19 @@ export function sanitizeMindModel(raw: unknown): MindModel {
       ...(optional(x.note,1000)?{note:optional(x.note,1000)}:{}),
       actor:x.actor==='assistant'||x.actor==='system'?x.actor:'user',createdAt:iso(x.createdAt,now)});
   }
-  return {schemaVersion:2,sources,observations,claims,relationships,reviewEvents,updatedAt:iso(raw.updatedAt,now)};
+  // Review events are the authority for reviewed status. Imported status labels
+  // without a corresponding event are downgraded instead of trusted.
+  const reviewedClaims = claims.map(claim => {
+    const latest = [...reviewEvents].reverse().find(event => event.targetType === 'claim' && event.targetId === claim.id);
+    const status = latest ? en(latest.nextStatus, CLAIM_STATUSES, 'candidate') : 'candidate';
+    return { ...claim, status };
+  });
+  const reviewedRelationships = relationships.map(relationship => {
+    const latest = [...reviewEvents].reverse().find(event => event.targetType === 'relationship' && event.targetId === relationship.id);
+    const status = latest ? en(latest.nextStatus, REL_STATUSES, 'proposed') : 'proposed';
+    return { ...relationship, status };
+  });
+  return {schemaVersion:2,sources,observations,claims:reviewedClaims,relationships:reviewedRelationships,reviewEvents,updatedAt:iso(raw.updatedAt,now)};
 }
 
 export function addMindSource(model: MindModel, source: MindSourceRecord): MindModel {
@@ -146,7 +158,7 @@ export function addMindRelationship(model: MindModel, relationship: MindRelation
   if (!ids.has(relationship.fromClaimId)||!ids.has(relationship.toClaimId)||relationship.fromClaimId===relationship.toClaimId||
       model.relationships.some(x=>x.id===relationship.id)||model.relationships.length>=LIMITS.relationships||
       relationship.observationIds.some(id=>!model.observations.some(x=>x.id===id))) return model;
-  return {...model,relationships:[...model.relationships,relationship],updatedAt:relationship.createdAt};
+  return {...model,relationships:[...model.relationships,{...relationship,status:'proposed',reviewedAt:undefined}],updatedAt:relationship.createdAt};
 }
 export function reviewMindRelationship(model: MindModel, relationshipId: string, decision: 'accept_link'|'reject_link', eventId: string, note?: string, now=new Date().toISOString()): MindModel {
   const rel=model.relationships.find(x=>x.id===relationshipId);
