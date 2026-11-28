@@ -101,6 +101,7 @@ describe('computeExecutionIntelligence', () => {
       createEmptyMindDataset(),
       {},
       true,
+      new Set(),
       new Date('2026-01-05T12:00:00'),
     );
 
