@@ -9,6 +9,9 @@ import { useHabits } from './context/HabitContext';
 import { useMindWorkspaceOptional } from './modules/mind-architecture/context/MindWorkspaceContext';
 import { GoalFeasibilityModal } from './components/GoalFeasibilityModal';
 import { assessGoalFeasibility, type GoalFeasibilityAssessment } from './modules/mind-architecture/utils/goalFeasibility';
+import { useMindWorkspaceOptional } from './modules/mind-architecture/context/MindWorkspaceContext';
+import { GoalFeasibilityModal } from './components/GoalFeasibilityModal';
+import { assessGoalFeasibility, type GoalFeasibilityAssessment } from './modules/mind-architecture/utils/goalFeasibility';
 import { useLanguage } from './context/LanguageContext';
 import {
   createId,
@@ -89,6 +92,7 @@ function writeOnboardingDismissed(scope: string, dismissed: boolean) {
 export default function App() {
   const { locale, l } = useLanguage();
   const mindWorkspace = useMindWorkspaceOptional();
+  const mindWorkspace = useMindWorkspaceOptional();
   const {
     data,
     updateData,
@@ -118,6 +122,7 @@ export default function App() {
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [pendingRestore, setPendingRestore] = useState<ParsedBackup | null>(null);
   const [showPlanImport, setShowPlanImport] = useState(false);
+  const [goalAssessment, setGoalAssessment] = useState<GoalFeasibilityAssessment | null>(null);
   const [goalAssessment, setGoalAssessment] = useState<GoalFeasibilityAssessment | null>(null);
 
   const onboardingScope = user?.uid ?? 'guest';
@@ -982,6 +987,11 @@ export default function App() {
                 const knowledge = mindWorkspace?.activeDataset ?? mindWorkspace?.sampleDataset ?? null;
                 setGoalAssessment(assessGoalFeasibility(goal, knowledge));
               }
+              if (kind === 'goal') {
+                const goal = value as Goal;
+                const knowledge = mindWorkspace?.activeDataset ?? mindWorkspace?.sampleDataset ?? null;
+                setGoalAssessment(assessGoalFeasibility(goal, knowledge));
+              }
               if (kind === 'project') {
                 const project = value as Project;
                 if (project.status === 'active' && !canActivateProject(data.projects, project.id)) {
@@ -1191,6 +1201,60 @@ export default function App() {
         )}
       </Suspense>
 
+      {goalAssessment && (
+        <GoalFeasibilityModal
+          assessment={goalAssessment}
+          onClose={() => setGoalAssessment(null)}
+          onCreatePlan={() => {
+            const goal = data.goals.find(item => item.id === goalAssessment.goalId);
+            if (!goal) {
+              setGoalAssessment(null);
+              notify(l('Goal was not found. Reopen it to reassess.', 'Tujuan tidak ditemukan. Buka kembali untuk menilai ulang.'));
+              return;
+            }
+            const now = new Date();
+            const createdAt = now.toISOString();
+            const projectId = uid();
+            const maxOffset = goalAssessment.daysRemaining === null
+              ? 7
+              : Math.max(0, Math.min(7, goalAssessment.daysRemaining));
+            const projectStatus: Project['status'] = activeProjects.length < MAX_ACTIVE_PROJECTS ? 'active' : 'planned';
+            const project: Project = {
+              id: projectId,
+              goalId: goal.id,
+              title: `Execution plan · ${goal.title}`,
+              description: 'A first-pass plan generated from the goal feasibility review. Adjust tasks as new information arrives.',
+              dueDate: goal.targetDate || '',
+              status: projectStatus,
+              createdAt,
+              startDate: today,
+            };
+            const tasks: Task[] = goalAssessment.suggestedActions.map((action, index) => {
+              const due = new Date(`${today}T12:00:00`);
+              due.setDate(due.getDate() + Math.min(action.daysFromStart, maxOffset));
+              const dueDate = `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`;
+              return {
+                id: uid(),
+                projectId,
+                title: action.title,
+                dueDate,
+                priority: index < 2 ? 'high' : 'medium',
+                status: 'todo',
+                createdAt,
+                completedAt: null,
+              };
+            });
+            updateData(current => ({
+              ...current,
+              projects: [...current.projects, project],
+              tasks: [...current.tasks, ...tasks],
+            }));
+            setGoalAssessment(null);
+            setView('projects');
+            notify(l('Execution plan created and linked to your goal', 'Rencana eksekusi dibuat dan dihubungkan ke tujuanmu'));
+          }}
+        />
+      )}
       {goalAssessment && (
         <GoalFeasibilityModal
           assessment={goalAssessment}
