@@ -39,7 +39,6 @@ import {
 } from '../services/mindBuilder';
 import {
   createDefaultMindProfile,
-  createDefaultMindWorkspaceRecord,
   loadLocalMindWorkspace,
   MAX_RECENT_EXPLORATIONS,
   sanitizeKnowledgeDataset,
