@@ -328,6 +328,7 @@ export function MindArchitectureModule({
         {activeView === 'overview' && (
           <OverviewView
             dataset={dataset}
+            executionData={useSharedWorkspace ? workspace!.executionData : null}
             layout={useSharedWorkspace ? workspace!.layout : undefined}
             profile={profile}
             syncState={useSharedWorkspace ? workspace!.syncState : 'local'}
