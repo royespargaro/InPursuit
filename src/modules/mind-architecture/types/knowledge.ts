@@ -323,7 +323,7 @@ export interface MindClaim {
   domain: string;
   status: MindClaimStatus;
   epistemicBasis: MindEpistemicBasis;
-  confidence: number;
+  confidence: number | null;
   sensitivity: 'normal' | 'sensitive' | 'highly_sensitive';
   context?: string;
   validFrom?: string;
