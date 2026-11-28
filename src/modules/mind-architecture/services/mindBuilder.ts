@@ -681,9 +681,9 @@ export function buildDatasetFromInPursuitGoals(appData: AppData): KnowledgeDatas
 
     if (gMeta) {
       edges.push({
-        id: createExecutionEdgeId('delivers', gMeta.nodeId, pNodeId),
-        source: gMeta.nodeId,
-        target: pNodeId,
+        id: createExecutionEdgeId('delivers', pNodeId, gMeta.nodeId),
+        source: pNodeId,
+        target: gMeta.nodeId,
         relationship: 'delivers',
         basis: 'explicit',
         explanation: `${proj.title} is an execution phase for this goal.`,
