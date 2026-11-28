@@ -679,9 +679,62 @@ export function buildDatasetFromInPursuitGoals(appData: AppData): KnowledgeDatas
         id: createMindId('edge'),
         source: gMeta.nodeId,
         target: pNodeId,
-        relationship: 'executes_via',
+        relationship: 'delivers',
         basis: 'explicit',
         explanation: `${proj.title} is an execution phase for this goal.`,
+        confidence: 'high',
+        source_ids: [srcId],
+        evidence_classes: ['E3_workspace_goal'],
+        assertion_level: 'asserted',
+        claim_scope: 'personal',
+        review_status: 'verified',
+        presentation_rule: 'Directly linked from InPursuit',
+        external_citation: null,
+      });
+    }
+  }
+
+  const projectNodeIdByProjectId = new Map<string, string>();
+  for (const project of appData.projects.slice(0, 40)) {
+    projectNodeIdByProjectId.set(project.id, `proj_${project.id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 48)}`);
+  }
+
+  // Tasks become first-class execution nodes and retain their project provenance.
+  for (const task of appData.tasks.slice(0, 100)) {
+    const taskNodeId = `task_${task.id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 48)}`;
+    const projectNodeId = task.projectId ? projectNodeIdByProjectId.get(task.projectId) : undefined;
+    const parentProject = task.projectId ? appData.projects.find((project) => project.id === task.projectId) : undefined;
+    const parentGoal = parentProject?.goalId ? appData.goals.find((goal) => goal.id === parentProject.goalId) : undefined;
+    const parentArea = parentGoal?.lifeAreaId ? appData.lifeAreas.find((area) => area.id === parentGoal.lifeAreaId) : undefined;
+    nodes.push({
+      id: taskNodeId,
+      title: task.title,
+      type: 'Task',
+      domains: parentArea ? [parentArea.name] : [],
+      level: 4,
+      engagement: task.status === 'done' ? 'practiced' : 'active',
+      lifecycle: task.status,
+      lifecycle_basis: 'inpursuit_task',
+      description: `Task status: ${task.status}`,
+      source_ids: [srcId],
+      evidence_classes: ['E3_workspace_goal'],
+      confidence: 'high',
+      mentions: 1,
+      aliases: [],
+      evidence_grade: task.status === 'done' ? 'Q3' : 'Q2',
+      first_observed_at: task.createdAt.slice(0, 10),
+      last_observed_at: task.completedAt?.slice(0, 10) ?? todayStr,
+      observation_ids: [],
+      question_ids: [],
+    });
+    if (projectNodeId) {
+      edges.push({
+        id: createMindId('edge'),
+        source: taskNodeId,
+        target: projectNodeId,
+        relationship: 'advances',
+        basis: 'explicit',
+        explanation: `${task.title} advances its linked project.`,
         confidence: 'high',
         source_ids: [srcId],
         evidence_classes: ['E3_workspace_goal'],
@@ -718,6 +771,26 @@ export function buildDatasetFromInPursuitGoals(appData: AppData): KnowledgeDatas
       observation_ids: [],
       question_ids: [],
     });
+
+    const linkedGoal = habit.goalId ? goalNodeIdByGoalId.get(habit.goalId) : undefined;
+    if (linkedGoal) {
+      edges.push({
+        id: createMindId('edge'),
+        source: hNodeId,
+        target: linkedGoal.nodeId,
+        relationship: 'supports',
+        basis: 'explicit',
+        explanation: `${habit.name} is explicitly linked to this goal in InPursuit.`,
+        confidence: 'high',
+        source_ids: [srcId],
+        evidence_classes: ['E3_workspace_goal'],
+        assertion_level: 'asserted',
+        claim_scope: 'personal',
+        review_status: 'verified',
+        presentation_rule: 'Directly linked from InPursuit',
+        external_citation: null,
+      });
+    }
   }
 
   return recomputeDerivedDatasetStats({
