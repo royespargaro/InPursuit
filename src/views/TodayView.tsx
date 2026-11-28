@@ -120,6 +120,7 @@ export function TodayView({
   const [taskTab, setTaskTab] = useState<TaskTab>('today');
   const [showAllOverdue, setShowAllOverdue] = useState(false);
   const [queueExpanded, setQueueExpanded] = useState(false);
+  const [showTaskManager, setShowTaskManager] = useState(false);
   const [roughDay, setRoughDay] = useState(false);
 
   const schedule = useMemo(() => buildTodaySchedule(data, today), [data, today]);
@@ -861,7 +862,8 @@ export function TodayView({
         </section>
       </div>
 
-      <section className="panel tasks-panel">
+      {showTaskManager ? (
+        <section className="panel tasks-panel">
         <div className="panel-head">
           <div><div className="eyebrow">{l('make progress visible', 'buat progres terlihat')}</div><h2>{l('Tasks', 'Tugas')}</h2></div>
           <Button variant="solid" onClick={onAddTask}><Plus size={15} /> {l('Add task', 'Tambah tugas')}</Button>
@@ -1016,6 +1018,12 @@ export function TodayView({
           </div>
         )}
       </section>
+      ) : (
+        <button type="button" className="task-manager-trigger" onClick={() => setShowTaskManager(true)}>
+          <span><b>{l('Open full task list', 'Buka daftar tugas lengkap')}</b><small>{data.tasks.filter(task => task.status === 'todo').length} {l('open tasks · filters and overdue recovery', 'tugas terbuka · filter dan pemulihan keterlambatan')}</small></span>
+          <ArrowUpRight size={16} />
+        </button>
+      )}
 
       <div className="today-bottom">
         <span><span className="status-dot" /> {l(`${dailyTasksDone} tasks completed today`, `${dailyTasksDone} tugas selesai hari ini`)}</span>
