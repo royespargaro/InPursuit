@@ -22,7 +22,7 @@ export function buildDailyBriefing(
   completedHabits: number,
   scheduledHabits: number,
 ): DailyBriefing {
-  const focusTask = priorityTasks.find((task) => task.status !== 'done') ?? priorityTasks[0] ?? null;
+  const focusTask = priorityTasks.find((task) => task.status !== 'done') ?? null;
   const project = focusTask?.projectId
     ? data.projects.find((item) => item.id === focusTask.projectId) ?? null
     : null;
